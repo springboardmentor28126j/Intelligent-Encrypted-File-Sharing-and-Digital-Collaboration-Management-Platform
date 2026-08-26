@@ -1,3 +1,7 @@
+from fastapi import UploadFile, File
+import shutil
+import os
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import engine, Base, SessionLocal
@@ -8,7 +12,13 @@ import auth
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 def get_db():
     db = SessionLocal()
     try:
@@ -41,3 +51,21 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
 
     token = auth.create_access_token({"sub": db_user.email})
     return {"access_token": token, "token_type": "bearer"}
+UPLOAD_DIR = "uploads"
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    new_file = models.FileRecord(filename=file.filename, owner_email="test@example.com")
+    db.add(new_file)
+    db.commit()
+
+    return {"message": "File uploaded successfully", "filename": file.filename}
+
+@app.get("/files")
+def list_files(db: Session = Depends(get_db)):
+    files = db.query(models.FileRecord).all()
+    return files
