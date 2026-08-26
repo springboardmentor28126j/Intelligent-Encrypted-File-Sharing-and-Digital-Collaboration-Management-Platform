@@ -1,0 +1,1 @@
+# Intelligent-Encrypted-File-Sharing-and-Digital-Collaboration-Management-Platform
