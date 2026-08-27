@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TrustShare - Shared With Me</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+        }
+
+        .navbar {
+            background: #1f4e79;
+            color: white;
+            padding: 18px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar h2 {
+            margin: 0;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: white;
+            font-size: 14px;
+        }
+
+        .dashboard-button {
+            background: #28a745;
+        }
+
+        .dashboard-button:hover {
+            background: #218838;
+        }
+
+        .logout {
+            background: #dc3545;
+        }
+
+        .logout:hover {
+            background: #b02a37;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 900px;
+            margin: 50px auto;
+        }
+
+        .box {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        h1 {
+            color: #1f4e79;
+            margin-top: 0;
+        }
+
+        .file-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+            background: #fafafa;
+        }
+
+        .file-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1f4e79;
+        }
+
+        .details {
+            margin-top: 10px;
+            color: #555;
+        }
+
+        .empty {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        #message {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navigation -->
+
+    <div class="navbar">
+
+        <h2>TrustShare</h2>
+
+        <div class="buttons">
+
+            <button
+                class="dashboard-button"
+                onclick="goToDashboard()">
+                Dashboard
+            </button>
+
+            <button
+                class="logout"
+                onclick="logout()">
+                Logout
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- Main Content -->
+
+    <div class="container">
+
+        <div class="box">
+
+            <h1>📥 Shared With Me</h1>
+
+            <p>
+                Files that other TrustShare users
+                have shared with you will appear here.
+            </p>
+
+            <div id="message">
+                Loading shared files...
+            </div>
+
+            <div id="files"></div>
+
+        </div>
+
+    </div>
+
+
+    <script>
+
+        // ==========================================
+        // CHECK LOGIN
+        // ==========================================
+
+        function checkLogin() {
+
+            const token =
+                localStorage.getItem("access_token");
+
+            if (!token) {
+
+                window.location.href = "login.html";
+
+                return false;
+            }
+
+            return true;
+        }
+
+
+        // ==========================================
+        // LOAD SHARED FILES
+        // ==========================================
+
+        async function loadSharedFiles() {
+
+            const token =
+                localStorage.getItem("access_token");
+
+            const message =
+                document.getElementById("message");
+
+            const filesContainer =
+                document.getElementById("files");
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        "http://127.0.0.1:8000/shared-with-me",
+                        {
+                            method: "GET",
+
+                            headers: {
+                                "Authorization":
+                                    "Bearer " + token,
+
+                                "Accept":
+                                    "application/json"
+                            }
+                        }
+                    );
+
+
+                const data =
+                    await response.json();
+
+
+                console.log(
+                    "Shared files:",
+                    data
+                );
+
+
+                // ==========================================
+                // TOKEN EXPIRED
+                // ==========================================
+
+                if (response.status === 401) {
+
+                    message.innerText =
+                        "Session expired. Please login again.";
+
+                    localStorage.clear();
+
+                    setTimeout(function() {
+
+                        window.location.href =
+                            "login.html";
+
+                    }, 1500);
+
+                    return;
+                }
+
+
+                // ==========================================
+                // SERVER ERROR
+                // ==========================================
+
+                if (!response.ok) {
+
+                    message.innerText =
+                        data.detail ||
+                        "Unable to load shared files.";
+
+                    return;
+                }
+
+
+                // ==========================================
+                // NO FILES
+                // ==========================================
+
+                if (
+                    !data.shared_files ||
+                    data.shared_files.length === 0
+                ) {
+
+                    message.innerText =
+                        "No files have been shared with you.";
+
+                    filesContainer.innerHTML =
+                        '<div class="empty">No shared files found.</div>';
+
+                    return;
+                }
+
+
+                // ==========================================
+                // FILES FOUND
+                // ==========================================
+
+                message.innerText =
+                    "Files shared with you:";
+
+                filesContainer.innerHTML = "";
+
+
+                // ==========================================
+                // DISPLAY FILES
+                // ==========================================
+
+                data.shared_files.forEach(function(file) {
+
+                    const card =
+                        document.createElement("div");
+
+                    card.className =
+                        "file-card";
+
+
+                    // File name
+
+                    const fileName =
+                        document.createElement("div");
+
+                    fileName.className =
+                        "file-name";
+
+                    fileName.innerText =
+                        "📄 " +
+                        (file.filename || "Unknown file");
+
+
+                    // Sender name
+
+                    const senderName =
+                        document.createElement("div");
+
+                    senderName.className =
+                        "details";
+
+                    senderName.innerText =
+                        "Shared by: " +
+                        (file.sender_name || "Unknown");
+
+
+                    // Sender ID
+
+                    const senderId =
+                        document.createElement("div");
+
+                    senderId.className =
+                        "details";
+
+                    senderId.innerText =
+                        "Sender User ID: " +
+                        (file.sender_id ?? "Unknown");
+
+
+                    // Recipient ID
+
+                    const recipientId =
+                        document.createElement("div");
+
+                    recipientId.className =
+                        "details";
+
+                    recipientId.innerText =
+                        "Recipient User ID: " +
+                        (file.recipient_id ?? "Unknown");
+
+
+                    // Add everything to card
+
+                    card.appendChild(fileName);
+
+                    card.appendChild(senderName);
+
+                    card.appendChild(senderId);
+
+                    card.appendChild(recipientId);
+
+
+                    // Add card to page
+
+                    filesContainer.appendChild(card);
+
+                });
+
+            }
+
+
+            catch (error) {
+
+                console.error(
+                    "Error loading shared files:",
+                    error
+                );
+
+                message.innerText =
+                    "Cannot connect to the TrustShare server.";
+
+            }
+
+        }
+
+
+        // ==========================================
+        // DASHBOARD
+        // ==========================================
+
+        function goToDashboard() {
+
+            window.location.href =
+                "dashboard.html";
+
+        }
+
+
+        // ==========================================
+        // LOGOUT
+        // ==========================================
+
+        function logout() {
+
+            localStorage.clear();
+
+            window.location.href =
+                "login.html";
+
+        }
+
+
+        // ==========================================
+        // START
+        // ==========================================
+
+        if (checkLogin()) {
+
+            loadSharedFiles();
+
+        }
+
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,161 @@
+1.enter the prompt
+2.
+3.call to the ollama model
+4.provide msg data
+5.llama module service response the user prompt
+6.to create the list checksums
+7.response to the user
+
+
+
+1> import libraries
+2> to create function with ollama
+3> to create function with user prompt
+4> call the prompt function
+5> call the ollama function
+6> get the result
+
+ --------program------
+import ollama
+def stream_response(prompt):
+    Convo=[]
+    Convo.append({"role":"user","content":prompt})
+    stream_Chank=ollama.chat(
+        model="llama3.2",
+        messages=Convo,
+        stream=True
+    )
+    response_data=""
+    for Data in stream_Chank:
+        response_data+=Data["message"]["content"]
+    return response_data
+def get_prompt():
+    prompt=input("Enter your prompt: ")
+    print(type(prompt))
+    return prompt
+while True:
+    user_prompt=get_prompt()
+    if user_prompt.lower()=='exit':
+        print("existing the program.")
+        break
+    response=stream_response(user_prompt)
+    print("response:",response)
+
+
+
+streamlit run llmprogram2.py
+python -m streamlit run llamaprogram
+
+
+workflow of streamlit with ollama
+
+1.
+2.set the page configuration
+3.tittle name
+4.create the message session
+5.action button
+6.ollam"chat(llama3.2 m=,s=,c=)
+7.get the response
+8.display
+
+workflow of streamlit with groq
+1. import library
+2. to provide api key
+3. to call the Groq model
+4. the groq model call to the chat function(it will the create the completion of models loadings and user prompt loading)
+5. to response the data from groq model
+6. to display the content
+
+HUGGING FACE LIBRAIES
+
+transformers pipelines:
+text generation
+chat
+summarization
+translation
+sentiment analysis
+question answering
+image captioning
+ocr
+text to image
+image to image
+speechto text
+text to speech
+object detection
+image classification
+image sengmentation
+
+
+clipdrop apis
+
+STABLE DIFFUSION TEXT-TO-IMAGE=DATAFLOW
+open google colab
+download libraries->pip install diffuser torch
+import libraries
+set the model
+loading the pretrained model
+move/load pipeline to device
+input prompt
+image generation
+   -->text encoding-->node intilization-->denoising u-next-->decode
+9.  output image
+10. display image
+11. end(process complete)
+-----------program------------
+!pip install diffusers
+!pip install torch
+import os
+from os import pipe
+from diffusers import StableDiffusionPipeline
+model_id="sd-legacy/stable-diffusion-v1-5"
+os.environ["HF_TOKEN"]="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"
+pipe=StableDiffusionPipeline.from_pretrained(model_id)
+pipe=pipe.to("cpu")#cpu
+prompt="if junior is happy then automatically senior will be happy in every situtaion"
+display(image)
+
+
+IMAGE CAPTIONING(IMAGE TO TEXT)-DATA FLOW DIAGRAM
+start
+import libraries(os,diffusers,torch,pil)
+set device
+load pipeline
+load image
+run captioning inference
+    -->input image-->blip image captioning model-->generate caption
+7.output
+--------program--------
+import os
+import torch
+from transformers import pipeline
+from PIL import Image
+d_id="cuda" if torch.cuda.is_available() else "cpu"
+d_id=0 if d_id=="cuda" else -1
+pipe_line=pipeline(
+                   "image-text-to-text",model="Salesforce/blip-image-captioning-base",
+                   device=d_id)
+img=Image.open("krishna.png")
+image_data=pipe_line(images=img,text="a photo of ")
+text=image_data[0]["generated_text"]
+
+
+CLIPDROP TEXT-TO-IMAGE API-DATA FLOW DIAGRAM
+import libraries
+set api key value
+prompt text
+call the api request(set->headers->files(from data)
+sent HTTP POST request
+
+TO CREATE OWN AI MODULE WITH THE HELP OF OLLAMA'
+creation of model file( without any extension ) three parameters: 1.FROM(take reference)  2.PARAMETER(temperature)  3.SYSTEM(""" triple quotes """)performace
+to creation of model file with ollama  commands: ollama create
+run the model file with ollama
+
+
+
+
+
+DBMS
+CN
+OS
+OOPS   

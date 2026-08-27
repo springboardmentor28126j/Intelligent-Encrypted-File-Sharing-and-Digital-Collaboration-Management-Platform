@@ -1,0 +1,606 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TrustShare - Share Data</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+        }
+
+        .navbar {
+            background: #1f4e79;
+            color: white;
+            padding: 18px 40px;
+
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar h2 {
+            margin: 0;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .dashboard-button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .logout {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .dashboard-button:hover {
+            background: #218838;
+        }
+
+        .logout:hover {
+            background: #b02a37;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 800px;
+            margin: 50px auto;
+        }
+
+        .header,
+        .share-box {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+
+            box-shadow:
+                0 5px 20px rgba(0, 0, 0, 0.08);
+
+            margin-bottom: 25px;
+        }
+
+        h1,
+        h2 {
+            color: #1f4e79;
+        }
+
+        label {
+            display: block;
+            margin-top: 20px;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 15px;
+        }
+
+        .share-button {
+            margin-top: 25px;
+
+            background: #1f4e79;
+            color: white;
+
+            border: none;
+
+            padding: 12px 25px;
+
+            border-radius: 6px;
+
+            cursor: pointer;
+
+            font-size: 15px;
+        }
+
+        .share-button:hover {
+            background: #163a5c;
+        }
+
+        #message {
+            margin-top: 20px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+    <!-- Navigation -->
+
+    <div class="navbar">
+
+        <h2>TrustShare</h2>
+
+        <div class="buttons">
+
+            <button
+                class="dashboard-button"
+                onclick="goToDashboard()">
+
+                Dashboard
+
+            </button>
+
+            <button
+                class="logout"
+                onclick="logout()">
+
+                Logout
+
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- Main Container -->
+
+    <div class="container">
+
+
+        <!-- Header -->
+
+        <div class="header">
+
+            <h1>🔐 Share Data</h1>
+
+            <p>
+                Securely share your uploaded files
+                with another TrustShare user.
+            </p>
+
+        </div>
+
+
+        <!-- Share Form -->
+
+        <div class="share-box">
+
+            <h2>Share a File</h2>
+
+
+            <!-- File -->
+
+            <label for="fileName">
+                Select File
+            </label>
+
+            <select id="fileName">
+
+                <option value="">
+                    Loading files...
+                </option>
+
+            </select>
+
+
+            <!-- Recipient -->
+
+            <label for="recipientEmail">
+                Recipient Email
+            </label>
+
+            <input
+                type="email"
+                id="recipientEmail"
+                placeholder="Enter recipient email"
+            >
+
+
+            <!-- Share button -->
+
+            <button
+                class="share-button"
+                onclick="shareFile()">
+
+                Share File
+
+            </button>
+
+
+            <div id="message"></div>
+
+        </div>
+
+
+    </div>
+
+
+    <script>
+
+
+        // ==========================================
+        // CHECK LOGIN
+        // ==========================================
+
+        function checkLogin() {
+
+            const token =
+                localStorage.getItem("access_token");
+
+            if (!token) {
+
+                window.location.href =
+                    "login.html";
+
+                return false;
+            }
+
+            return true;
+        }
+
+
+
+        // ==========================================
+        // LOAD USER'S FILES
+        // ==========================================
+
+        async function loadFiles() {
+
+            const token =
+                localStorage.getItem("access_token");
+
+            const fileSelect =
+                document.getElementById("fileName");
+
+            try {
+
+                const response =
+                    await fetch(
+                        "http://127.0.0.1:8000/files",
+                        {
+                            method: "GET",
+
+                            headers: {
+                                "Authorization":
+                                    "Bearer " + token
+                            }
+                        }
+                    );
+
+
+                const data =
+                    await response.json();
+
+
+                // Token expired / invalid
+
+                if (response.status === 401) {
+
+                    localStorage.clear();
+
+                    window.location.href =
+                        "login.html";
+
+                    return;
+                }
+
+
+                // Other server error
+
+                if (!response.ok) {
+
+                    fileSelect.innerHTML =
+                        '<option value="">Unable to load files</option>';
+
+                    return;
+                }
+
+
+                // No files
+
+                if (
+                    !data.files ||
+                    data.files.length === 0
+                ) {
+
+                    fileSelect.innerHTML =
+                        '<option value="">No uploaded files</option>';
+
+                    return;
+                }
+
+
+                // Clear loading message
+
+                fileSelect.innerHTML =
+                    '<option value="">Select a file</option>';
+
+
+                // Add files to dropdown
+
+                data.files.forEach(
+                    function(filename) {
+
+                        const option =
+                            document.createElement(
+                                "option"
+                            );
+
+                        option.value =
+                            filename;
+
+                        option.textContent =
+                            filename;
+
+                        fileSelect.appendChild(
+                            option
+                        );
+
+                    }
+                );
+
+            }
+
+
+            catch (error) {
+
+                console.error(error);
+
+                fileSelect.innerHTML =
+                    '<option value="">Cannot connect to server</option>';
+
+            }
+
+        }
+
+
+
+        // ==========================================
+        // SHARE FILE
+        // ==========================================
+
+        async function shareFile() {
+
+            const fileName =
+                document.getElementById(
+                    "fileName"
+                ).value;
+
+
+            const recipientEmail =
+                document.getElementById(
+                    "recipientEmail"
+                ).value.trim();
+
+
+            const message =
+                document.getElementById(
+                    "message"
+                );
+
+
+            // Check file
+
+            if (!fileName) {
+
+                message.innerText =
+                    "Please select a file.";
+
+                return;
+            }
+
+
+            // Check email
+
+            if (!recipientEmail) {
+
+                message.innerText =
+                    "Please enter recipient email.";
+
+                return;
+            }
+
+
+            // Get JWT token
+
+            const token =
+                localStorage.getItem(
+                    "access_token"
+                );
+
+
+            if (!token) {
+
+                message.innerText =
+                    "Please login again.";
+
+                window.location.href =
+                    "login.html";
+
+                return;
+            }
+
+
+            message.innerText =
+                "Sharing file...";
+
+
+            try {
+
+
+                // ==========================================
+                // CALL FASTAPI SHARE API
+                // ==========================================
+
+                const response =
+                    await fetch(
+                        "http://127.0.0.1:8000/share?filename="
+                        + encodeURIComponent(fileName)
+                        + "&recipient_email="
+                        + encodeURIComponent(recipientEmail),
+
+                        {
+                            method: "POST",
+
+                            headers: {
+
+                                "Authorization":
+                                    "Bearer " + token,
+
+                                "Accept":
+                                    "application/json"
+                            }
+                        }
+                    );
+
+
+                const data =
+                    await response.json();
+
+
+                // ==========================================
+                // TOKEN ERROR
+                // ==========================================
+
+                if (response.status === 401) {
+
+                    message.innerText =
+                        "Session expired. Please login again.";
+
+                    localStorage.clear();
+
+                    setTimeout(
+                        function() {
+
+                            window.location.href =
+                                "login.html";
+
+                        },
+                        1500
+                    );
+
+                    return;
+                }
+
+
+                // ==========================================
+                // SUCCESS
+                // ==========================================
+
+                if (response.ok) {
+
+                    message.innerText =
+                        "File shared successfully with "
+                        + recipientEmail;
+
+                    // Clear email field
+
+                    document.getElementById(
+                        "recipientEmail"
+                    ).value = "";
+
+                }
+
+
+                // ==========================================
+                // ERROR
+                // ==========================================
+
+                else {
+
+                    message.innerText =
+                        data.detail ||
+                        data.message ||
+                        "Unable to share file.";
+
+                }
+
+            }
+
+
+            catch (error) {
+
+                console.error(error);
+
+                message.innerText =
+                    "Cannot connect to the TrustShare server.";
+
+            }
+
+        }
+
+
+
+        // ==========================================
+        // DASHBOARD
+        // ==========================================
+
+        function goToDashboard() {
+
+            window.location.href =
+                "dashboard.html";
+
+        }
+
+
+
+        // ==========================================
+        // LOGOUT
+        // ==========================================
+
+        function logout() {
+
+            localStorage.clear();
+
+            window.location.href =
+                "login.html";
+
+        }
+
+
+
+        // ==========================================
+        // START PAGE
+        // ==========================================
+
+        if (checkLogin()) {
+
+            loadFiles();
+
+        }
+
+    </script>
+
+
+</body>
+
+</html>
+```

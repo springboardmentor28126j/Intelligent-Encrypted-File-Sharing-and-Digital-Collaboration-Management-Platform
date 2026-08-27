@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TrustShare - My Files</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+        }
+
+        .navbar {
+            background: #1f4e79;
+            color: white;
+            padding: 18px 40px;
+
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar h2 {
+            margin: 0;
+        }
+
+        .dashboard-button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        .dashboard-button:hover {
+            background: #218838;
+        }
+
+        .logout {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .logout:hover {
+            background: #b02a37;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1000px;
+            margin: 40px auto;
+        }
+
+        .header,
+        .upload-box,
+        .files-box {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+            margin-bottom: 25px;
+        }
+
+        h1,
+        h2 {
+            color: #1f4e79;
+        }
+
+        .upload-button {
+            background: #1f4e79;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .upload-button:hover {
+            background: #163a5c;
+        }
+
+        #message {
+            margin-top: 15px;
+            color: #555;
+        }
+
+        #fileList {
+            margin-top: 15px;
+        }
+
+        .file-item {
+            background: #f4f7fb;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+    <!-- Navigation -->
+
+    <div class="navbar">
+
+        <h2>TrustShare</h2>
+
+        <div>
+
+            <button
+                class="dashboard-button"
+                onclick="goToDashboard()">
+
+                Dashboard
+
+            </button>
+
+            <button
+                class="logout"
+                onclick="logout()">
+
+                Logout
+
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <div class="container">
+
+
+        <!-- Header -->
+
+        <div class="header">
+
+            <h1>My Files</h1>
+
+            <p>
+                Manage your uploaded files securely.
+            </p>
+
+        </div>
+
+
+        <!-- Upload File -->
+
+        <div class="upload-box">
+
+            <h2>Upload File</h2>
+
+            <input
+                type="file"
+                id="fileInput"
+            >
+
+            <br>
+            <br>
+
+            <button
+                class="upload-button"
+                onclick="uploadFile()">
+
+                Upload File
+
+            </button>
+
+            <div id="message"></div>
+
+        </div>
+
+
+        <!-- Uploaded Files -->
+
+        <div class="files-box">
+
+            <h2>My Uploaded Files</h2>
+
+            <div id="fileList">
+
+                <p>
+                    Loading your files...
+                </p>
+
+            </div>
+
+        </div>
+
+
+    </div>
+
+
+    <script>
+
+
+        // Check login
+
+        function checkLogin() {
+
+            const token =
+                localStorage.getItem("access_token");
+
+
+            if (!token) {
+
+                window.location.href =
+                    "login.html";
+
+                return false;
+            }
+
+
+            return true;
+
+        }
+
+
+
+        // Load uploaded files
+
+        async function loadFiles() {
+
+            const token =
+                localStorage.getItem(
+                    "access_token"
+                );
+
+
+            const fileList =
+                document.getElementById(
+                    "fileList"
+                );
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        "http://127.0.0.1:8000/files",
+                        {
+                            method: "GET",
+
+                            headers: {
+                                "Authorization":
+                                    "Bearer " + token
+                            }
+                        }
+                    );
+
+
+                const data =
+                    await response.json();
+
+
+                // Unauthorized
+
+                if (response.status === 401) {
+
+                    localStorage.clear();
+
+                    window.location.href =
+                        "login.html";
+
+                    return;
+                }
+
+
+                // Other error
+
+                if (!response.ok) {
+
+                    fileList.innerHTML =
+                        "<p>Unable to load files.</p>";
+
+                    return;
+                }
+
+
+                // No files
+
+                if (
+                    !data.files ||
+                    data.files.length === 0
+                ) {
+
+                    fileList.innerHTML =
+                        "<p>No files uploaded yet.</p>";
+
+                    return;
+                }
+
+
+                // Clear loading message
+
+                fileList.innerHTML = "";
+
+
+                // Display each file
+
+                data.files.forEach(
+                    function(filename) {
+
+                        const fileItem =
+                            document.createElement(
+                                "div"
+                            );
+
+
+                        fileItem.className =
+                            "file-item";
+
+
+                        fileItem.innerText =
+                            "📄 " + filename;
+
+
+                        fileList.appendChild(
+                            fileItem
+                        );
+
+                    }
+                );
+
+            }
+
+
+            catch (error) {
+
+                console.error(error);
+
+                fileList.innerHTML =
+                    "<p>Cannot connect to TrustShare server.</p>";
+
+            }
+
+        }
+
+
+
+        // Upload file
+
+        async function uploadFile() {
+
+            const fileInput =
+                document.getElementById(
+                    "fileInput"
+                );
+
+
+            const message =
+                document.getElementById(
+                    "message"
+                );
+
+
+            // Check file
+
+            if (!fileInput.files.length) {
+
+                message.innerText =
+                    "Please select a file first.";
+
+                return;
+
+            }
+
+
+            const file =
+                fileInput.files[0];
+
+
+            // Get token
+
+            const token =
+                localStorage.getItem(
+                    "access_token"
+                );
+
+
+            // Create FormData
+
+            const formData =
+                new FormData();
+
+
+            formData.append(
+                "file",
+                file
+            );
+
+
+            message.innerText =
+                "Uploading file...";
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        "http://127.0.0.1:8000/upload",
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Authorization":
+                                    "Bearer " + token
+                            },
+
+                            body: formData
+                        }
+                    );
+
+
+                const data =
+                    await response.json();
+
+
+                // Successful upload
+
+                if (response.ok) {
+
+                    message.innerText =
+                        "File uploaded successfully: "
+                        + data.filename;
+
+
+                    fileInput.value = "";
+
+
+                    // Reload file list
+
+                    loadFiles();
+
+                }
+
+
+                // Unauthorized
+
+                else if (
+                    response.status === 401
+                ) {
+
+                    localStorage.clear();
+
+                    window.location.href =
+                        "login.html";
+
+                }
+
+
+                // Other error
+
+                else {
+
+                    message.innerText =
+                        data.detail ||
+                        "Upload failed.";
+
+                }
+
+            }
+
+
+            catch (error) {
+
+                console.error(error);
+
+                message.innerText =
+                    "Cannot connect to TrustShare server.";
+
+            }
+
+        }
+
+
+
+        // Go to Dashboard
+
+        function goToDashboard() {
+
+            window.location.href =
+                "dashboard.html";
+
+        }
+
+
+
+        // Logout
+
+        function logout() {
+
+            localStorage.clear();
+
+            window.location.href =
+                "login.html";
+
+        }
+
+
+
+        // Start page
+
+        if (checkLogin()) {
+
+            loadFiles();
+
+        }
+
+    </script>
+
+
+</body>
+
+</html>

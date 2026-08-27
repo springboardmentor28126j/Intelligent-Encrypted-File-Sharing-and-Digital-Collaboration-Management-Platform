@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TrustShare - Profile</title>
+
+    <style>
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: #1f4e79;
+            color: white;
+            padding: 18px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar h2 {
+            margin: 0;
+        }
+
+        .logout {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .logout:hover {
+            background: #b02a37;
+        }
+
+        .container {
+            width: 500px;
+            max-width: 90%;
+            margin: 60px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #1f4e79;
+            margin-bottom: 10px;
+        }
+
+        .welcome {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .profile-box {
+            background: #f4f7fb;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .profile-item {
+            margin-bottom: 15px;
+        }
+
+        .profile-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .label {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .value {
+            color: #555;
+            margin-top: 5px;
+        }
+
+        #message {
+            text-align: center;
+            margin-top: 20px;
+            color: #dc3545;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <div class="navbar">
+
+        <h2>TrustShare</h2>
+
+        <button class="logout" onclick="logout()">
+            Logout
+        </button>
+
+    </div>
+
+
+    <div class="container">
+
+        <h1>My Profile</h1>
+
+        <p class="welcome">
+            Welcome to your TrustShare account.
+        </p>
+
+
+        <div class="profile-box">
+
+            <div class="profile-item">
+
+                <div class="label">
+                    User ID
+                </div>
+
+                <div class="value" id="userId">
+                    Loading...
+                </div>
+
+            </div>
+
+
+            <div class="profile-item">
+
+                <div class="label">
+                    Name
+                </div>
+
+                <div class="value" id="userName">
+                    Loading...
+                </div>
+
+            </div>
+
+
+            <div class="profile-item">
+
+                <div class="label">
+                    Email
+                </div>
+
+                <div class="value" id="userEmail">
+                    Loading...
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div id="message"></div>
+
+    </div>
+
+
+    <script>
+
+        async function loadProfile() {
+
+            const token = localStorage.getItem("access_token");
+
+            const message = document.getElementById("message");
+
+            // Check whether the user is logged in
+            if (!token) {
+
+                window.location.href = "login.html";
+
+                return;
+
+            }
+
+
+            try {
+
+                const response = await fetch(
+                    "http://127.0.0.1:8000/profile",
+                    {
+                        method: "GET",
+
+                        headers: {
+                            "Authorization": "Bearer " + token
+                        }
+                    }
+                );
+
+
+                const data = await response.json();
+
+
+                if (response.ok) {
+
+                    document.getElementById("userId").innerText =
+                        data.user.user_id;
+
+                    document.getElementById("userEmail").innerText =
+                        data.user.email;
+
+                    const savedName =
+                        localStorage.getItem("user_name");
+
+                    document.getElementById("userName").innerText =
+                        savedName || "User";
+
+                }
+
+                else if (response.status === 401) {
+
+                    localStorage.clear();
+
+                    window.location.href = "login.html";
+
+                }
+
+                else {
+
+                    message.innerText =
+                        "Unable to load profile.";
+
+                }
+
+            }
+
+            catch (error) {
+
+                console.error(error);
+
+                message.innerText =
+                    "Cannot connect to the TrustShare server.";
+
+            }
+
+        }
+
+
+        function logout() {
+
+            localStorage.clear();
+
+            window.location.href = "login.html";
+
+        }
+
+
+        // Load profile when page opens
+        loadProfile();
+
+    </script>
+
+</body>
+
+</html>

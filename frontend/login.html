@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TrustShare - Login</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            width: 400px;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #1f4e79;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        label {
+            display: block;
+            margin-top: 15px;
+            margin-bottom: 6px;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 15px;
+        }
+
+        button {
+            width: 100%;
+            padding: 13px;
+            margin-top: 25px;
+            border: none;
+            border-radius: 6px;
+            background: #1f4e79;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #163a5c;
+        }
+
+        #message {
+            margin-top: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .register-link,
+        .back {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        a {
+            color: #1f4e79;
+            text-decoration: none;
+            font-weight: bold;
+        }
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>TrustShare</h1>
+
+    <p class="subtitle">
+        Login to your account
+    </p>
+
+    <form id="loginForm">
+
+        <label for="email">
+            Email
+        </label>
+
+        <input
+            type="email"
+            id="email"
+            placeholder="Enter your email"
+            required
+        >
+
+        <label for="password">
+            Password
+        </label>
+
+        <input
+            type="password"
+            id="password"
+            placeholder="Enter your password"
+            required
+        >
+
+        <button type="submit">
+            Login
+        </button>
+
+    </form>
+
+    <div id="message"></div>
+
+    <div class="register-link">
+        Don't have an account?
+        <a href="register.html">Register</a>
+    </div>
+
+    <div class="back">
+        <a href="index.html">
+            ← Back to Home
+        </a>
+    </div>
+
+</div>
+
+
+<script>
+
+const loginForm =
+    document.getElementById("loginForm");
+
+
+loginForm.addEventListener(
+    "submit",
+    async function(event) {
+
+        event.preventDefault();
+
+
+        const email =
+            document.getElementById("email").value.trim();
+
+
+        const password =
+            document.getElementById("password").value;
+
+
+        const message =
+            document.getElementById("message");
+
+
+        message.innerText =
+            "Logging in...";
+
+
+        try {
+
+            const url =
+                "http://127.0.0.1:8000/login"
+                + "?email="
+                + encodeURIComponent(email)
+                + "&password="
+                + encodeURIComponent(password);
+
+
+            const response =
+                await fetch(
+                    url,
+                    {
+                        method: "POST"
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            console.log(
+                "Login response:",
+                data
+            );
+
+
+            if (
+                response.ok &&
+                data.access_token
+            ) {
+
+                // Store JWT token
+                localStorage.setItem(
+                    "access_token",
+                    data.access_token
+                );
+
+
+                // Store user ID
+                localStorage.setItem(
+                    "user_id",
+                    data.user_id
+                );
+
+
+                // Store user name
+                localStorage.setItem(
+                    "user_name",
+                    data.name
+                );
+
+
+                // Store user email
+                localStorage.setItem(
+                    "user_email",
+                    data.email
+                );
+
+
+                // Store user role
+                // This is used for frontend role-based UI
+                localStorage.setItem(
+                    "user_role",
+                    data.role
+                );
+
+
+                message.innerText =
+                    "Login successful!";
+
+
+                setTimeout(
+                    function() {
+
+                        window.location.href =
+                            "dashboard.html";
+
+                    },
+                    500
+                );
+
+            }
+
+            else {
+
+                message.innerText =
+                    data.message ||
+                    data.detail ||
+                    "Invalid email or password.";
+
+            }
+
+        }
+
+        catch (error) {
+
+            console.error(
+                "Login error:",
+                error
+            );
+
+
+            message.innerText =
+                "Cannot connect to the TrustShare server.";
+
+        }
+
+    }
+);
+
+</script>
+
+</body>
+
+</html>
