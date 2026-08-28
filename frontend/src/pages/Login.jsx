@@ -54,6 +54,9 @@ function Login() {
         <p style={styles.text}>
           Don’t have an account? <Link to="/register" style={styles.link}>Register here</Link>
         </p>
+        <p style={{ ...styles.text, marginTop: '10px' }}>
+  <Link to="/forgot-password" style={styles.link}>Forgot Password?</Link>
+</p>
       </form>
     </div>
   );
