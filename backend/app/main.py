@@ -1,10 +1,17 @@
+
 from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from app.database import Base, engine, SessionLocal
 from app.models import User, SharedFile
-from app.security import create_access_token
+
+from app.security import (
+    create_access_token,
+    create_password_reset_token,
+    verify_password_reset_token
+)
+
 from app.auth import get_current_user, get_current_admin
 from app.password import hash_password, verify_password
 
@@ -104,10 +111,6 @@ def register(
 
     hashed_password = hash_password(password)
 
-    # IMPORTANT:
-    # Every newly registered account is a normal user.
-    # Users cannot register themselves as admin.
-
     new_user = User(
         name=name,
         email=email,
@@ -172,10 +175,7 @@ def login(
             "message": "Invalid email or password"
         }
 
-    # =====================================================
-    # JWT now contains the user's role
-    # =====================================================
-
+    # JWT contains user ID, email and role
     access_token = create_access_token(
         data={
             "user_id": user.id,
@@ -192,6 +192,91 @@ def login(
         "role": user.role,
         "access_token": access_token,
         "token_type": "bearer"
+    }
+
+
+# =========================================================
+# Forgot Password
+# =========================================================
+
+@app.post("/forgot-password")
+def forgot_password(
+    email: str,
+    db: Session = Depends(get_db)
+):
+
+    user = (
+        db.query(User)
+        .filter(User.email == email)
+        .first()
+    )
+
+    # Do not reveal whether an email exists
+    if not user:
+
+        return {
+            "message": "If the email is registered, a password reset link has been generated."
+        }
+
+    # Create temporary reset token
+    reset_token = create_password_reset_token(
+        user.id
+    )
+
+    # Development/testing response
+    return {
+        "message": "Password reset token generated successfully.",
+        "reset_token": reset_token
+    }
+
+
+# =========================================================
+# Reset Password
+# =========================================================
+
+@app.post("/reset-password")
+def reset_password(
+    token: str,
+    new_password: str,
+    db: Session = Depends(get_db)
+):
+
+    # Verify reset token
+    user_id = verify_password_reset_token(
+        token
+    )
+
+    if user_id is None:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired password reset token."
+        )
+
+    # Find user
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .first()
+    )
+
+    if not user:
+
+        raise HTTPException(
+            status_code=404,
+            detail="User not found."
+        )
+
+    # Hash new password
+    user.password = hash_password(
+        new_password
+    )
+
+    # Save to PostgreSQL
+    db.commit()
+
+    return {
+        "message": "Password reset successful. You can now login with your new password."
     }
 
 
@@ -434,7 +519,7 @@ def shared_with_me(
 
 
 # =========================================================
-#                  ADMIN / RBAC SECTION
+# ADMIN / RBAC SECTION
 # =========================================================
 
 
@@ -480,8 +565,6 @@ def change_user_role(
     current_admin: dict = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-
-    # Only these two roles are allowed
 
     if role not in ["user", "admin"]:
 
@@ -543,8 +626,7 @@ def delete_user(
             detail="User not found"
         )
 
-    # Prevent admin from deleting their own account
-
+    # Admin cannot delete their own account
     if user.id == current_admin["user_id"]:
 
         raise HTTPException(

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -76,7 +77,8 @@
         }
 
         .register-link,
-        .back {
+        .back,
+        .forgot-password {
             text-align: center;
             margin-top: 20px;
         }
@@ -85,6 +87,10 @@
             color: #1f4e79;
             text-decoration: none;
             font-weight: bold;
+        }
+
+        a:hover {
+            text-decoration: underline;
         }
     </style>
 
@@ -129,6 +135,13 @@
         </button>
 
     </form>
+
+    <!-- Forgot Password Link -->
+    <div class="forgot-password">
+        <a href="forgot-password.html">
+            Forgot Password?
+        </a>
+    </div>
 
     <div id="message"></div>
 
@@ -238,7 +251,7 @@ loginForm.addEventListener(
 
 
                 // Store user role
-                // This is used for frontend role-based UI
+                // Used for frontend role-based UI
                 localStorage.setItem(
                     "user_role",
                     data.role
@@ -293,3 +306,4 @@ loginForm.addEventListener(
 </body>
 
 </html>
+
