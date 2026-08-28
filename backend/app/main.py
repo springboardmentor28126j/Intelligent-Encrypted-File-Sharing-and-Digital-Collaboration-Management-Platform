@@ -1,0 +1,21 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from .config import settings
+from .database import Base, engine
+from . import models
+from .routers import activity, auth, dashboard, files, folders, users
+
+Base.metadata.create_all(bind=engine)
+app = FastAPI(title="TrustShare API", description="Milestone 1 secure file-sharing API")
+app.add_middleware(CORSMiddleware, allow_origins=[settings.frontend_origin], allow_credentials=True, allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["Authorization", "Content-Type"])
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(folders.router)
+app.include_router(files.router)
+app.include_router(activity.router)
+app.include_router(dashboard.router)
+
+
+@app.get("/api/health", tags=["System"])
+def health():
+    return {"status": "ok", "service": "TrustShare API"}

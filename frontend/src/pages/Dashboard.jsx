@@ -1,0 +1,7 @@
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import api, { getErrorMessage } from '../services/api'
+import { ActivityList, FileTable, Notice, Panel, Stat } from '../components/common'
+import { useAuth } from '../context/AuthContext'
+
+export default function Dashboard() { const { user } = useAuth(); const [data, setData] = useState(null); const [error, setError] = useState(''); useEffect(() => { api.get('/dashboard').then(r => setData(r.data)).catch(e => setError(getErrorMessage(e))) }, []); if (error) return <Notice error={error} />; if (!data) return <p className="muted">Loading your workspace...</p>; return <><section className="welcome"><div><span className="eyebrow">GOOD TO SEE YOU</span><h2>{user?.name ? `Welcome, ${user.name}` : 'Welcome'}</h2><p className="muted">Everything you need is in one secure place.</p></div><Link className="primary" to="/files/upload">+ Upload file</Link></section><div className="stats"><Stat label="Total files" value={data.stats.total_files} /><Stat label="Storage used" value={`${(data.stats.storage_used / 1024 / 1024).toFixed(2)} MB`} /><Stat label="Folders" value={data.stats.total_folders} /></div><div className="two-col"><Panel title="Recent files" action="/files"><FileTable files={data.recent_files} /></Panel><Panel title="Recent activity" action="/activity"><ActivityList items={data.recent_activity} /></Panel></div></> }
