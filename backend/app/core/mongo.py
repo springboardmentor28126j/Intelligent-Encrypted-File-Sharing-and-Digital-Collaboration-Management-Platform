@@ -17,3 +17,12 @@ def log_activity(user_id: str, action: str, resource_id: str | None = None):
             "timestamp": datetime.utcnow().isoformat(),
         }
     )
+
+
+def get_recent_activity(user_id: str, limit: int = 20):
+    cursor = (
+        activity_logs.find({"user_id": user_id}, {"_id": 0})
+        .sort("timestamp", -1)
+        .limit(limit)
+    )
+    return list(cursor)

@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently -n next,opener \"next dev\" \"node scripts/open-browser.js\"",
+    "dev:no-open": "next dev",
     "build": "next build",
     "start": "next start"
   },
@@ -12,5 +13,8 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "axios": "1.7.7"
+  },
+  "devDependencies": {
+    "concurrently": "9.0.1"
   }
 }

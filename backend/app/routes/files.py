@@ -8,10 +8,20 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.core.mongo import log_activity
+from app.core.mongo import log_activity, get_recent_activity
 from app.models.models import File, User
 
 router = APIRouter(prefix="/files", tags=["files"])
+
+
+@router.get("/stats")
+def file_stats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    files = db.query(File).filter(File.owner_id == current_user.id).all()
+    total_bytes = sum(f.size_bytes for f in files)
+    return {
+        "total_files": len(files),
+        "total_bytes": total_bytes,
+    }
 
 
 @router.post("/upload")
