@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from pymongo import MongoClient
 
 from app.core.config import settings
@@ -14,7 +14,10 @@ def log_activity(user_id: str, action: str, resource_id: str | None = None):
             "user_id": user_id,
             "action": action,
             "resource_id": resource_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            # timezone-aware ISO string (ends in +00:00) so the browser
+            # correctly converts it to the viewer's local time instead of
+            # treating it as if it were already local
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     )
 

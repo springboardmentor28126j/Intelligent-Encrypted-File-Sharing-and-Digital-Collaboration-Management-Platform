@@ -9,24 +9,32 @@ function formatBytes(bytes) {
   return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
 }
 
-function timeAgo(isoString) {
-  const diffMs = Date.now() - new Date(isoString).getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+function extForFile(filename) {
+  const parts = filename.split(".");
+  return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "OTHER";
 }
 
-const ACTION_LABELS = {
-  login: "Logged in",
-  register: "Account created",
-  upload: "Uploaded a file",
-  download: "Downloaded a file",
-  forgot_password_requested: "Requested password reset",
-  password_reset: "Password changed",
-};
+const TYPE_COLORS = ["#f5b942", "#5b8def", "#3fb37f", "#c65fd6", "#e0655e", "#4bc1c9"];
+
+function buildBreakdown(files) {
+  const groups = {};
+  files.forEach((f) => {
+    const ext = extForFile(f.filename);
+    if (!groups[ext]) groups[ext] = { count: 0, bytes: 0 };
+    groups[ext].count += 1;
+    groups[ext].bytes += f.size_bytes;
+  });
+  const totalBytes = files.reduce((sum, f) => sum + f.size_bytes, 0) || 1;
+  return Object.entries(groups)
+    .map(([ext, data], i) => ({
+      ext,
+      count: data.count,
+      bytes: data.bytes,
+      pct: Math.round((data.bytes / totalBytes) * 100),
+      color: TYPE_COLORS[i % TYPE_COLORS.length],
+    }))
+    .sort((a, b) => b.bytes - a.bytes);
+}
 
 function StatCard({ label, value }) {
   return (
@@ -50,28 +58,25 @@ export default function Dashboard() {
   const [email, setEmail] = useState("");
   const [stats, setStats] = useState({ total_files: 0, total_bytes: 0 });
   const [files, setFiles] = useState([]);
-  const [activity, setActivity] = useState([]);
 
   useEffect(() => {
     api.get("/auth/me").then((res) => setEmail(res.data.email)).catch(() => {});
     api.get("/files/stats").then((res) => setStats(res.data)).catch(() => {});
     api
       .get("/files")
-      .then((res) => setFiles(res.data.slice(0, 5)))
-      .catch(() => {});
-    api
-      .get("/activity")
-      .then((res) => setActivity(res.data.slice(0, 5)))
+      .then((res) => setFiles(res.data))
       .catch(() => {});
   }, []);
 
   const firstName = email ? email.split("@")[0] : "";
+  const recentFiles = files.slice(0, 5);
+  const breakdown = buildBreakdown(files);
 
   return (
     <Layout
       active="overview"
       eyebrow="Secure file sharing"
-      title="Overview"
+      title="Dashboard"
       action={
         <a
           href="/upload"
@@ -90,13 +95,26 @@ export default function Dashboard() {
         </a>
       }
     >
-      <div style={{ fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase", color: "var(--text-muted)" }}>
-        Good to see you
+      <div
+        style={{
+          background: "var(--forest)",
+          borderRadius: 14,
+          padding: "24px 28px",
+          marginBottom: 28,
+          color: "#fff",
+        }}
+      >
+        <div style={{ fontSize: 12, letterSpacing: 0.4, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>
+          {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+        </div>
+        <h2 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 6px" }}>
+          Welcome back{firstName ? `, ${firstName}` : ""}
+        </h2>
+        <p style={{ color: "rgba(255,255,255,0.75)", margin: 0, fontSize: 14 }}>
+          Here's a snapshot of your workspace — {stats.total_files} file{stats.total_files === 1 ? "" : "s"} stored,{" "}
+          {formatBytes(stats.total_bytes)} in use.
+        </p>
       </div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, margin: "6px 0 4px" }}>Welcome, {firstName || "there"}</h2>
-      <p style={{ color: "var(--text-muted)", marginTop: 0, marginBottom: 28 }}>
-        Everything you need is in one secure place.
-      </p>
 
       <div style={{ display: "flex", gap: 16, marginBottom: 32, flexWrap: "wrap" }}>
         <StatCard label="Total files" value={stats.total_files} />
@@ -121,12 +139,12 @@ export default function Dashboard() {
               View all
             </a>
           </div>
-          {files.length === 0 && (
+          {recentFiles.length === 0 && (
             <div style={{ color: "var(--text-muted)", fontSize: 14, padding: "12px 0" }}>
               No files yet. Upload your first file to get started.
             </div>
           )}
-          {files.map((f) => (
+          {recentFiles.map((f) => (
             <div
               key={f.id}
               style={{
@@ -171,39 +189,115 @@ export default function Dashboard() {
           style={{
             flex: 1,
             minWidth: 260,
-            background: "var(--card)",
-            border: "1px solid var(--border)",
-            borderRadius: 12,
-            padding: 20,
+            display: "flex",
+            flexDirection: "column",
+            gap: 20,
           }}
         >
-          <div style={{ fontWeight: 600, marginBottom: 12, display: "flex", justifyContent: "space-between" }}>
-            <span>Recent activity</span>
-            <a href="/activity" style={{ fontSize: 13, color: "var(--lime-dark)", textDecoration: "none", fontWeight: 400 }}>
-              View all
-            </a>
-          </div>
-          {activity.length === 0 && (
-            <div style={{ color: "var(--text-muted)", fontSize: 14 }}>No activity yet.</div>
-          )}
-          {activity.map((a, i) => (
-            <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0" }}>
-              <div
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: "var(--lime-dark)",
-                  marginTop: 6,
-                  flexShrink: 0,
-                }}
-              />
-              <div>
-                <div style={{ fontSize: 14 }}>{ACTION_LABELS[a.action] || a.action}</div>
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{timeAgo(a.timestamp)}</div>
+          <div
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: 12,
+              padding: 20,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 14 }}>Storage by file type</div>
+            {breakdown.length === 0 && (
+              <div style={{ color: "var(--text-muted)", fontSize: 14 }}>
+                Upload files to see a breakdown here.
               </div>
+            )}
+            {breakdown.map((b) => (
+              <div key={b.ext} style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                  <span style={{ fontWeight: 500 }}>{b.ext}</span>
+                  <span style={{ color: "var(--text-muted)" }}>
+                    {b.count} file{b.count === 1 ? "" : "s"} · {formatBytes(b.bytes)}
+                  </span>
+                </div>
+                <div style={{ height: 6, borderRadius: 4, background: "var(--bg)", overflow: "hidden" }}>
+                  <div
+                    style={{
+                      width: `${b.pct}%`,
+                      height: "100%",
+                      background: b.color,
+                      borderRadius: 4,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: 12,
+              padding: 20,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 14 }}>Quick actions</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <a
+                href="/upload"
+                style={{
+                  display: "block",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  textDecoration: "none",
+                  color: "var(--text)",
+                  fontSize: 14,
+                }}
+              >
+                ↑ Upload a new file
+              </a>
+              <a
+                href="/files"
+                style={{
+                  display: "block",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  textDecoration: "none",
+                  color: "var(--text)",
+                  fontSize: 14,
+                }}
+              >
+                📁 Browse all files
+              </a>
+              <a
+                href="/activity"
+                style={{
+                  display: "block",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  textDecoration: "none",
+                  color: "var(--text)",
+                  fontSize: 14,
+                }}
+              >
+                🕒 View activity log
+              </a>
+              <a
+                href="/forgot-password"
+                style={{
+                  display: "block",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  textDecoration: "none",
+                  color: "var(--text)",
+                  fontSize: 14,
+                }}
+              >
+                🔒 Change password
+              </a>
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </Layout>

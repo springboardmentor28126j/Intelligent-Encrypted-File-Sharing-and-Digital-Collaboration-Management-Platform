@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import api from "../lib/api";
 
 const NAV_ITEMS = [
-  { key: "overview", label: "Overview", href: "/dashboard" },
+  { key: "overview", label: "Dashboard", href: "/dashboard" },
   { key: "files", label: "My files", href: "/files" },
   { key: "upload", label: "Upload file", href: "/upload" },
   { key: "folders", label: "Folders", href: "/folders" },
