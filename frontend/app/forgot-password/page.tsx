@@ -1,0 +1,150 @@
+"use client";
+
+import { useState } from "react";
+
+export default function ForgotPassword() {
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/auth/forgot-password",
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: email,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(
+          data.detail || "Unable to send reset link."
+        );
+        return;
+      }
+
+      setMessage(
+        "If the email is registered, a reset link has been sent."
+      );
+
+      console.log("Reset link:", data.reset_link);
+
+    } catch (error) {
+      console.error(
+        "Forgot password error:",
+        error
+      );
+
+      setMessage(
+        "Cannot connect to the backend."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogin = () => {
+    window.location.href = "/";
+  };
+
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+
+      <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl">
+
+        {/* Project Name */}
+        <h1 className="text-4xl font-extrabold text-center mb-3 text-black">
+          Intelligent File Sharing
+        </h1>
+
+        {/* Heading */}
+        <h2 className="text-2xl font-bold text-center text-black mb-3">
+          Forgot Password?
+        </h2>
+
+        {/* Description */}
+        <p className="text-center text-gray-600 mb-8">
+          Enter your registered email address to
+          receive a password reset link.
+        </p>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit}>
+
+          {/* Email */}
+          <div className="mb-6">
+
+            <label
+              htmlFor="email"
+              className="block mb-2 font-semibold text-gray-700"
+            >
+              Email
+            </label>
+
+            <input
+              id="email"
+              name="email"
+              type="email"
+              value={email}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
+              placeholder="Enter your registered email"
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-black placeholder-gray-400 bg-white outline-none focus:ring-2 focus:ring-black"
+              required
+            />
+
+          </div>
+
+          {/* Send Reset Link */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-black text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition disabled:opacity-50"
+          >
+            {loading
+              ? "Sending..."
+              : "Send Reset Link"}
+          </button>
+
+        </form>
+
+        {/* Message */}
+        {message && (
+          <p className="text-center mt-5 font-medium text-black">
+            {message}
+          </p>
+        )}
+
+        {/* Back to Login */}
+        <div className="text-center mt-7 pt-5 border-t border-gray-200">
+
+          <button
+            type="button"
+            onClick={handleLogin}
+            className="font-bold text-black underline hover:text-gray-600"
+          >
+            Back to Login
+          </button>
+
+        </div>
+
+      </div>
+
+    </main>
+  );
+}

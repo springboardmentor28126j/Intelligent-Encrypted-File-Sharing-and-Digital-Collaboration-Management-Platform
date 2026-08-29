@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+backend/ifs/Include/site/
+
+# Local Python environment
+backend/ifs/
+
+# Uploaded files
+backend/uploads/

@@ -1,0 +1,41 @@
+# Python virtual environment
+backend/ifs/
+
+# Uploaded/generated files
+backend/uploads/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# Node.js dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Build and coverage files
+dist/
+build/
+coverage/
+
+# VS Code
+.vscode/
+
+# OS generated files
+.DS_Store
+Thumbs.db
