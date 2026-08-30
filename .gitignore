@@ -216,3 +216,20 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Next.js
+node_modules/
+.next/
+.env.local
+tsconfig.tsbuildinfo
+
+# Local database
+*.db
+
+# Uploads
+uploads/
+
+# Local/old project folder
+Hema trustshare/
+notepad .gitignore
+next-env.d.ts
