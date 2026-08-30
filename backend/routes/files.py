@@ -5,19 +5,29 @@ from fastapi import (
     HTTPException,
     Depends
 )
+
 from fastapi.responses import FileResponse
+
 from pathlib import Path
 import shutil
 import uuid
+import json
+
+from sqlalchemy.orm import Session
 
 from database import SessionLocal
 from models import File as FileModel, User
+
 from security import get_current_user
 
+from mongodb import create_activity_log
 
-# ==========================================
-# ROUTER
-# ==========================================
+from redis_client import redis_client
+
+
+# =========================================================
+# FILE ROUTER
+# =========================================================
 
 router = APIRouter(
     prefix="/files",
@@ -25,9 +35,9 @@ router = APIRouter(
 )
 
 
-# ==========================================
+# =========================================================
 # UPLOAD DIRECTORY
-# ==========================================
+# =========================================================
 
 UPLOAD_DIR = Path("uploads")
 
@@ -37,41 +47,75 @@ UPLOAD_DIR.mkdir(
 )
 
 
-# ==========================================
+# =========================================================
+# DATABASE DEPENDENCY
+# =========================================================
+
+def get_db():
+
+    db = SessionLocal()
+
+    try:
+        yield db
+
+    finally:
+        db.close()
+
+
+# =========================================================
 # UPLOAD FILE
-# ==========================================
+# =========================================================
 
 @router.post("/upload")
 async def upload_file(
     file: UploadFile = FastAPIFile(...),
-    current_user: User = Depends(get_current_user)
+
+    current_user: User = Depends(
+        get_current_user
+    ),
+
+    db: Session = Depends(
+        get_db
+    )
 ):
-    # Check filename
+
+    # -----------------------------------------------------
+    # CHECK FILE NAME
+    # -----------------------------------------------------
+
     if not file.filename:
+
         raise HTTPException(
             status_code=400,
             detail="File name is required"
         )
 
-    # Get original filename safely
+
+    # -----------------------------------------------------
+    # CREATE UNIQUE FILE NAME
+    # -----------------------------------------------------
+
+    file_id = uuid.uuid4().hex
+
     original_filename = Path(
         file.filename
     ).name
 
-    # Create unique stored filename
-    unique_id = uuid.uuid4().hex
-
     stored_filename = (
-        f"{unique_id}_{original_filename}"
+        f"{file_id}_{original_filename}"
     )
 
-    file_path = UPLOAD_DIR / stored_filename
+    file_path = (
+        UPLOAD_DIR /
+        stored_filename
+    )
+
+
+    # -----------------------------------------------------
+    # SAVE PHYSICAL FILE
+    # -----------------------------------------------------
 
     try:
-
-        # ==================================
-        # SAVE FILE TO DISK
-        # ==================================
 
         with open(
             file_path,
@@ -83,259 +127,530 @@ async def upload_file(
                 buffer
             )
 
-        # ==================================
-        # SAVE FILE INFORMATION
-        # TO DATABASE
-        # ==================================
-
-        db = SessionLocal()
-
-        try:
-
-            new_file = FileModel(
-                filename=original_filename,
-                stored_filename=stored_filename,
-                file_path=str(file_path),
-                owner_id=current_user.id
-            )
-
-            db.add(new_file)
-
-            db.commit()
-
-            db.refresh(new_file)
-
-            return {
-                "message": "File uploaded successfully",
-                "file_id": new_file.id,
-                "filename": new_file.filename,
-                "stored_filename": new_file.stored_filename,
-                "owner_id": new_file.owner_id
-            }
-
-        except Exception as database_error:
-
-            db.rollback()
-
-            # Remove physical file if
-            # database insertion fails
-            if file_path.exists():
-                file_path.unlink()
-
-            print("================================")
-            print("DATABASE ERROR:")
-            print(repr(database_error))
-            print("================================")
-
-            raise HTTPException(
-                status_code=500,
-                detail=str(database_error)
-            )
-
-        finally:
-            db.close()
-
-    except HTTPException:
-        raise
-
     except Exception as error:
-
-        print("================================")
-        print("UPLOAD ERROR:")
-        print(repr(error))
-        print("================================")
-
-        if file_path.exists():
-            file_path.unlink()
 
         raise HTTPException(
             status_code=500,
-            detail=str(error)
+            detail=f"Unable to save file: {error}"
         )
 
-    finally:
-        await file.close()
 
-
-# ==========================================
-# GET MY FILES
-# ==========================================
-
-@router.get("/")
-def get_files(
-    current_user: User = Depends(get_current_user)
-):
-
-    db = SessionLocal()
+    # -----------------------------------------------------
+    # SAVE FILE INFORMATION TO POSTGRESQL
+    # -----------------------------------------------------
 
     try:
 
-        files = (
-            db.query(FileModel)
-            .filter(
-                FileModel.owner_id == current_user.id
-            )
-            .all()
+        new_file = FileModel(
+
+            filename=original_filename,
+
+            stored_filename=stored_filename,
+
+            file_path=str(file_path),
+
+            owner_id=current_user.id
+
         )
 
-        return [
-            {
-                "id": file.id,
-                "filename": file.filename,
-                "stored_filename": file.stored_filename,
-                "file_path": file.file_path,
-                "owner_id": file.owner_id
-            }
-            for file in files
-        ]
-
-    except Exception as error:
-
-        print("================================")
-        print("GET FILES ERROR:")
-        print(repr(error))
-        print("================================")
-
-        raise HTTPException(
-            status_code=500,
-            detail=str(error)
-        )
-
-    finally:
-        db.close()
-
-
-# ==========================================
-# DOWNLOAD FILE
-# ==========================================
-
-@router.get("/download/{file_id}")
-def download_file(
-    file_id: int,
-    current_user: User = Depends(get_current_user)
-):
-
-    db = SessionLocal()
-
-    try:
-
-        # Only allow owner to download
-        file = (
-            db.query(FileModel)
-            .filter(
-                FileModel.id == file_id,
-                FileModel.owner_id == current_user.id
-            )
-            .first()
-        )
-
-        if file is None:
-
-            raise HTTPException(
-                status_code=404,
-                detail="File not found"
-            )
-
-        path = Path(
-            file.file_path
-        )
-
-        if not path.exists():
-
-            raise HTTPException(
-                status_code=404,
-                detail="File does not exist on the server"
-            )
-
-        return FileResponse(
-            path=str(path),
-            filename=file.filename
-        )
-
-    except HTTPException:
-        raise
-
-    except Exception as error:
-
-        print("================================")
-        print("DOWNLOAD ERROR:")
-        print(repr(error))
-        print("================================")
-
-        raise HTTPException(
-            status_code=500,
-            detail=str(error)
-        )
-
-    finally:
-        db.close()
-
-
-# ==========================================
-# DELETE FILE
-# ==========================================
-
-@router.delete("/{file_id}")
-def delete_file(
-    file_id: int,
-    current_user: User = Depends(get_current_user)
-):
-
-    db = SessionLocal()
-
-    try:
-
-        # Only allow owner to delete
-        file = (
-            db.query(FileModel)
-            .filter(
-                FileModel.id == file_id,
-                FileModel.owner_id == current_user.id
-            )
-            .first()
-        )
-
-        if file is None:
-
-            raise HTTPException(
-                status_code=404,
-                detail="File not found"
-            )
-
-        path = Path(
-            file.file_path
-        )
-
-        # Delete physical file
-        if path.exists():
-            path.unlink()
-
-        # Delete database record
-        db.delete(file)
+        db.add(new_file)
 
         db.commit()
 
-        return {
-            "message": "File deleted successfully",
-            "file_id": file_id
-        }
-
-    except HTTPException:
-        raise
+        db.refresh(new_file)
 
     except Exception as error:
 
         db.rollback()
 
-        print("================================")
-        print("DELETE ERROR:")
-        print(repr(error))
-        print("================================")
+        # Remove physical file if database fails
+
+        if file_path.exists():
+
+            file_path.unlink()
 
         raise HTTPException(
             status_code=500,
-            detail=str(error)
+            detail=(
+                "Unable to save file information "
+                f"to database: {error}"
+            )
         )
 
-    finally:
-        db.close()
+
+    # -----------------------------------------------------
+    # CLEAR REDIS CACHE
+    # -----------------------------------------------------
+
+    try:
+
+        redis_client.delete(
+            f"user_files:{current_user.id}"
+        )
+
+        print(
+            "Redis file cache cleared after upload."
+        )
+
+    except Exception as error:
+
+        print(
+            "Redis cache clear failed:",
+            error
+        )
+
+
+    # -----------------------------------------------------
+    # SAVE ACTIVITY TO MONGODB
+    # -----------------------------------------------------
+
+    try:
+
+        create_activity_log(
+
+            user_id=current_user.id,
+
+            action="upload",
+
+            filename=original_filename
+
+        )
+
+    except Exception as error:
+
+        print(
+            "MongoDB activity log failed:",
+            error
+        )
+
+
+    # -----------------------------------------------------
+    # RESPONSE
+    # -----------------------------------------------------
+
+    return {
+
+        "message":
+            "File uploaded successfully",
+
+        "file_id":
+            new_file.id,
+
+        "filename":
+            new_file.filename,
+
+        "stored_filename":
+            new_file.stored_filename,
+
+        "owner_id":
+            new_file.owner_id
+
+    }
+
+
+# =========================================================
+# GET FILES
+# =========================================================
+
+@router.get("/")
+def get_files(
+    current_user: User = Depends(
+        get_current_user
+    ),
+
+    db: Session = Depends(
+        get_db
+    )
+):
+
+    cache_key = (
+        f"user_files:{current_user.id}"
+    )
+
+
+    # -----------------------------------------------------
+    # CHECK REDIS CACHE
+    # -----------------------------------------------------
+
+    try:
+
+        cached_files = redis_client.get(
+            cache_key
+        )
+
+        if cached_files:
+
+            print(
+                "Returning files from Redis cache."
+            )
+
+            return json.loads(
+                cached_files
+            )
+
+    except Exception as error:
+
+        print(
+            "Redis cache read failed:",
+            error
+        )
+
+
+    # -----------------------------------------------------
+    # GET FILES FROM POSTGRESQL
+    # -----------------------------------------------------
+
+    try:
+
+        files = (
+
+            db.query(FileModel)
+
+            .filter(
+                FileModel.owner_id
+                == current_user.id
+            )
+
+            .all()
+
+        )
+
+        file_list = [
+
+            {
+
+                "id":
+                    file.id,
+
+                "filename":
+                    file.filename,
+
+                "stored_filename":
+                    file.stored_filename,
+
+                "file_path":
+                    file.file_path,
+
+                "owner_id":
+                    file.owner_id
+
+            }
+
+            for file in files
+
+        ]
+
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to retrieve files: "
+                f"{error}"
+            )
+        )
+
+
+    # -----------------------------------------------------
+    # SAVE FILE LIST TO REDIS
+    # -----------------------------------------------------
+
+    try:
+
+        redis_client.setex(
+
+            cache_key,
+
+            300,
+
+            json.dumps(file_list)
+
+        )
+
+        print(
+            "Files stored in Redis cache."
+        )
+
+    except Exception as error:
+
+        print(
+            "Redis cache write failed:",
+            error
+        )
+
+
+    return file_list
+
+
+# =========================================================
+# DOWNLOAD FILE
+# =========================================================
+
+@router.get(
+    "/download/{file_id}"
+)
+def download_file(
+    file_id: int,
+
+    current_user: User = Depends(
+        get_current_user
+    ),
+
+    db: Session = Depends(
+        get_db
+    )
+):
+
+    # -----------------------------------------------------
+    # FIND ONLY CURRENT USER'S FILE
+    # -----------------------------------------------------
+
+    file = (
+
+        db.query(FileModel)
+
+        .filter(
+
+            FileModel.id == file_id,
+
+            FileModel.owner_id
+            == current_user.id
+
+        )
+
+        .first()
+
+    )
+
+
+    # -----------------------------------------------------
+    # FILE NOT FOUND
+    # -----------------------------------------------------
+
+    if file is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="File not found"
+        )
+
+
+    # -----------------------------------------------------
+    # CHECK PHYSICAL FILE
+    # -----------------------------------------------------
+
+    path = Path(
+        file.file_path
+    )
+
+    if not path.exists():
+
+        raise HTTPException(
+            status_code=404,
+            detail="File does not exist"
+        )
+
+
+    # -----------------------------------------------------
+    # SAVE DOWNLOAD ACTIVITY TO MONGODB
+    # -----------------------------------------------------
+
+    try:
+
+        create_activity_log(
+
+            user_id=current_user.id,
+
+            action="download",
+
+            filename=file.filename
+
+        )
+
+    except Exception as error:
+
+        print(
+            "MongoDB activity log failed:",
+            error
+        )
+
+
+    # -----------------------------------------------------
+    # RETURN FILE
+    # -----------------------------------------------------
+
+    return FileResponse(
+
+        path=str(path),
+
+        filename=file.filename
+
+    )
+
+
+# =========================================================
+# DELETE FILE
+# =========================================================
+
+@router.delete(
+    "/{file_id}"
+)
+def delete_file(
+    file_id: int,
+
+    current_user: User = Depends(
+        get_current_user
+    ),
+
+    db: Session = Depends(
+        get_db
+    )
+):
+
+    # -----------------------------------------------------
+    # FIND ONLY CURRENT USER'S FILE
+    # -----------------------------------------------------
+
+    file = (
+
+        db.query(FileModel)
+
+        .filter(
+
+            FileModel.id == file_id,
+
+            FileModel.owner_id
+            == current_user.id
+
+        )
+
+        .first()
+
+    )
+
+
+    # -----------------------------------------------------
+    # FILE NOT FOUND
+    # -----------------------------------------------------
+
+    if file is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="File not found"
+        )
+
+
+    # Save filename before deleting
+
+    filename = file.filename
+
+
+    # -----------------------------------------------------
+    # DELETE PHYSICAL FILE
+    # -----------------------------------------------------
+
+    path = Path(
+        file.file_path
+    )
+
+    if path.exists():
+
+        try:
+
+            path.unlink()
+
+        except Exception as error:
+
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "Unable to delete physical file: "
+                    f"{error}"
+                )
+            )
+
+
+    # -----------------------------------------------------
+    # DELETE DATABASE RECORD
+    # -----------------------------------------------------
+
+    try:
+
+        db.delete(file)
+
+        db.commit()
+
+    except Exception as error:
+
+        db.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to delete file information: "
+                f"{error}"
+            )
+        )
+
+
+    # -----------------------------------------------------
+    # CLEAR REDIS CACHE
+    # -----------------------------------------------------
+
+    try:
+
+        redis_client.delete(
+            f"user_files:{current_user.id}"
+        )
+
+        print(
+            "Redis file cache cleared after delete."
+        )
+
+    except Exception as error:
+
+        print(
+            "Redis cache clear failed:",
+            error
+        )
+
+
+    # -----------------------------------------------------
+    # SAVE DELETE ACTIVITY TO MONGODB
+    # -----------------------------------------------------
+
+    try:
+
+        create_activity_log(
+
+            user_id=current_user.id,
+
+            action="delete",
+
+            filename=filename
+
+        )
+
+    except Exception as error:
+
+        print(
+            "MongoDB activity log failed:",
+            error
+        )
+
+
+    # -----------------------------------------------------
+    # RESPONSE
+    # -----------------------------------------------------
+
+    return {
+
+        "message":
+            "File deleted successfully",
+
+        "file_id":
+            file_id
+
+    }
