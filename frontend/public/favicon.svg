@@ -1,0 +1,79 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+
+  <defs>
+    <linearGradient id="purpleGradient"
+                    x1="0%"
+                    y1="0%"
+                    x2="100%"
+                    y2="100%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="50%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#4c1d95"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Purple rounded background -->
+  <rect
+    x="2"
+    y="2"
+    width="60"
+    height="60"
+    rx="16"
+    fill="url(#purpleGradient)"
+  />
+
+  <!-- Shield -->
+  <path
+    d="M32 10
+       L49 17
+       V30
+       C49 41 42 49 32 54
+       C22 49 15 41 15 30
+       V17
+       Z"
+    fill="none"
+    stroke="white"
+    stroke-width="4"
+    stroke-linejoin="round"
+  />
+
+  <!-- Lock body -->
+  <rect
+    x="24"
+    y="28"
+    width="16"
+    height="14"
+    rx="3"
+    fill="white"
+  />
+
+  <!-- Lock shackle -->
+  <path
+    d="M28 28
+       V24
+       C28 19 36 19 36 24
+       V28"
+    fill="none"
+    stroke="white"
+    stroke-width="4"
+    stroke-linecap="round"
+  />
+
+  <!-- Keyhole -->
+  <circle
+    cx="32"
+    cy="34"
+    r="2"
+    fill="#6d28d9"
+  />
+
+  <rect
+    x="31"
+    y="34"
+    width="2"
+    height="5"
+    rx="1"
+    fill="#6d28d9"
+  />
+
+</svg>

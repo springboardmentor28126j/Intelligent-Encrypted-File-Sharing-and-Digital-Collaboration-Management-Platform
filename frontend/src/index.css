@@ -1,0 +1,70 @@
+/* =========================================================
+   GLOBAL RESET
+========================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+
+html {
+  margin: 0;
+
+  padding: 0;
+
+  width: 100%;
+
+  min-height: 100%;
+
+  background: #020617;
+}
+
+
+body {
+  margin: 0;
+
+  padding: 0;
+
+  width: 100%;
+
+  min-height: 100vh;
+
+  background: #020617;
+
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+}
+
+
+#root {
+  width: 100%;
+
+  min-height: 100vh;
+}
+
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+
+a {
+  text-decoration: none;
+}
+
+
+::selection {
+  background: #16a34a;
+
+  color: white;
+}
