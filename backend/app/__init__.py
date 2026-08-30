@@ -1,0 +1,3 @@
+"""
+TrustShare Backend Application Package
+"""
