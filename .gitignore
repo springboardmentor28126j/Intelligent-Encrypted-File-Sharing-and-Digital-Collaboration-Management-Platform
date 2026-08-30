@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Python virtual environment
+backend/venv/
+__pycache__/
+*.pyc
