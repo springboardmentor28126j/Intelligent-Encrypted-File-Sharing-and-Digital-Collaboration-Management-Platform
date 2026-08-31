@@ -1,19 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import './App.css';
 
 function App() {
   const [isLogin, setIsLogin] = useState(true);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState('user');
   const [message, setMessage] = useState('');
+  const [isError, setIsError] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [files, setFiles] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('files');
 
   useEffect(() => {
     if (loggedIn) {
       fetchFiles();
     }
+    // eslint-disable-next-line
   }, [loggedIn]);
 
   const fetchFiles = async () => {
@@ -27,23 +34,31 @@ function App() {
 
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
+    setIsError(false);
     try {
       const url = isLogin
         ? 'http://127.0.0.1:8000/login'
         : 'http://127.0.0.1:8000/signup';
 
-      const response = await axios.post(url, { email, password });
+      const payload = isLogin
+        ? { email, password }
+        : { name, email, password, role };
+
+      const response = await axios.post(url, payload);
 
       if (isLogin) {
-        setMessage('Login successful!');
+        setMessage('Login successful. Redirecting...');
         localStorage.setItem('token', response.data.access_token);
         localStorage.setItem('email', email);
-        setLoggedIn(true);
+        localStorage.setItem('role', response.data.role || 'user');
+        localStorage.setItem('name', response.data.name || email.split('@')[0]);
+        setTimeout(() => setLoggedIn(true), 400);
       } else {
-        setMessage('Signup successful! Please login.');
+        setMessage('Account created. You can log in now.');
         setIsLogin(true);
       }
     } catch (error) {
+      setIsError(true);
       setMessage(error.response?.data?.detail || 'Something went wrong');
     }
   };
@@ -51,116 +66,414 @@ function App() {
   const handleFileUpload = async (e) => {
     e.preventDefault();
     if (!selectedFile) {
-      setMessage('Please select a file first');
+      setIsError(true);
+      setMessage('Choose a file first');
       return;
     }
 
     const formData = new FormData();
     formData.append('file', selectedFile);
+    formData.append('owner_email', localStorage.getItem('email'));
 
     try {
-      await axios.post('http://127.0.0.1:8000/upload', formData, {
+      const res = await axios.post('http://127.0.0.1:8000/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setMessage('File uploaded successfully!');
+      setIsError(false);
+      setMessage(res.data.message || 'File uploaded successfully');
       setSelectedFile(null);
       fetchFiles();
     } catch (error) {
+      setIsError(true);
       setMessage('File upload failed');
     }
   };
 
+  const handleDelete = async (fileId, filename) => {
+    if (!window.confirm(`Delete "${filename}"? This cannot be undone.`)) return;
+    try {
+      await axios.delete(`http://127.0.0.1:8000/files/${fileId}`);
+      setMessage('File deleted successfully');
+      setIsError(false);
+      fetchFiles();
+    } catch (error) {
+      setIsError(true);
+      setMessage('Failed to delete file');
+    }
+  };
+
+  const handleDownload = (fileId) => {
+    window.open(`http://127.0.0.1:8000/download/${fileId}`, '_blank');
+  };
+
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('email');
+    localStorage.clear();
     setLoggedIn(false);
     setEmail('');
     setPassword('');
     setFiles([]);
+    setMessage('');
+    setActiveTab('files');
   };
+
+  const getFileIcon = (filename) => {
+    const ext = filename.split('.').pop().toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'svg'].includes(ext)) return '🖼️';
+    if (['pdf'].includes(ext)) return '📕';
+    if (['doc', 'docx'].includes(ext)) return '📄';
+    if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
+    if (['zip', 'rar'].includes(ext)) return '🗜️';
+    return '📁';
+  };
+
+  const formatTime = (t) => {
+    if (!t) return 'Unknown time';
+    try {
+      return new Date(t).toLocaleString();
+    } catch {
+      return t;
+    }
+  };
+
+  const formatSize = (bytes) => {
+    if (!bytes || bytes === 0) return '0 KB';
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    return `${(kb / 1024).toFixed(2)} MB`;
+  };
+
+  const filteredFiles = files.filter((f) =>
+    f.filename.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const sortedActivity = [...files].sort((a, b) => {
+    if (!a.upload_time || !b.upload_time) return 0;
+    return new Date(b.upload_time) - new Date(a.upload_time);
+  });
 
   // ---------- LOGIN / SIGNUP PAGE ----------
   if (!loggedIn) {
     return (
-      <div style={{ maxWidth: '400px', margin: '100px auto', fontFamily: 'Arial' }}>
-        <h2>{isLogin ? 'Login' : 'Signup'} - TrustShare</h2>
-        <form onSubmit={handleAuthSubmit}>
-          <div style={{ marginBottom: '10px' }}>
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={{ width: '100%', padding: '8px' }}
-            />
+      <div className="auth-page">
+        <div className="auth-brand">
+          <div className="brand-mark">
+            <div className="brand-lock">🔒</div>
+            <div className="brand-name">TrustShare</div>
           </div>
-          <div style={{ marginBottom: '10px' }}>
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={{ width: '100%', padding: '8px' }}
-            />
+          <h1>Share files.<br /><span className="accent">Not your privacy.</span></h1>
+          <div className="brand-features">
+            <div className="brand-feature"><span className="dot" />AES-256 encryption</div>
+            <div className="brand-feature"><span className="dot" />Role-based access</div>
+            <div className="brand-feature"><span className="dot" />Full audit trail</div>
           </div>
-          <button type="submit" style={{ width: '100%', padding: '10px' }}>
-            {isLogin ? 'Login' : 'Signup'}
-          </button>
-        </form>
-        {message && <p style={{ color: 'blue' }}>{message}</p>}
-        <p onClick={() => setIsLogin(!isLogin)} style={{ cursor: 'pointer', color: 'green' }}>
-          {isLogin ? "Don't have an account? Signup" : "Already have an account? Login"}
-        </p>
+        </div>
+
+        <div className="auth-form-side">
+          <div className="auth-card">
+            <h2>{isLogin ? 'Welcome back' : 'Create your account'}</h2>
+            <p className="subtitle">
+              {isLogin ? 'Log in to access your files' : 'Start sharing files securely'}
+            </p>
+
+            <form onSubmit={handleAuthSubmit}>
+              {!isLogin && (
+                <div className="field-group">
+                  <label>Full name</label>
+                  <input
+                    type="text"
+                    placeholder="Divya Prakash"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+              <div className="field-group">
+                <label>Email</label>
+                <input
+                  type="email"
+                  placeholder="you@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="field-group">
+                <label>Password</label>
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              {!isLogin && (
+                <div className="field-group">
+                  <label>Account type</label>
+                  <select value={role} onChange={(e) => setRole(e.target.value)}>
+                    <option value="user">Standard user</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              )}
+
+              <button type="submit" className="btn-primary">
+                {isLogin ? 'Log In' : 'Create Account'}
+              </button>
+            </form>
+
+            {message && (
+              <div className={`auth-message ${isError ? 'error' : ''}`}>{message}</div>
+            )}
+
+            <p className="auth-switch">
+              {isLogin ? "Don't have an account? " : 'Already have an account? '}
+              <span onClick={() => { setIsLogin(!isLogin); setMessage(''); }}>
+                {isLogin ? 'Sign up' : 'Log in'}
+              </span>
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
 
-  // ---------- DASHBOARD PAGE (AFTER LOGIN) ----------
+  // ---------- DASHBOARD ----------
+  const userEmail = localStorage.getItem('email');
+  const userRole = localStorage.getItem('role') || 'user';
+  const userName = localStorage.getItem('name') || userEmail;
+  const initials = userName.substring(0, 2).toUpperCase();
+
   return (
-    <div style={{ maxWidth: '700px', margin: '50px auto', fontFamily: 'Arial' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>TrustShare Dashboard</h2>
-        <button onClick={handleLogout} style={{ padding: '8px 16px' }}>Logout</button>
-      </div>
-      <p>Welcome, {localStorage.getItem('email')}</p>
+    <div className="dash-layout">
+      <div className="sidebar">
+        <div className="brand-mark">
+          <div className="brand-lock">🔒</div>
+          <div className="brand-name">TrustShare</div>
+        </div>
 
-      <div style={{ border: '1px solid #ccc', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
-        <h3>Upload a File</h3>
-        <form onSubmit={handleFileUpload}>
-          <input
-            type="file"
-            onChange={(e) => setSelectedFile(e.target.files[0])}
-            style={{ marginBottom: '10px' }}
-          />
-          <br />
-          <button type="submit" style={{ padding: '8px 16px' }}>Upload</button>
-        </form>
-        {message && <p style={{ color: 'blue' }}>{message}</p>}
+        <div
+          className={`nav-item ${activeTab === 'files' ? 'active' : ''}`}
+          onClick={() => setActiveTab('files')}
+        >
+          📁 My Files
+        </div>
+        <div
+          className={`nav-item ${activeTab === 'activity' ? 'active' : ''}`}
+          onClick={() => setActiveTab('activity')}
+        >
+          📊 Activity Log
+        </div>
+        <div
+          className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
+          onClick={() => setActiveTab('settings')}
+        >
+          ⚙️ Settings
+        </div>
+
+        <div className="sidebar-footer">
+          <div className="avatar-chip">{initials}</div>
+          <div className="sidebar-footer-info">
+            <div className="fname">{userName}</div>
+            <span className={`role-badge ${userRole}`}>{userRole}</span>
+          </div>
+        </div>
       </div>
 
-      <div style={{ border: '1px solid #ccc', padding: '20px', borderRadius: '8px' }}>
-        <h3>Your Files</h3>
-        {files.length === 0 ? (
-          <p>No files uploaded yet.</p>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #ccc' }}>
-                <th style={{ textAlign: 'left', padding: '8px' }}>Filename</th>
-                <th style={{ textAlign: 'left', padding: '8px' }}>Uploaded By</th>
-              </tr>
-            </thead>
-            <tbody>
-              {files.map((f) => (
-                <tr key={f.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '8px' }}>{f.filename}</td>
-                  <td style={{ padding: '8px' }}>{f.owner_email}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="dash-main">
+        {activeTab === 'files' && (
+          <>
+            <div className="dash-topbar">
+              <div>
+                <h1>Your Files</h1>
+                <div className="welcome">Manage and share your encrypted files</div>
+              </div>
+              <button className="btn-logout" onClick={handleLogout}>Log out</button>
+            </div>
+
+            <div className="stat-row">
+              <div className="stat-card">
+                <div className="stat-value">{files.length}</div>
+                <div className="stat-label">Total files</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">AES-256</div>
+                <div className="stat-label">Encryption standard</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{userRole}</div>
+                <div className="stat-label">Access level</div>
+              </div>
+            </div>
+
+            <div className="card">
+              <h3>Upload a file</h3>
+              <form onSubmit={handleFileUpload}>
+                <div className={`upload-zone ${selectedFile ? 'has-file' : ''}`}>
+                  <label className="upload-label" htmlFor="file-input">Choose file</label>
+                  <input
+                    id="file-input"
+                    type="file"
+                    onChange={(e) => setSelectedFile(e.target.files[0])}
+                  />
+                  {selectedFile ? (
+                    <div className="filename mono">{selectedFile.name}</div>
+                  ) : (
+                    <div className="hint">No file selected yet</div>
+                  )}
+                  <div style={{ marginTop: '16px' }}>
+                    <button type="submit" className="btn-primary" style={{ width: 'auto', padding: '10px 24px' }}>
+                      Upload &amp; Encrypt
+                    </button>
+                  </div>
+                </div>
+              </form>
+              {message && (
+                <div className={`auth-message ${isError ? 'error' : ''}`} style={{ marginTop: '16px' }}>
+                  {message}
+                </div>
+              )}
+            </div>
+
+            <div className="card">
+              <div className="card-header-row">
+                <h3 style={{ margin: 0 }}>File vault ({filteredFiles.length})</h3>
+                <input
+                  className="search-input"
+                  placeholder="Search files..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+
+              {filteredFiles.length === 0 ? (
+                <div className="empty-state">
+                  {files.length === 0 ? 'No files uploaded yet — upload your first file above.' : 'No files match your search.'}
+                </div>
+              ) : (
+                <table className="files-table">
+                  <thead>
+                    <tr>
+                      <th>File</th>
+                      <th>Uploaded by</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredFiles.map((f) => (
+                      <tr key={f.id}>
+                        <td>
+                          <div className="file-name-cell">
+                            <div className="file-icon">{getFileIcon(f.filename)}</div>
+                            <div>
+                              <div className="name">{f.filename}</div>
+                              <div className="file-meta mono">
+                                {formatSize(f.file_size)} · {formatTime(f.upload_time)}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="owner-cell mono">{f.owner_email}</td>
+                        <td>
+                          <div className="file-actions">
+                            <button className="icon-btn" onClick={() => handleDownload(f.id)}>Download</button>
+                            <button className="icon-btn danger" onClick={() => handleDelete(f.id, f.filename)}>Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        )}
+
+        {activeTab === 'activity' && (
+          <>
+            <div className="dash-topbar">
+              <div>
+                <h1>Activity Log</h1>
+                <div className="welcome">Recent file activity across your account</div>
+              </div>
+              <button className="btn-logout" onClick={handleLogout}>Log out</button>
+            </div>
+
+            <div className="card">
+              <h3>Recent activity</h3>
+              {sortedActivity.length === 0 ? (
+                <div className="empty-state">No activity yet — upload a file to see it here.</div>
+              ) : (
+                sortedActivity.map((f) => (
+                  <div className="activity-item" key={f.id}>
+                    <div className="activity-dot">{getFileIcon(f.filename)}</div>
+                    <div>
+                      <div className="activity-text">
+                        <span className="mono">{f.owner_email}</span> uploaded <span className="mono">{f.filename}</span>
+                      </div>
+                      <div className="activity-time">{formatTime(f.upload_time)}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </>
+        )}
+
+        {activeTab === 'settings' && (
+          <>
+            <div className="dash-topbar">
+              <div>
+                <h1>Settings</h1>
+                <div className="welcome">Your account details</div>
+              </div>
+              <button className="btn-logout" onClick={handleLogout}>Log out</button>
+            </div>
+
+            <div className="card">
+              <h3>Account information</h3>
+              <div className="settings-row">
+                <div>
+                  <div className="settings-label">Name</div>
+                  <div className="settings-value">{userName}</div>
+                </div>
+              </div>
+              <div className="settings-row">
+                <div>
+                  <div className="settings-label">Email</div>
+                  <div className="settings-value mono">{userEmail}</div>
+                </div>
+              </div>
+              <div className="settings-row">
+                <div>
+                  <div className="settings-label">Access level</div>
+                  <div className="settings-value">
+                    <span className={`role-badge ${userRole}`}>{userRole}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="card">
+              <h3>Security</h3>
+              <div className="settings-row">
+                <div>
+                  <div className="settings-label">Password</div>
+                  <div className="settings-value">••••••••</div>
+                </div>
+                <span className="badge-soon">Change password — coming soon</span>
+              </div>
+              <div className="settings-row">
+                <div>
+                  <div className="settings-label">Two-factor authentication</div>
+                  <div className="settings-value">Not enabled</div>
+                </div>
+                <span className="badge-soon">Coming soon</span>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>
