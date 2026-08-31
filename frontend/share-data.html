@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="en">
 
@@ -10,17 +9,24 @@
 
     <title>TrustShare - Share Data</title>
 
+
     <style>
 
         * {
             box-sizing: border-box;
         }
 
+
         body {
             margin: 0;
             font-family: Arial, sans-serif;
             background: #f4f7fb;
         }
+
+
+        /* ==============================
+           NAVBAR
+        ============================== */
 
         .navbar {
             background: #1f4e79;
@@ -32,14 +38,17 @@
             align-items: center;
         }
 
+
         .navbar h2 {
             margin: 0;
         }
+
 
         .buttons {
             display: flex;
             gap: 10px;
         }
+
 
         .dashboard-button {
             background: #28a745;
@@ -50,6 +59,7 @@
             cursor: pointer;
         }
 
+
         .logout {
             background: #dc3545;
             color: white;
@@ -59,19 +69,31 @@
             cursor: pointer;
         }
 
+
         .dashboard-button:hover {
             background: #218838;
         }
 
+
         .logout:hover {
             background: #b02a37;
         }
+
+
+        /* ==============================
+           MAIN CONTAINER
+        ============================== */
 
         .container {
             width: 90%;
             max-width: 800px;
             margin: 50px auto;
         }
+
+
+        /* ==============================
+           HEADER AND SHARE BOX
+        ============================== */
 
         .header,
         .share-box {
@@ -85,10 +107,12 @@
             margin-bottom: 25px;
         }
 
+
         h1,
         h2 {
             color: #1f4e79;
         }
+
 
         label {
             display: block;
@@ -96,6 +120,7 @@
             margin-bottom: 8px;
             font-weight: bold;
         }
+
 
         input,
         select {
@@ -105,6 +130,45 @@
             border-radius: 6px;
             font-size: 15px;
         }
+
+
+        /* ==============================
+           MULTIPLE FILE SELECT
+        ============================== */
+
+        #fileName {
+            width: 100%;
+            min-height: 150px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 15px;
+            background: white;
+        }
+
+
+        #fileName option {
+            padding: 10px;
+        }
+
+
+        #fileName option:checked {
+            background: #1f4e79;
+            color: white;
+        }
+
+
+        .selection-hint {
+            margin-top: 7px;
+            margin-bottom: 0;
+            color: #666;
+            font-size: 13px;
+        }
+
+
+        /* ==============================
+           SHARE BUTTON
+        ============================== */
 
         .share-button {
             margin-top: 25px;
@@ -123,15 +187,28 @@
             font-size: 15px;
         }
 
+
         .share-button:hover {
             background: #163a5c;
         }
+
+
+        .share-button:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+
+
+        /* ==============================
+           MESSAGE
+        ============================== */
 
         #message {
             margin-top: 20px;
             font-weight: bold;
             text-align: center;
         }
+
 
     </style>
 
@@ -141,11 +218,14 @@
 <body>
 
 
-    <!-- Navigation -->
+    <!-- ==============================
+         NAVIGATION
+    ============================== -->
 
     <div class="navbar">
 
         <h2>TrustShare</h2>
+
 
         <div class="buttons">
 
@@ -156,6 +236,7 @@
                 Dashboard
 
             </button>
+
 
             <button
                 class="logout"
@@ -170,12 +251,17 @@
     </div>
 
 
-    <!-- Main Container -->
+
+    <!-- ==============================
+         MAIN CONTAINER
+    ============================== -->
 
     <div class="container">
 
 
-        <!-- Header -->
+        <!-- ==============================
+             HEADER
+        ============================== -->
 
         <div class="header">
 
@@ -189,20 +275,29 @@
         </div>
 
 
-        <!-- Share Form -->
+
+        <!-- ==============================
+             SHARE FORM
+        ============================== -->
 
         <div class="share-box">
 
-            <h2>Share a File</h2>
+            <h2>Share Multiple Files</h2>
 
 
-            <!-- File -->
+            <!-- ==============================
+                 FILE SELECTION
+            ============================== -->
 
             <label for="fileName">
-                Select File
+                Select Files
             </label>
 
-            <select id="fileName">
+
+            <select
+                id="fileName"
+                multiple
+                size="6">
 
                 <option value="">
                     Loading files...
@@ -211,11 +306,20 @@
             </select>
 
 
-            <!-- Recipient -->
+            <p class="selection-hint">
+                Hold Ctrl and click to select multiple files.
+            </p>
+
+
+
+            <!-- ==============================
+                 RECIPIENT
+            ============================== -->
 
             <label for="recipientEmail">
                 Recipient Email
             </label>
+
 
             <input
                 type="email"
@@ -224,23 +328,33 @@
             >
 
 
-            <!-- Share button -->
+
+            <!-- ==============================
+                 SHARE BUTTON
+            ============================== -->
 
             <button
                 class="share-button"
-                onclick="shareFile()">
+                id="shareButton"
+                onclick="shareFiles()">
 
-                Share File
+                Share Selected Files
 
             </button>
 
 
+            <!-- ==============================
+                 MESSAGE
+            ============================== -->
+
             <div id="message"></div>
+
 
         </div>
 
 
     </div>
+
 
 
     <script>
@@ -255,6 +369,7 @@
             const token =
                 localStorage.getItem("access_token");
 
+
             if (!token) {
 
                 window.location.href =
@@ -262,6 +377,7 @@
 
                 return false;
             }
+
 
             return true;
         }
@@ -277,8 +393,10 @@
             const token =
                 localStorage.getItem("access_token");
 
+
             const fileSelect =
                 document.getElementById("fileName");
+
 
             try {
 
@@ -300,7 +418,9 @@
                     await response.json();
 
 
-                // Token expired / invalid
+                // ==========================================
+                // TOKEN EXPIRED / INVALID
+                // ==========================================
 
                 if (response.status === 401) {
 
@@ -313,7 +433,10 @@
                 }
 
 
-                // Other server error
+
+                // ==========================================
+                // SERVER ERROR
+                // ==========================================
 
                 if (!response.ok) {
 
@@ -324,7 +447,10 @@
                 }
 
 
-                // No files
+
+                // ==========================================
+                // NO FILES
+                // ==========================================
 
                 if (
                     !data.files ||
@@ -338,13 +464,18 @@
                 }
 
 
-                // Clear loading message
 
-                fileSelect.innerHTML =
-                    '<option value="">Select a file</option>';
+                // ==========================================
+                // CLEAR LOADING MESSAGE
+                // ==========================================
+
+                fileSelect.innerHTML = "";
 
 
-                // Add files to dropdown
+
+                // ==========================================
+                // ADD ALL FILES
+                // ==========================================
 
                 data.files.forEach(
                     function(filename) {
@@ -354,11 +485,14 @@
                                 "option"
                             );
 
+
                         option.value =
                             filename;
 
+
                         option.textContent =
                             filename;
+
 
                         fileSelect.appendChild(
                             option
@@ -374,6 +508,7 @@
 
                 console.error(error);
 
+
                 fileSelect.innerHTML =
                     '<option value="">Cannot connect to server</option>';
 
@@ -384,16 +519,40 @@
 
 
         // ==========================================
-        // SHARE FILE
+        // SHARE MULTIPLE FILES
         // ==========================================
 
-        async function shareFile() {
+        async function shareFiles() {
 
-            const fileName =
-                document.getElementById(
-                    "fileName"
-                ).value;
 
+            // ==========================================
+            // GET SELECTED FILES
+            // ==========================================
+
+            const fileSelect =
+                document.getElementById("fileName");
+
+
+            const selectedFiles =
+                Array.from(
+                    fileSelect.selectedOptions
+                )
+                .map(
+                    function(option) {
+                        return option.value;
+                    }
+                )
+                .filter(
+                    function(value) {
+                        return value !== "";
+                    }
+                );
+
+
+
+            // ==========================================
+            // GET RECIPIENT EMAIL
+            // ==========================================
 
             const recipientEmail =
                 document.getElementById(
@@ -401,24 +560,46 @@
                 ).value.trim();
 
 
+
+            // ==========================================
+            // MESSAGE ELEMENT
+            // ==========================================
+
             const message =
                 document.getElementById(
                     "message"
                 );
 
 
-            // Check file
 
-            if (!fileName) {
+            // ==========================================
+            // SHARE BUTTON
+            // ==========================================
+
+            const shareButton =
+                document.getElementById(
+                    "shareButton"
+                );
+
+
+
+            // ==========================================
+            // CHECK FILE SELECTION
+            // ==========================================
+
+            if (selectedFiles.length === 0) {
 
                 message.innerText =
-                    "Please select a file.";
+                    "Please select at least one file.";
 
                 return;
             }
 
 
-            // Check email
+
+            // ==========================================
+            // CHECK EMAIL
+            // ==========================================
 
             if (!recipientEmail) {
 
@@ -429,7 +610,10 @@
             }
 
 
-            // Get JWT token
+
+            // ==========================================
+            // GET JWT TOKEN
+            // ==========================================
 
             const token =
                 localStorage.getItem(
@@ -449,111 +633,211 @@
             }
 
 
+
+            // ==========================================
+            // DISABLE BUTTON
+            // ==========================================
+
+            shareButton.disabled = true;
+
+            shareButton.innerText =
+                "Sharing...";
+
+
+
             message.innerText =
-                "Sharing file...";
+                "Sharing "
+                + selectedFiles.length
+                + " file(s)...";
 
 
-            try {
+
+            // ==========================================
+            // COUNTERS
+            // ==========================================
+
+            let successCount = 0;
+
+            let failedCount = 0;
 
 
-                // ==========================================
-                // CALL FASTAPI SHARE API
-                // ==========================================
 
-                const response =
-                    await fetch(
-                        "http://127.0.0.1:8000/share?filename="
-                        + encodeURIComponent(fileName)
-                        + "&recipient_email="
-                        + encodeURIComponent(recipientEmail),
+            // ==========================================
+            // SHARE EACH SELECTED FILE
+            // ==========================================
 
-                        {
-                            method: "POST",
+            for (
+                const fileName
+                of selectedFiles
+            ) {
 
-                            headers: {
 
-                                "Authorization":
-                                    "Bearer " + token,
+                try {
 
-                                "Accept":
-                                    "application/json"
+
+                    // ==========================================
+                    // CALL EXISTING FASTAPI SHARE API
+                    // ==========================================
+
+                    const response =
+                        await fetch(
+                            "http://127.0.0.1:8000/share?filename="
+                            + encodeURIComponent(fileName)
+                            + "&recipient_email="
+                            + encodeURIComponent(recipientEmail),
+
+                            {
+                                method: "POST",
+
+                                headers: {
+
+                                    "Authorization":
+                                        "Bearer " + token,
+
+                                    "Accept":
+                                        "application/json"
+
+                                }
                             }
-                        }
-                    );
+                        );
 
 
-                const data =
-                    await response.json();
+
+                    // ==========================================
+                    // READ RESPONSE
+                    // ==========================================
+
+                    const data =
+                        await response.json();
 
 
-                // ==========================================
-                // TOKEN ERROR
-                // ==========================================
 
-                if (response.status === 401) {
+                    // ==========================================
+                    // TOKEN ERROR
+                    // ==========================================
 
-                    message.innerText =
-                        "Session expired. Please login again.";
+                    if (response.status === 401) {
 
-                    localStorage.clear();
+                        message.innerText =
+                            "Session expired. Please login again.";
 
-                    setTimeout(
-                        function() {
+                        localStorage.clear();
 
-                            window.location.href =
-                                "login.html";
 
-                        },
-                        1500
-                    );
+                        setTimeout(
+                            function() {
 
-                    return;
+                                window.location.href =
+                                    "login.html";
+
+                            },
+                            1500
+                        );
+
+
+                        return;
+                    }
+
+
+
+                    // ==========================================
+                    // SUCCESS
+                    // ==========================================
+
+                    if (response.ok) {
+
+                        successCount++;
+
+                    }
+
+
+                    // ==========================================
+                    // FAILED
+                    // ==========================================
+
+                    else {
+
+                        console.error(
+                            "Failed to share file:",
+                            fileName,
+                            data
+                        );
+
+                        failedCount++;
+
+                    }
+
                 }
 
 
-                // ==========================================
-                // SUCCESS
-                // ==========================================
+                catch (error) {
 
-                if (response.ok) {
+                    console.error(
+                        "Error sharing file:",
+                        fileName,
+                        error
+                    );
 
-                    message.innerText =
-                        "File shared successfully with "
-                        + recipientEmail;
-
-                    // Clear email field
-
-                    document.getElementById(
-                        "recipientEmail"
-                    ).value = "";
-
-                }
-
-
-                // ==========================================
-                // ERROR
-                // ==========================================
-
-                else {
-
-                    message.innerText =
-                        data.detail ||
-                        data.message ||
-                        "Unable to share file.";
+                    failedCount++;
 
                 }
 
             }
 
 
-            catch (error) {
 
-                console.error(error);
+            // ==========================================
+            // FINAL RESULT
+            // ==========================================
+
+            if (failedCount === 0) {
 
                 message.innerText =
-                    "Cannot connect to the TrustShare server.";
+                    successCount
+                    + " file(s) shared successfully with "
+                    + recipientEmail;
 
             }
+
+
+            else {
+
+                message.innerText =
+                    successCount
+                    + " file(s) shared successfully. "
+                    + failedCount
+                    + " file(s) failed.";
+
+            }
+
+
+
+            // ==========================================
+            // CLEAR EMAIL
+            // ==========================================
+
+            document.getElementById(
+                "recipientEmail"
+            ).value = "";
+
+
+
+            // ==========================================
+            // CLEAR FILE SELECTION
+            // ==========================================
+
+            fileSelect.selectedIndex = -1;
+
+
+
+            // ==========================================
+            // ENABLE BUTTON
+            // ==========================================
+
+            shareButton.disabled = false;
+
+            shareButton.innerText =
+                "Share Selected Files";
 
         }
 
@@ -597,10 +881,10 @@
 
         }
 
+
     </script>
 
 
 </body>
 
 </html>
-```
