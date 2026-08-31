@@ -15,6 +15,10 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('files');
+  const [authView, setAuthView] = useState('login'); // login | signup | forgot | reset
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [generatedToken, setGeneratedToken] = useState('');
 
   useEffect(() => {
     if (loggedIn) {
@@ -25,7 +29,11 @@ function App() {
 
   const fetchFiles = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/files');
+      const userEmail = localStorage.getItem('email');
+      const userRole = localStorage.getItem('role');
+      const response = await axios.get(
+        `http://127.0.0.1:8000/files?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
+      );
       setFiles(response.data);
     } catch (error) {
       console.log('Error fetching files');
@@ -63,6 +71,42 @@ function App() {
     }
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setIsError(false);
+    try {
+      const response = await axios.post('http://127.0.0.1:8000/forgot-password', { email });
+      setGeneratedToken(response.data.reset_token);
+      setMessage(response.data.message);
+      setAuthView('reset');
+    } catch (error) {
+      setIsError(true);
+      setMessage(error.response?.data?.detail || 'Something went wrong');
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setIsError(false);
+    try {
+      const response = await axios.post('http://127.0.0.1:8000/reset-password', {
+        token: resetToken,
+        new_password: newPassword,
+      });
+      setMessage(response.data.message);
+      setIsError(false);
+      setTimeout(() => {
+        setAuthView('login');
+        setResetToken('');
+        setNewPassword('');
+        setGeneratedToken('');
+      }, 1500);
+    } catch (error) {
+      setIsError(true);
+      setMessage(error.response?.data?.detail || 'Invalid or expired token');
+    }
+  };
+
   const handleFileUpload = async (e) => {
     e.preventDefault();
     if (!selectedFile) {
@@ -85,25 +129,34 @@ function App() {
       fetchFiles();
     } catch (error) {
       setIsError(true);
-      setMessage('File upload failed');
+      setMessage(error.response?.data?.detail || 'File upload failed');
     }
   };
 
   const handleDelete = async (fileId, filename) => {
     if (!window.confirm(`Delete "${filename}"? This cannot be undone.`)) return;
     try {
-      await axios.delete(`http://127.0.0.1:8000/files/${fileId}`);
+      const userEmail = localStorage.getItem('email');
+      const userRole = localStorage.getItem('role');
+      await axios.delete(
+        `http://127.0.0.1:8000/files/${fileId}?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
+      );
       setMessage('File deleted successfully');
       setIsError(false);
       fetchFiles();
     } catch (error) {
       setIsError(true);
-      setMessage('Failed to delete file');
+      setMessage(error.response?.data?.detail || 'Failed to delete file');
     }
   };
 
   const handleDownload = (fileId) => {
-    window.open(`http://127.0.0.1:8000/download/${fileId}`, '_blank');
+    const userEmail = localStorage.getItem('email');
+    const userRole = localStorage.getItem('role');
+    window.open(
+      `http://127.0.0.1:8000/download/${fileId}?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`,
+      '_blank'
+    );
   };
 
   const handleLogout = () => {
@@ -170,71 +223,145 @@ function App() {
 
         <div className="auth-form-side">
           <div className="auth-card">
-            <h2>{isLogin ? 'Welcome back' : 'Create your account'}</h2>
-            <p className="subtitle">
-              {isLogin ? 'Log in to access your files' : 'Start sharing files securely'}
-            </p>
+              {authView === 'forgot' ? (
+                <>
+                  <h2>Forgot password</h2>
+                  <p className="subtitle">Enter your email and we'll generate a reset code</p>
+                  <form onSubmit={handleForgotPassword}>
+                    <div className="field-group">
+                      <label>Email</label>
+                      <input
+                        type="email"
+                        placeholder="you@company.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <button type="submit" className="btn-primary">Send reset code</button>
+                  </form>
+                  {message && (
+                    <div className={`auth-message ${isError ? 'error' : ''}`}>{message}</div>
+                  )}
+                  <p className="auth-switch">
+                    <span onClick={() => { setAuthView('login'); setMessage(''); }}>Back to login</span>
+                  </p>
+                </>
+              ) : authView === 'reset' ? (
+                <>
+                  <h2>Reset password</h2>
+                  <p className="subtitle">Enter the code and your new password</p>
+                  {generatedToken && (
+                    <div className="dev-note">
+                      <strong>Dev mode:</strong> Your reset code:
+                      <div className="token-box mono">{generatedToken}</div>
+                    </div>
+                  )}
+                  <form onSubmit={handleResetPassword}>
+                    <div className="field-group">
+                      <label>Reset code</label>
+                      <input
+                        type="text"
+                        placeholder="Enter code"
+                        value={resetToken}
+                        onChange={(e) => setResetToken(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="field-group">
+                      <label>New password</label>
+                      <input
+                        type="password"
+                        placeholder="••••••••"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <button type="submit" className="btn-primary">Reset password</button>
+                  </form>
+                  {message && (
+                    <div className={`auth-message ${isError ? 'error' : ''}`}>{message}</div>
+                  )}
+                  <p className="auth-switch">
+                    <span onClick={() => { setAuthView('login'); setMessage(''); }}>Back to login</span>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2>{isLogin ? 'Welcome back' : 'Create your account'}</h2>
+                  <p className="subtitle">
+                    {isLogin ? 'Log in to access your files' : 'Start sharing files securely'}
+                  </p>
 
-            <form onSubmit={handleAuthSubmit}>
-              {!isLogin && (
-                <div className="field-group">
-                  <label>Full name</label>
-                  <input
-                    type="text"
-                    placeholder="Divya Prakash"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </div>
+                  <form onSubmit={handleAuthSubmit}>
+                    {!isLogin && (
+                      <div className="field-group">
+                        <label>Full name</label>
+                        <input
+                          type="text"
+                          placeholder="Divya Prakash"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          required
+                        />
+                      </div>
+                    )}
+                    <div className="field-group">
+                      <label>Email</label>
+                      <input
+                        type="email"
+                        placeholder="you@company.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="field-group">
+                      <label>Password</label>
+                      <input
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    {isLogin && (
+                      <div className="forgot-link">
+                        <span onClick={() => { setAuthView('forgot'); setMessage(''); }}>Forgot password?</span>
+                      </div>
+                    )}
+
+                    {!isLogin && (
+                      <div className="field-group">
+                        <label>Account type</label>
+                        <select value={role} onChange={(e) => setRole(e.target.value)}>
+                          <option value="user">Standard user</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
+                    )}
+
+                    <button type="submit" className="btn-primary">
+                      {isLogin ? 'Log In' : 'Create Account'}
+                    </button>
+                  </form>
+
+                  {message && (
+                    <div className={`auth-message ${isError ? 'error' : ''}`}>{message}</div>
+                  )}
+
+                  <p className="auth-switch">
+                    {isLogin ? "Don't have an account? " : 'Already have an account? '}
+                    <span onClick={() => { setIsLogin(!isLogin); setMessage(''); }}>
+                      {isLogin ? 'Sign up' : 'Log in'}
+                    </span>
+                  </p>
+                </>
               )}
-              <div className="field-group">
-                <label>Email</label>
-                <input
-                  type="email"
-                  placeholder="you@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="field-group">
-                <label>Password</label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-
-              {!isLogin && (
-                <div className="field-group">
-                  <label>Account type</label>
-                  <select value={role} onChange={(e) => setRole(e.target.value)}>
-                    <option value="user">Standard user</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-              )}
-
-              <button type="submit" className="btn-primary">
-                {isLogin ? 'Log In' : 'Create Account'}
-              </button>
-            </form>
-
-            {message && (
-              <div className={`auth-message ${isError ? 'error' : ''}`}>{message}</div>
-            )}
-
-            <p className="auth-switch">
-              {isLogin ? "Don't have an account? " : 'Already have an account? '}
-              <span onClick={() => { setIsLogin(!isLogin); setMessage(''); }}>
-                {isLogin ? 'Sign up' : 'Log in'}
-              </span>
-            </p>
-          </div>
+            </div>
         </div>
       </div>
     );
