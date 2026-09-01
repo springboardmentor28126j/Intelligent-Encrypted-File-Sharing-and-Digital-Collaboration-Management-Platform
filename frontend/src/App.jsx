@@ -7,6 +7,7 @@ import FileDetails from './pages/FileDetails'
 import Folders from './pages/Folders'
 import MyFiles from './pages/MyFiles'
 import Profile from './pages/Profile'
+import SharedWithMe from './pages/SharedWithMe'
 import UploadFile from './pages/UploadFile'
 
 function AppRoutes() {
@@ -21,6 +22,7 @@ function AppRoutes() {
       <Route path="/files" element={<MyFiles />} />
       <Route path="/files/upload" element={<UploadFile />} />
       <Route path="/files/:id" element={<FileDetails />} />
+      <Route path="/shared-with-me" element={<SharedWithMe />} />
       <Route path="/folders" element={<Folders />} />
       <Route path="/profile" element={<Profile />} />
       <Route path="/activity" element={<Activity />} />

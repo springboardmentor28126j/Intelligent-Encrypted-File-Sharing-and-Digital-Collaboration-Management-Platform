@@ -1,11 +1,11 @@
 from pathlib import Path
-from fastapi import APIRouter, Depends, File as UploadFileParam, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File as UploadFileParam, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse as DownloadResponse
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import ActivityLog, File, Folder, User
+from ..models import ActivityLog, File, FileShare, Folder, User
 from ..schemas.file import FileRename, FileResponse
-from ..services.activity_service import log_activity
+from ..services.activity_service import log_activity, log_download_notification
 from ..services.file_service import save_upload
 from ..utils.dependencies import get_current_user
 
@@ -16,6 +16,7 @@ CATEGORIES = {"Documents", "Images", "Videos", "PDFs", "Spreadsheets", "Other"}
 def to_response(item: File):
     return {
         "id": item.id,
+        "owner_id": item.owner_id,
         "original_filename": item.original_filename,
         "file_size": item.file_size,
         "file_type": item.file_type,
@@ -26,6 +27,29 @@ def to_response(item: File):
         "created_at": item.created_at,
         "updated_at": item.updated_at,
     }
+
+
+def require_file_access(file_id: int, user: User, db: Session, required_permission: str | None = None):
+    item = db.get(File, file_id)
+    if not item:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "File not found")
+
+    if item.owner_id == user.id:
+        return item, None
+
+    share = db.query(FileShare).filter(FileShare.file_id == file_id, FileShare.shared_with_user_id == user.id).first()
+    if not share:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You do not have access to this file")
+
+    permission = share.permission.upper()
+    if required_permission:
+        desired = required_permission.upper()
+        if desired == "VIEWER" and permission not in {"VIEWER", "EDITOR"}:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Viewer access is required")
+        if desired == "EDITOR" and permission != "EDITOR":
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Editor access is required")
+
+    return item, share
 
 
 def owned_file(file_id: int, user: User, db: Session):
@@ -70,23 +94,61 @@ async def upload_file(file: UploadFile = UploadFileParam(...), category: str = F
     return to_response(item)
 
 
+@router.get("/shared-with-me")
+def shared_with_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    shares = (
+        db.query(FileShare, File, User)
+        .join(File, File.id == FileShare.file_id)
+        .join(User, User.id == File.owner_id)
+        .filter(FileShare.shared_with_user_id == current_user.id)
+        .order_by(File.created_at.desc())
+        .all()
+    )
+    response = []
+    for share, file, owner in shares:
+        response.append({
+            "id": file.id,
+            "file_id": file.id,
+            "original_filename": file.original_filename,
+            "file_size": file.file_size,
+            "file_type": file.file_type,
+            "category": file.category,
+            "version": file.version,
+            "owner_id": file.owner_id,
+            "owner_name": owner.name,
+            "shared_by": owner.name,
+            "permission": share.permission,
+            "created_at": file.created_at,
+        })
+    return response
+
+
 @router.get("/{file_id}", response_model=FileResponse)
 def file_details(file_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return to_response(owned_file(file_id, current_user, db))
+    item, _ = require_file_access(file_id, current_user, db, required_permission="VIEWER")
+    return to_response(item)
 
 
 @router.get("/{file_id}/download")
 def download_file(file_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    item = owned_file(file_id, current_user, db)
+    item, _ = require_file_access(file_id, current_user, db, required_permission="VIEWER")
     if not Path(item.file_path).is_file():
         raise HTTPException(404, "Stored file is missing")
+
+    if item.owner_id != current_user.id:
+        owner = db.get(User, item.owner_id)
+        if owner:
+            log_download_notification(db, owner, current_user, item.original_filename, item.id)
+
     log_activity(db, current_user, "download", f"Downloaded {item.original_filename}", item.id)
     return DownloadResponse(item.file_path, filename=item.original_filename, media_type=item.file_type)
 
 
 @router.put("/{file_id}", response_model=FileResponse)
 def rename_file(file_id: int, data: FileRename, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    item = owned_file(file_id, current_user, db)
+    item, share = require_file_access(file_id, current_user, db, required_permission="EDITOR")
+    if item.owner_id != current_user.id and (not share or share.permission.upper() != "EDITOR"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the file owner or an editor can rename this file")
     new_name = Path(data.original_filename.strip()).name
     if not new_name or new_name != data.original_filename.strip():
         raise HTTPException(400, "Invalid filename")

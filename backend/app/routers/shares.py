@@ -1,0 +1,135 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from ..models import File, FileShare, User
+from ..schemas.file_share import FileShareCreate, FileShareResponse, FileShareUpdate
+from ..services.activity_service import log_activity
+from ..utils.dependencies import get_current_user
+
+router = APIRouter(prefix="/api/files", tags=["File Shares"])
+
+VALID_PERMISSIONS = {"VIEWER", "EDITOR"}
+
+
+def validate_permission(permission: str) -> str:
+    value = permission.strip().upper()
+    if value not in VALID_PERMISSIONS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Permission must be VIEWER or EDITOR")
+    return value
+
+
+def extract_share_emails(data: FileShareCreate) -> list[str]:
+    emails = []
+    if data.emails:
+        for value in data.emails:
+            if isinstance(value, str):
+                emails.extend(part.strip().lower() for part in value.split(",") if part.strip())
+        if emails:
+            return emails
+    if data.email:
+        return [part.strip().lower() for part in data.email.split(",") if part.strip()]
+    return []
+
+
+@router.post("/{file_id}/share", response_model=FileShareResponse)
+def share_file(file_id: int, data: FileShareCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    item = db.get(File, file_id)
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+    if item.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the file owner can share this file")
+
+    emails = extract_share_emails(data)
+    if not emails:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provide at least one valid email address")
+
+    permission = validate_permission(data.permission)
+    first_share = None
+    for target_email in emails:
+        target_user = db.query(User).filter(User.email == target_email).first()
+        if not target_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with this email was not found: {target_email}")
+        if target_user.id == current_user.id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot share a file with yourself")
+
+        existing = db.query(FileShare).filter(FileShare.file_id == file_id, FileShare.shared_with_user_id == target_user.id).first()
+        if existing:
+            existing.permission = permission
+            existing.updated_at = __import__("datetime").datetime.utcnow()
+            db.commit()
+            db.refresh(existing)
+            log_activity(db, current_user, "share_update", f"Updated {target_user.email} access to {permission} for {item.original_filename}", item.id)
+            first_share = existing if first_share is None else first_share
+            continue
+
+        share = FileShare(file_id=file_id, shared_with_user_id=target_user.id, permission=permission)
+        db.add(share)
+        db.commit()
+        db.refresh(share)
+        log_activity(db, current_user, "share", f"Shared {item.original_filename} with {target_user.email} as {permission}", item.id)
+        if first_share is None:
+            first_share = share
+
+    if not first_share:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No share was created")
+    return first_share
+
+
+@router.get("/{file_id}/shares")
+def list_file_shares(file_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    item = db.get(File, file_id)
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+    if item.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can view share details")
+
+    shares = db.query(FileShare).filter(FileShare.file_id == file_id).order_by(FileShare.created_at.desc()).all()
+    result = []
+    for share in shares:
+        user = db.get(User, share.shared_with_user_id)
+        result.append({
+            "id": share.id,
+            "file_id": share.file_id,
+            "shared_with_user_id": share.shared_with_user_id,
+            "permission": share.permission,
+            "user_name": user.name if user else "Unknown",
+            "user_email": user.email if user else "",
+            "created_at": share.created_at,
+            "updated_at": share.updated_at,
+        })
+    return result
+
+
+@router.patch("/{file_id}/shares/{share_id}", response_model=FileShareResponse)
+def update_file_share(file_id: int, share_id: int, data: FileShareUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    item = db.get(File, file_id)
+    if not item or item.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the file owner can update permissions")
+
+    share = db.query(FileShare).filter(FileShare.id == share_id, FileShare.file_id == file_id).first()
+    if not share:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share record not found")
+
+    share.permission = validate_permission(data.permission)
+    db.commit()
+    db.refresh(share)
+    log_activity(db, current_user, "share_update", f"Updated share permission for {item.original_filename} to {share.permission}", item.id)
+    return share
+
+
+@router.delete("/{file_id}/shares/{share_id}")
+def delete_file_share(file_id: int, share_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    item = db.get(File, file_id)
+    if not item or item.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the file owner can remove access")
+
+    share = db.query(FileShare).filter(FileShare.id == share_id, FileShare.file_id == file_id).first()
+    if not share:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share record not found")
+
+    target_user = db.get(User, share.shared_with_user_id)
+    db.delete(share)
+    db.commit()
+    log_activity(db, current_user, "share_remove", f"Removed access to {item.original_filename} for {target_user.email if target_user else 'user'}", item.id)
+    return {"message": "Access removed"}

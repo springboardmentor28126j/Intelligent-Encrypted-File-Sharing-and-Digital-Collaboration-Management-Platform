@@ -16,3 +16,4 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     folders = relationship("Folder", back_populates="owner", cascade="all, delete-orphan")
     files = relationship("File", back_populates="owner", cascade="all, delete-orphan")
+    file_shares_received = relationship("FileShare", foreign_keys="FileShare.shared_with_user_id", back_populates="shared_with_user", cascade="all, delete-orphan")

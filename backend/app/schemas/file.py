@@ -8,6 +8,7 @@ class FileRename(BaseModel):
 
 class FileResponse(BaseModel):
     id: int
+    owner_id: int
     original_filename: str
     file_size: int
     file_type: str
