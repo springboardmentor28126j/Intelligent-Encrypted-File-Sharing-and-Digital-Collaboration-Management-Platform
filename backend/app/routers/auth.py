@@ -227,6 +227,57 @@ def mfa_disable(
     return current_user
 
 
+@router.post("/forgot-password", status_code=200)
+def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Password recovery, step 1. Always returns the same generic response
+    whether or not the email exists - this prevents an attacker from using
+    this endpoint to discover which emails are registered (user enumeration).
+    If the email DOES exist, a short-lived (30 min) reset token is generated
+    and "emailed" via the notification stub - see notification_service.py
+    for why email is logged rather than actually sent in this project.
+    """
+    user = db.query(User).filter(User.email == payload.email).first()
+    if user:
+        reset_token = create_password_reset_token(str(user.id))
+        log_action(db, user_id=user.id, action="user.password_reset_requested",
+                   resource_type="user", resource_id=str(user.id))
+        notify(
+            db, user, type="security.password_reset_requested",
+            title="Password reset requested",
+            message=f"Use this token to reset your password (expires in 30 minutes): {reset_token}",
+            also_email=True,
+        )
+    return {"detail": "If that email is registered, a password reset link has been sent."}
+
+
+@router.post("/reset-password", status_code=200)
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Password recovery, step 2. Exchanges a valid reset token for a new password."""
+    token_data = decode_token(payload.token)
+    if token_data.get("type") != "password_reset":
+        raise HTTPException(status_code=401, detail="Invalid or expired reset token")
+
+    user = db.query(User).filter(User.id == int(token_data["sub"])).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired reset token")
+
+    user.hashed_password = hash_password(payload.new_password)
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    db.commit()
+
+    log_action(db, user_id=user.id, action="user.password_reset_completed",
+               resource_type="user", resource_id=str(user.id))
+    notify(
+        db, user, type="security.password_changed",
+        title="Your password was changed",
+        message="Your TrustShare password was just reset. If this wasn't you, "
+                 "contact support immediately.",
+        also_email=True,
+    )
+    return {"detail": "Password has been reset successfully. You can now log in."}
+
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
     return current_user

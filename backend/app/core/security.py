@@ -44,6 +44,16 @@ def create_mfa_pending_token(subject: str) -> str:
     payload = {"sub": subject, "exp": expire, "type": "mfa_pending"}
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
+def create_password_reset_token(subject: str) -> str:
+    """
+    Short-lived token proving control of an email/account for password
+    recovery. Cannot be used to access protected endpoints - only to
+    complete POST /api/auth/reset-password. Expires in 30 minutes so an
+    old, unused reset link/email can't be replayed later.
+    """
+    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+    payload = {"sub": subject, "exp": expire, "type": "password_reset"}
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 def create_refresh_token(subject: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
