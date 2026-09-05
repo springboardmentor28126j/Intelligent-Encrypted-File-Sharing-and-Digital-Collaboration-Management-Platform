@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Layout from "../components/Layout";
+import ShareModal from "../components/ShareModal";
 import api from "../lib/api";
 
 function formatBytes(bytes) {
@@ -9,9 +10,26 @@ function formatBytes(bytes) {
   return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
 }
 
+const CATEGORY_MAP = {
+  jpg: "Images", jpeg: "Images", png: "Images", gif: "Images", webp: "Images", svg: "Images",
+  mp4: "Videos", mov: "Videos", avi: "Videos", mkv: "Videos", webm: "Videos",
+  pdf: "Documents", doc: "Documents", docx: "Documents", txt: "Documents",
+  xls: "Documents", xlsx: "Documents", ppt: "Documents", pptx: "Documents",
+};
+
+function categoryFor(filename) {
+  const ext = filename.split(".").pop()?.toLowerCase();
+  return CATEGORY_MAP[ext] || "Other";
+}
+
 export default function Files() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("All categories");
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [shareTarget, setShareTarget] = useState(null);
+  const [banner, setBanner] = useState({ type: "", message: "" });
 
   const loadFiles = () => {
     api
@@ -22,6 +40,24 @@ export default function Files() {
 
   useEffect(loadFiles, []);
 
+  const showBanner = (type, message) => {
+    setBanner({ type, message });
+    setTimeout(() => setBanner({ type: "", message: "" }), 3000);
+  };
+
+  const categories = useMemo(() => {
+    const set = new Set(files.map((f) => categoryFor(f.filename)));
+    return ["All categories", ...Array.from(set)];
+  }, [files]);
+
+  const visibleFiles = useMemo(() => {
+    return files.filter((f) => {
+      const matchesSearch = f.filename.toLowerCase().includes(search.toLowerCase());
+      const matchesCategory = category === "All categories" || categoryFor(f.filename) === category;
+      return matchesSearch && matchesCategory;
+    });
+  }, [files, search, category]);
+
   const handleDownload = async (id, filename) => {
     const res = await api.get(`/files/${id}/download`, { responseType: "blob" });
     const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -31,6 +67,39 @@ export default function Files() {
     document.body.appendChild(link);
     link.click();
     link.remove();
+    setOpenMenuId(null);
+  };
+
+  const handlePreview = async (id) => {
+    const res = await api.get(`/files/${id}/preview`, { responseType: "blob" });
+    const url = window.URL.createObjectURL(res.data);
+    window.open(url, "_blank");
+    setOpenMenuId(null);
+  };
+
+  const handleRename = async (id, currentName) => {
+    setOpenMenuId(null);
+    const newName = window.prompt("Rename file to:", currentName);
+    if (!newName || newName.trim() === "" || newName === currentName) return;
+    try {
+      await api.patch(`/files/${id}/rename`, { filename: newName.trim() });
+      showBanner("success", "File renamed successfully.");
+      loadFiles();
+    } catch (err) {
+      showBanner("error", err.response?.data?.detail || "Could not rename file");
+    }
+  };
+
+  const handleDelete = async (id, filename) => {
+    setOpenMenuId(null);
+    if (!window.confirm(`Delete "${filename}"? This can't be undone.`)) return;
+    try {
+      await api.delete(`/files/${id}`);
+      showBanner("success", "File deleted successfully.");
+      loadFiles();
+    } catch (err) {
+      showBanner("error", err.response?.data?.detail || "Could not delete file");
+    }
   };
 
   return (
@@ -56,14 +125,57 @@ export default function Files() {
         </a>
       }
     >
+      {banner.message && (
+        <div
+          style={{
+            background: banner.type === "error" ? "var(--danger-bg)" : "#e8f3e6",
+            color: banner.type === "error" ? "var(--danger)" : "#2e7d32",
+            padding: "10px 14px",
+            borderRadius: 8,
+            fontSize: 13,
+            marginBottom: 16,
+          }}
+        >
+          {banner.message}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <input
+          type="text"
+          placeholder="Search by filename..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{
+            flex: 1,
+            minWidth: 200,
+            padding: "10px 14px",
+            borderRadius: 8,
+            border: "1px solid var(--border)",
+            fontSize: 13,
+          }}
+        />
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "#fff" }}
+        >
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 8 }}>
         {loading && <div style={{ padding: 16, color: "var(--text-muted)" }}>Loading files...</div>}
-        {!loading && files.length === 0 && (
+        {!loading && visibleFiles.length === 0 && (
           <div style={{ padding: 24, color: "var(--text-muted)", textAlign: "center" }}>
-            No files yet. Upload your first file to get started.
+            {files.length === 0 ? "No files yet. Upload your first file to get started." : "No files match your search."}
           </div>
         )}
-        {files.map((f, idx) => (
+        {visibleFiles.map((f, idx) => (
           <div
             key={f.id}
             style={{
@@ -72,6 +184,7 @@ export default function Files() {
               gap: 14,
               padding: "14px 12px",
               borderTop: idx === 0 ? "none" : "1px solid var(--border)",
+              position: "relative",
             }}
           >
             <div
@@ -93,24 +206,73 @@ export default function Files() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{f.filename}</div>
               <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                {formatBytes(f.size_bytes)} · {new Date(f.uploaded_at).toLocaleString()}
+                {categoryFor(f.filename)} · {formatBytes(f.size_bytes)} · {new Date(f.uploaded_at).toLocaleDateString()}
               </div>
             </div>
+
             <button
-              onClick={() => handleDownload(f.id, f.filename)}
+              onClick={() => setOpenMenuId(openMenuId === f.id ? null : f.id)}
               style={{
                 background: "transparent",
                 border: "1px solid var(--border)",
                 borderRadius: 8,
-                padding: "8px 14px",
-                fontSize: 13,
+                width: 32,
+                height: 32,
+                fontSize: 16,
+                lineHeight: "1",
+                cursor: "pointer",
               }}
             >
-              Download
+              ⋮
             </button>
+
+            {openMenuId === f.id && (
+              <div
+                style={{
+                  position: "absolute",
+                  right: 12,
+                  top: 48,
+                  background: "#fff",
+                  border: "1px solid var(--border)",
+                  borderRadius: 10,
+                  boxShadow: "0 8px 24px rgba(16,36,62,0.15)",
+                  zIndex: 10,
+                  minWidth: 160,
+                  overflow: "hidden",
+                }}
+              >
+                {[
+                  { label: "Open / Preview", action: () => handlePreview(f.id) },
+                  { label: "Download", action: () => handleDownload(f.id, f.filename) },
+                  { label: "Share", action: () => { setShareTarget(f); setOpenMenuId(null); } },
+                  { label: "Rename", action: () => handleRename(f.id, f.filename) },
+                  { label: "Delete", action: () => handleDelete(f.id, f.filename), danger: true },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    onClick={item.action}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "10px 14px",
+                      background: "none",
+                      border: "none",
+                      fontSize: 13,
+                      color: item.danger ? "var(--danger)" : "var(--text)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
+
+      {shareTarget && <ShareModal file={shareTarget} onClose={() => setShareTarget(null)} />}
     </Layout>
   );
 }

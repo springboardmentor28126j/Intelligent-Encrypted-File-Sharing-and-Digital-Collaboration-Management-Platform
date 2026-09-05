@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.email import send_password_reset_email, email_is_configured
+from app.core.config import settings
 from app.core.security import (
     hash_password,
     verify_password,
@@ -34,10 +36,11 @@ class ForgotPasswordRequest(BaseModel):
 
 class ForgotPasswordResponse(BaseModel):
     message: str
-    # NOTE: In production this token is emailed, never returned in the API
-    # response. It's returned here only because no email service is wired
-    # up yet — this is a local-dev convenience, not a security pattern to
-    # keep once SendGrid/SES is added.
+    email_sent: bool
+    # Only present when SMTP isn't configured — a local-dev fallback so
+    # the reset flow still works without a real mail server. Once
+    # SMTP_HOST/USERNAME/PASSWORD are set, this is never populated and
+    # the token only ever goes out via email, never in the API response.
     reset_token: str | None = None
 
 
@@ -75,7 +78,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @router.get("/me")
 def get_me(current_user: User = Depends(get_current_user)):
-    return {"id": str(current_user.id), "email": current_user.email, "role": current_user.role}
+    return {
+        "id": str(current_user.id),
+        "email": current_user.email,
+        "role": current_user.role,
+        "created_at": current_user.created_at.isoformat(),
+    }
 
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
@@ -87,12 +95,23 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
     generic_message = "If that email is registered, a reset link has been generated."
 
     if not user:
-        return ForgotPasswordResponse(message=generic_message)
+        return ForgotPasswordResponse(message=generic_message, email_sent=False)
 
     reset_token = create_reset_token(str(user.id))
     log_activity(str(user.id), "forgot_password_requested")
 
-    return ForgotPasswordResponse(message=generic_message, reset_token=reset_token)
+    reset_link = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+
+    if email_is_configured():
+        sent = send_password_reset_email(user.email, reset_link)
+        # If SMTP is configured but the send genuinely failed (bad
+        # credentials, provider outage), don't leak the token either —
+        # fail closed, same as a real production system would.
+        return ForgotPasswordResponse(message=generic_message, email_sent=sent)
+
+    # No SMTP configured at all: local-dev fallback so the flow is still
+    # testable without setting up a real mail provider.
+    return ForgotPasswordResponse(message=generic_message, email_sent=False, reset_token=reset_token)
 
 
 @router.post("/reset-password", response_model=TokenResponse)
