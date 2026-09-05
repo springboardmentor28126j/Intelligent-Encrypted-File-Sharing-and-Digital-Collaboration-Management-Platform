@@ -2,10 +2,10 @@ from redis_client import redis_client
 from mongo import activity_logs
 from datetime import datetime
 from fastapi import UploadFile, File, Form
-from fastapi.responses import FileResponse
-import shutil
+from fastapi.responses import Response
 import os
 import secrets
+import uuid
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -13,6 +13,7 @@ from database import engine, Base, SessionLocal
 import models
 import schemas
 import auth
+import encryption  # NEW: AES-256-GCM encrypt/decrypt helpers (Milestone 2)
 
 Base.metadata.create_all(bind=engine)
 
@@ -71,11 +72,8 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
 
 
 UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)  # FIX: folder wasn't guaranteed to exist before saving files
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# FIX (Point 7 — secure upload): allow-list of file types + max size.
-# Milestone 1 scope is validation only; AES-256 encryption of the stored
-# bytes is Milestone 2 (Encryption & Security Module).
 ALLOWED_EXTENSIONS = {
     ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
     ".png", ".jpg", ".jpeg", ".txt", ".zip", ".csv",
@@ -85,21 +83,29 @@ MAX_FILE_SIZE_MB = 25
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...), owner_email: str = Form(...), db: Session = Depends(get_db)):
-    # FIX: reject disallowed file types (e.g. .exe, .sh, .bat) before writing anything to disk
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"File type '{ext}' is not allowed")
 
     contents = await file.read()
 
-    # FIX: reject files over the size limit before writing anything to disk
     size_mb = len(contents) / (1024 * 1024)
     if size_mb > MAX_FILE_SIZE_MB:
         raise HTTPException(status_code=400, detail=f"File exceeds max size of {MAX_FILE_SIZE_MB}MB")
 
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    # NEW (Milestone 2 — encryption): give the file-on-disk a unique, unguessable
+    # name (separate from the original filename) and encrypt the bytes with a
+    # fresh AES-256 key generated just for this file, before writing anything
+    # to disk. The key is stored server-side only — never sent to the client.
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+    key = encryption.generate_key()
+    encrypted_bytes = encryption.encrypt_file_bytes(contents, key)
+
+    file_path = os.path.join(UPLOAD_DIR, stored_name)
     with open(file_path, "wb") as buffer:
-        buffer.write(contents)
+        buffer.write(encrypted_bytes)
+
+    encryption.save_key(stored_name, key)
 
     existing = db.query(models.FileRecord).filter(
         models.FileRecord.filename == file.filename,
@@ -108,8 +114,10 @@ async def upload_file(file: UploadFile = File(...), owner_email: str = Form(...)
 
     new_file = models.FileRecord(
         filename=file.filename,
+        stored_name=stored_name,
         owner_email=owner_email,
-        file_size=len(contents)
+        file_size=len(contents),      # original size, shown to the user
+        is_encrypted=True,
     )
     db.add(new_file)
     db.commit()
@@ -124,15 +132,13 @@ async def upload_file(file: UploadFile = File(...), owner_email: str = Form(...)
     except Exception as e:
         print(f"MongoDB logging failed (non-critical): {e}")
 
-    msg = "File uploaded successfully"
+    msg = "File uploaded and encrypted successfully"
     if existing:
         msg = "Uploaded, note: a file with this name already exists in your account"
 
     return {"message": msg, "filename": file.filename}
 
 
-# FIX (Point 6 — role-based access): admin sees every file, a standard user
-# only sees files they own. Previously this returned ALL files to everyone.
 @app.get("/files")
 def list_files(email: str, role: str, db: Session = Depends(get_db)):
     if role == "admin":
@@ -142,7 +148,6 @@ def list_files(email: str, role: str, db: Session = Depends(get_db)):
     return files
 
 
-# FIX (Point 6): only the file's owner (or an admin) can delete it.
 @app.delete("/files/{file_id}")
 def delete_file(file_id: int, email: str, role: str, db: Session = Depends(get_db)):
     record = db.query(models.FileRecord).filter(models.FileRecord.id == file_id).first()
@@ -152,16 +157,16 @@ def delete_file(file_id: int, email: str, role: str, db: Session = Depends(get_d
     if role != "admin" and record.owner_email != email:
         raise HTTPException(status_code=403, detail="You do not have permission to delete this file")
 
-    file_path = os.path.join(UPLOAD_DIR, record.filename)
+    file_path = os.path.join(UPLOAD_DIR, record.stored_name)
     if os.path.exists(file_path):
         os.remove(file_path)
+    encryption.delete_key(record.stored_name)  # NEW: remove the file's encryption key too
 
     db.delete(record)
     db.commit()
     return {"message": "File deleted successfully"}
 
 
-# FIX (Point 6): only the file's owner (or an admin) can download it.
 @app.get("/download/{file_id}")
 def download_file(file_id: int, email: str, role: str, db: Session = Depends(get_db)):
     record = db.query(models.FileRecord).filter(models.FileRecord.id == file_id).first()
@@ -171,15 +176,39 @@ def download_file(file_id: int, email: str, role: str, db: Session = Depends(get
     if role != "admin" and record.owner_email != email:
         raise HTTPException(status_code=403, detail="You do not have permission to download this file")
 
-    file_path = os.path.join(UPLOAD_DIR, record.filename)
+    file_path = os.path.join(UPLOAD_DIR, record.stored_name)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File missing on server")
 
-    return FileResponse(
-        file_path,
-        filename=record.filename,
+    # NEW (Milestone 2 — decryption workflow): read the encrypted bytes, load
+    # this file's unique key, decrypt in memory, and stream the *original*
+    # bytes back to the user. The plaintext is never written to disk.
+    key = encryption.load_key(record.stored_name)
+    if key is None:
+        raise HTTPException(status_code=500, detail="Encryption key missing — cannot decrypt file")
+
+    with open(file_path, "rb") as f:
+        encrypted_bytes = f.read()
+
+    try:
+        decrypted_bytes = encryption.decrypt_file_bytes(encrypted_bytes, key)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to decrypt file — data may be corrupted")
+
+    try:
+        activity_logs.insert_one({
+            "action": "file_download",
+            "filename": record.filename,
+            "owner_email": email,
+            "timestamp": datetime.utcnow()
+        })
+    except Exception as e:
+        print(f"MongoDB logging failed (non-critical): {e}")
+
+    return Response(
+        content=decrypted_bytes,
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f"attachment; filename={record.filename}"}
+        headers={"Content-Disposition": f'attachment; filename="{record.filename}"'}
     )
 
 

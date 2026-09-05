@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from database import Base
 from datetime import datetime
 
@@ -18,6 +18,8 @@ class FileRecord(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String)
+    stored_name = Column(String)
     owner_email = Column(String)
     file_size = Column(Integer, default=0)
+    is_encrypted = Column(Boolean, default=True)
     upload_time = Column(DateTime, default=datetime.utcnow)
