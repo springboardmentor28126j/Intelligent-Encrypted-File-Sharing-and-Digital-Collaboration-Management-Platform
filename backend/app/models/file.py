@@ -21,3 +21,4 @@ class File(Base):
     owner = relationship("User", back_populates="files")
     folder = relationship("Folder", back_populates="files")
     shares = relationship("FileShare", back_populates="file", cascade="all, delete-orphan")
+    encryption = relationship("FileEncryption", back_populates="file", uselist=False, cascade="all, delete-orphan")

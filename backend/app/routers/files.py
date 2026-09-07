@@ -1,15 +1,21 @@
+import logging
 from pathlib import Path
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, File as UploadFileParam, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse as DownloadResponse
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import ActivityLog, File, FileShare, Folder, User
+from ..models import ActivityLog, File, FileEncryption, FileShare, Folder, User
 from ..schemas.file import FileRename, FileResponse
 from ..services.activity_service import log_activity, log_download_notification
-from ..services.file_service import save_upload
+from ..services.encryption_service import EncryptionConfigurationError, decrypt_file_data, metadata_for_storage
+from ..services.file_service import save_encrypted_upload
 from ..utils.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/files", tags=["Files"])
+logger = logging.getLogger(__name__)
 CATEGORIES = {"Documents", "Images", "Videos", "PDFs", "Spreadsheets", "Other"}
 
 
@@ -83,13 +89,23 @@ async def upload_file(file: UploadFile = UploadFileParam(...), category: str = F
         if not folder:
             raise HTTPException(404, "Folder not found")
     try:
-        stored, path, size = await save_upload(file)
+        stored, path, size, encrypted = await save_encrypted_upload(file)
     except ValueError as error:
         raise HTTPException(413, str(error)) from error
+    except EncryptionConfigurationError as error:
+        raise HTTPException(503, "File encryption is not configured on the server") from error
+
     item = File(owner_id=current_user.id, folder_id=folder_id, original_filename=file.filename, stored_filename=stored, file_path=path, file_size=size, file_type=file.content_type or "application/octet-stream", category=category)
-    db.add(item)
-    db.commit()
-    db.refresh(item)
+    try:
+        db.add(item)
+        db.flush()
+        db.add(FileEncryption(file_id=item.id, **metadata_for_storage(encrypted)))
+        db.commit()
+        db.refresh(item)
+    except Exception:
+        db.rollback()
+        Path(path).unlink(missing_ok=True)
+        raise
     log_activity(db, current_user, "upload", f"Uploaded {item.original_filename}", item.id)
     return to_response(item)
 
@@ -132,8 +148,27 @@ def file_details(file_id: int, current_user: User = Depends(get_current_user), d
 @router.get("/{file_id}/download")
 def download_file(file_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     item, _ = require_file_access(file_id, current_user, db, required_permission="VIEWER")
-    if not Path(item.file_path).is_file():
+    stored_path = Path(item.file_path)
+    if not stored_path.is_file():
         raise HTTPException(404, "Stored file is missing")
+
+    if item.encryption:
+        try:
+            content = decrypt_file_data(stored_path.read_bytes(), item.encryption)
+        except ValueError as error:
+            logger.error("Encrypted file integrity or retrieval failure for file_id=%s", item.id)
+            raise HTTPException(422, "File integrity check failed. The file may have been modified or corrupted.") from error
+        except (EncryptionConfigurationError, OSError) as error:
+            logger.error("Encrypted file could not be retrieved for file_id=%s", item.id)
+            raise HTTPException(500, "The file could not be securely retrieved.") from error
+
+        if item.owner_id != current_user.id:
+            owner = db.get(User, item.owner_id)
+            if owner:
+                log_download_notification(db, owner, current_user, item.original_filename, item.id)
+        log_activity(db, current_user, "download", f"Downloaded {item.original_filename}", item.id)
+        filename = quote(Path(item.original_filename).name)
+        return Response(content=content, media_type=item.file_type, headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"})
 
     if item.owner_id != current_user.id:
         owner = db.get(User, item.owner_id)

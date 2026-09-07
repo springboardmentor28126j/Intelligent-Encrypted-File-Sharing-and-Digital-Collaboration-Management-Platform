@@ -20,6 +20,7 @@ export default function SharedWithMe() {
     try {
       const response = await api.get(`/files/${file.id}/download`, { responseType: 'blob' })
       setPreview({ ...file, previewUrl: URL.createObjectURL(response.data) })
+      setError('')
     } catch (e) {
       setError(getErrorMessage(e))
     }
@@ -34,6 +35,7 @@ export default function SharedWithMe() {
       link.download = file.original_filename
       link.click()
       URL.revokeObjectURL(url)
+      setError('')
     } catch (e) {
       setError(getErrorMessage(e))
     }

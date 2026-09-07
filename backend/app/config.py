@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     reset_token_expire_minutes: int = 30
     frontend_origin: str = "http://localhost:5173"
     max_file_size_mb: int = 10
+    file_encryption_master_key: str = ""
     otp_expire_minutes: int = 10
     smtp_host: str = ""
     smtp_port: int = 587
