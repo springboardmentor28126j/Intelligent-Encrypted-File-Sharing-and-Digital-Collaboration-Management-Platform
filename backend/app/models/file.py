@@ -12,6 +12,8 @@ class File(Base):
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     stored_filename: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    storage_backend: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    storage_key: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     file_type: Mapped[str] = mapped_column(String(120), default="application/octet-stream")
     category: Mapped[str] = mapped_column(String(40), default="Other")

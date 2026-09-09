@@ -17,3 +17,20 @@ python -m unittest discover -s tests -v
 ```
 
 Files uploaded before encryption metadata was introduced remain legacy plaintext files. They are not decrypted as encrypted files; migrate them explicitly before deleting or replacing them.
+
+## Secure storage
+
+Storage is selected on the backend with `STORAGE_BACKEND=local` or `STORAGE_BACKEND=s3`. Local mode stores encrypted objects in `backend/uploads/`. S3 mode uploads only AES-256-GCM ciphertext to a private bucket using random internal object keys. AWS credentials are backend-only and must never be placed in the frontend environment.
+
+For S3 mode, configure these backend variables:
+
+```env
+STORAGE_BACKEND=s3
+AWS_ACCESS_KEY_ID=your_backend_access_key
+AWS_SECRET_ACCESS_KEY=your_backend_secret_key
+AWS_REGION=us-east-1
+AWS_S3_BUCKET=your-private-bucket
+AWS_S3_PREFIX=files
+```
+
+Block all public access on the bucket. TrustShare continues to use `GET /api/files/{file_id}/download`; the backend checks authorization, retrieves ciphertext, decrypts it, and returns the file. No S3 URL is sent to React.

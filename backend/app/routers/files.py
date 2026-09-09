@@ -11,7 +11,8 @@ from ..models import ActivityLog, File, FileEncryption, FileShare, Folder, User
 from ..schemas.file import FileRename, FileResponse
 from ..services.activity_service import log_activity, log_download_notification
 from ..services.encryption_service import EncryptionConfigurationError, decrypt_file_data, metadata_for_storage
-from ..services.file_service import save_encrypted_upload
+from ..services.file_service import prepare_encrypted_upload
+from ..services.storage_service import StorageConfigurationError, StorageError, StorageObjectNotFoundError, get_storage_service
 from ..utils.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/files", tags=["Files"])
@@ -88,14 +89,24 @@ async def upload_file(file: UploadFile = UploadFileParam(...), category: str = F
         folder = db.query(Folder).filter(Folder.id == folder_id, Folder.owner_id == current_user.id).first()
         if not folder:
             raise HTTPException(404, "Folder not found")
+    storage = None
+    stored = None
     try:
-        stored, path, size, encrypted = await save_encrypted_upload(file)
+        encrypted, size = await prepare_encrypted_upload(file)
+        storage = get_storage_service()
+        stored = storage.put_encrypted(encrypted.ciphertext, file.filename)
     except ValueError as error:
         raise HTTPException(413, str(error)) from error
     except EncryptionConfigurationError as error:
         raise HTTPException(503, "File encryption is not configured on the server") from error
+    except StorageConfigurationError as error:
+        log_activity(db, current_user, "storage_upload_failed", "Storage configuration is unavailable")
+        raise HTTPException(503, "File storage is not configured on the server") from error
+    except StorageError as error:
+        log_activity(db, current_user, "storage_upload_failed", "Encrypted file could not be stored")
+        raise HTTPException(503, "The file could not be securely stored") from error
 
-    item = File(owner_id=current_user.id, folder_id=folder_id, original_filename=file.filename, stored_filename=stored, file_path=path, file_size=size, file_type=file.content_type or "application/octet-stream", category=category)
+    item = File(owner_id=current_user.id, folder_id=folder_id, original_filename=file.filename, stored_filename=stored.key, file_path=stored.local_path or "", storage_backend=stored.backend, storage_key=stored.key, file_size=size, file_type=file.content_type or "application/octet-stream", category=category)
     try:
         db.add(item)
         db.flush()
@@ -104,7 +115,10 @@ async def upload_file(file: UploadFile = UploadFileParam(...), category: str = F
         db.refresh(item)
     except Exception:
         db.rollback()
-        Path(path).unlink(missing_ok=True)
+        try:
+            storage.delete(stored.key)
+        except StorageError:
+            logger.error("Uploaded object cleanup failed after database failure")
         raise
     log_activity(db, current_user, "upload", f"Uploaded {item.original_filename}", item.id)
     return to_response(item)
@@ -148,13 +162,30 @@ def file_details(file_id: int, current_user: User = Depends(get_current_user), d
 @router.get("/{file_id}/download")
 def download_file(file_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     item, _ = require_file_access(file_id, current_user, db, required_permission="VIEWER")
-    stored_path = Path(item.file_path)
-    if not stored_path.is_file():
-        raise HTTPException(404, "Stored file is missing")
+    encrypted_content = None
+    item_storage_backend = getattr(item, "storage_backend", None)
+    item_storage_key = getattr(item, "storage_key", None)
+    if item_storage_backend and item_storage_key:
+        try:
+            encrypted_content = get_storage_service(item_storage_backend).get_encrypted(item_storage_key)
+        except StorageObjectNotFoundError as error:
+            log_activity(db, current_user, "storage_object_missing", f"Stored object is missing for file {item.id}", item.id)
+            raise HTTPException(404, "The requested file is unavailable") from error
+        except (StorageConfigurationError, StorageError) as error:
+            log_activity(db, current_user, "storage_download_failed", f"Stored object could not be retrieved for file {item.id}", item.id)
+            raise HTTPException(503, "The file is temporarily unavailable") from error
+    else:
+        stored_path = Path(item.file_path)
+        if not stored_path.is_file():
+            raise HTTPException(404, "Stored file is missing")
+        try:
+            encrypted_content = stored_path.read_bytes()
+        except OSError as error:
+            raise HTTPException(500, "The file could not be securely retrieved") from error
 
     if item.encryption:
         try:
-            content = decrypt_file_data(stored_path.read_bytes(), item.encryption)
+            content = decrypt_file_data(encrypted_content, item.encryption)
         except ValueError as error:
             logger.error("Encrypted file integrity or retrieval failure for file_id=%s", item.id)
             raise HTTPException(422, "File integrity check failed. The file may have been modified or corrupted.") from error
@@ -176,6 +207,10 @@ def download_file(file_id: int, current_user: User = Depends(get_current_user), 
             log_download_notification(db, owner, current_user, item.original_filename, item.id)
 
     log_activity(db, current_user, "download", f"Downloaded {item.original_filename}", item.id)
+    if item_storage_backend:
+        filename = quote(Path(item.original_filename).name)
+        return Response(content=encrypted_content, media_type=item.file_type, headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"})
+
     return DownloadResponse(item.file_path, filename=item.original_filename, media_type=item.file_type)
 
 
@@ -193,6 +228,14 @@ def rename_file(file_id: int, data: FileRename, current_user: User = Depends(get
     extension = Path(item.original_filename).suffix
     if extension and Path(new_name).suffix.lower() != extension.lower():
         raise HTTPException(400, "The original file extension must be preserved")
+
+    if getattr(item, "storage_backend", None) and getattr(item, "storage_key", None):
+        item.original_filename = new_name
+        db.commit()
+        db.refresh(item)
+        log_activity(db, current_user, "rename", f"Renamed file to {new_name}", item.id)
+        return to_response(item)
+
     new_stored_name = f"{Path(item.stored_filename).stem.split('_')[0]}_{new_name}"
     new_path = old_path.with_name(new_stored_name)
     if new_path != old_path:
@@ -209,8 +252,17 @@ def rename_file(file_id: int, data: FileRename, current_user: User = Depends(get
 @router.delete("/{file_id}")
 def delete_file(file_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     item = owned_file(file_id, current_user, db)
+    if item.storage_backend and item.storage_key:
+        try:
+            get_storage_service(item.storage_backend).delete(item.storage_key)
+        except StorageObjectNotFoundError:
+            pass
+        except (StorageConfigurationError, StorageError) as error:
+            log_activity(db, current_user, "storage_delete_failed", f"Stored object could not be removed for file {item.id}", item.id)
+            raise HTTPException(503, "The file could not be removed from storage") from error
+    else:
+        Path(item.file_path).unlink(missing_ok=True)
     db.query(ActivityLog).filter(ActivityLog.file_id == item.id).update({ActivityLog.file_id: None}, synchronize_session=False)
-    Path(item.file_path).unlink(missing_ok=True)
     db.delete(item)
     db.commit()
     log_activity(db, current_user, "delete", f"Deleted {item.original_filename}")

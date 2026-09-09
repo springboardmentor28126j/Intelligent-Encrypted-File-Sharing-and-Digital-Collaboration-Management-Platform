@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
     max_file_size_mb: int = 10
     file_encryption_master_key: str = ""
+    storage_backend: str = "local"
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_region: str = ""
+    aws_s3_bucket: str = ""
+    aws_s3_prefix: str = "files"
+    aws_endpoint_url: str = ""
     otp_expire_minutes: int = 10
     smtp_host: str = ""
     smtp_port: int = 587
