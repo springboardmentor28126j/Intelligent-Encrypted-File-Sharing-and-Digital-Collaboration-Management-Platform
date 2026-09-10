@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     aws_s3_bucket: str = ""
     aws_s3_prefix: str = "files"
     aws_endpoint_url: str = ""
+    share_link_base_url: str = "http://localhost:8000/api/share-links"
     otp_expire_minutes: int = 10
     smtp_host: str = ""
     smtp_port: int = 587

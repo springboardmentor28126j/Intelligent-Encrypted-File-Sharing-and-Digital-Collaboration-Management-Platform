@@ -4,6 +4,7 @@ from .file_encryption import FileEncryption
 from .file_share import FileShare
 from .folder import Folder
 from .password_reset import PasswordResetToken
+from .secure_share_link import SecureShareLink
 from .user import User
 
-__all__ = ["User", "Folder", "File", "FileShare", "FileEncryption", "PasswordResetToken", "ActivityLog"]
+__all__ = ["User", "Folder", "File", "FileShare", "FileEncryption", "PasswordResetToken", "SecureShareLink", "ActivityLog"]

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .database import Base, engine, ensure_file_storage_columns
 from . import models
-from .routers import activity, auth, dashboard, files, folders, shares, users
+from .routers import activity, auth, dashboard, files, folders, secure_share_links, shares, users
 
 Base.metadata.create_all(bind=engine)
 ensure_file_storage_columns()
@@ -14,6 +14,7 @@ app.include_router(users.router)
 app.include_router(folders.router)
 app.include_router(files.router)
 app.include_router(shares.router)
+app.include_router(secure_share_links.router)
 app.include_router(activity.router)
 app.include_router(dashboard.router)
 
