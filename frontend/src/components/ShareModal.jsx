@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getErrorMessage } from '../services/api'
+import api, { getErrorMessage } from '../services/api'
 
 export default function ShareModal({ file, onClose, onShare, onGenerateLink, onRevokeLink, existingShares = [] }) {
   const [recipients, setRecipients] = useState([])
@@ -9,6 +9,10 @@ export default function ShareModal({ file, onClose, onShare, onGenerateLink, onR
   const [linkError, setLinkError] = useState('')
   const [linkBusy, setLinkBusy] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [managedShares, setManagedShares] = useState(existingShares)
+  const [editingShareId, setEditingShareId] = useState(null)
+  const [editingPermission, setEditingPermission] = useState('VIEWER')
+  const [shareManagementError, setShareManagementError] = useState('')
 
   useEffect(() => {
     setRecipients([])
@@ -18,6 +22,12 @@ export default function ShareModal({ file, onClose, onShare, onGenerateLink, onR
     setLinkError('')
     setLinkCopied(false)
   }, [file])
+
+  useEffect(() => {
+    setManagedShares(existingShares)
+    setEditingShareId(null)
+    setShareManagementError('')
+  }, [existingShares])
 
   function parseEmails(value) {
     return [...new Set(value.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean))]
@@ -87,5 +97,38 @@ export default function ShareModal({ file, onClose, onShare, onGenerateLink, onR
     }
   }
 
-  return <div className="modal-backdrop" onClick={onClose}><div className="small-modal" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}><h2>Share "{file.original_filename}"</h2><form onSubmit={(event) => { event.preventDefault(); if (!recipients.length) return; onShare({ recipients: recipients.map((item) => item.email), permission }) }}><label>Recipients</label><div className="share-chip-stack">{recipients.map((item) => <span className="share-chip" key={item.id}><span>{item.email}</span><button type="button" className="chip-remove" aria-label={`Remove ${item.email}`} onClick={() => removeRecipient(item.email)}>×</button></span>)}</div><div className="share-input-row"><input type="text" value={emailInput} onChange={(event) => setEmailInput(event.target.value)} onKeyDown={handleKeyDown} placeholder="Add email and press Enter" /></div><button type="button" className="ghost-button" onClick={addRecipients}>+ Add</button><label>Permission<select value={permission} onChange={event => setPermission(event.target.value)}><option value="VIEWER">Viewer</option><option value="EDITOR">Editor</option></select></label><div className="modal-buttons"><button type="button" onClick={onClose}>Cancel</button><button className="primary" disabled={!recipients.length}>Share</button></div></form><section className="secure-link-section"><h3>Secure Link</h3>{secureLink ? <><div className="secure-link-row"><input readOnly value={secureLink.share_url} aria-label="Generated secure link" /><button type="button" className="ghost-button" onClick={copyLink}>{linkCopied ? 'Copied! ✓' : 'Copy Link'}</button></div><button type="button" className="link-button danger-text" disabled={linkBusy} onClick={revokeLink}>Revoke link</button></> : <button type="button" className="primary" disabled={linkBusy} onClick={generateLink}>{linkBusy ? 'Generating...' : 'Generate Secure Link'}</button>}{linkError && <p className="notice error">{linkError}</p>}</section>{existingShares.length > 0 && <div className="share-list"><h3>People with access</h3>{existingShares.map(share => <div className="share-row" key={share.id}><span><strong>{share.user_name}</strong><small>{share.user_email}</small></span><span className="permission-pill">{share.permission}</span></div>)}</div>}</div></div>
+  function beginEditShare(share) {
+    setEditingShareId(share.id)
+    setEditingPermission(share.permission)
+    setShareManagementError('')
+  }
+
+  function cancelEditShare() {
+    setEditingShareId(null)
+    setShareManagementError('')
+  }
+
+  async function saveSharePermission(share) {
+    try {
+      const response = await api.patch(`/files/${file.id}/shares/${share.id}`, { permission: editingPermission })
+      setManagedShares((current) => current.map((item) => item.id === share.id ? { ...item, ...response.data, permission: editingPermission } : item))
+      setEditingShareId(null)
+      setShareManagementError('')
+    } catch (error) {
+      setShareManagementError(getErrorMessage(error))
+    }
+  }
+
+  async function removeShare(share) {
+    if (!window.confirm(`Remove access for ${share.user_email}?`)) return
+    try {
+      await api.delete(`/files/${file.id}/shares/${share.id}`)
+      setManagedShares((current) => current.filter((item) => item.id !== share.id))
+      setShareManagementError('')
+    } catch (error) {
+      setShareManagementError(getErrorMessage(error))
+    }
+  }
+
+  return <div className="modal-backdrop" onClick={onClose}><div className="small-modal" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}><h2>Share "{file.original_filename}"</h2><form onSubmit={(event) => { event.preventDefault(); if (!recipients.length) return; onShare({ recipients: recipients.map((item) => item.email), permission }) }}><label>Recipients</label><div className="share-chip-stack">{recipients.map((item) => <span className="share-chip" key={item.id}><span>{item.email}</span><button type="button" className="chip-remove" aria-label={`Remove ${item.email}`} onClick={() => removeRecipient(item.email)}>×</button></span>)}</div><div className="share-input-row"><input type="text" value={emailInput} onChange={(event) => setEmailInput(event.target.value)} onKeyDown={handleKeyDown} placeholder="Add email and press Enter" /></div><button type="button" className="ghost-button" onClick={addRecipients}>+ Add</button><label>Permission<select value={permission} onChange={event => setPermission(event.target.value)}><option value="VIEWER">Viewer</option><option value="EDITOR">Editor</option></select></label><div className="modal-buttons"><button type="button" onClick={onClose}>Cancel</button><button className="primary" disabled={!recipients.length}>Share</button></div></form><section className="secure-link-section"><h3>Secure Link</h3>{secureLink ? <><div className="secure-link-row"><input readOnly value={secureLink.share_url} aria-label="Generated secure link" /><button type="button" className="ghost-button" onClick={copyLink}>{linkCopied ? 'Copied! ✓' : 'Copy Link'}</button></div><button type="button" className="link-button danger-text" disabled={linkBusy} onClick={revokeLink}>Revoke link</button></> : <button type="button" className="primary" disabled={linkBusy} onClick={generateLink}>{linkBusy ? 'Generating...' : 'Generate Secure Link'}</button>}{linkError && <p className="notice error">{linkError}</p>}</section>{managedShares.length > 0 && <div className="share-list"><h3>People with access</h3>{managedShares.map(share => <div className="share-row" key={share.id}><span><strong>{share.user_name}</strong><small>{share.user_email}</small>{editingShareId === share.id ? <label>Permission<select value={editingPermission} onChange={(event) => setEditingPermission(event.target.value)}><option value="VIEWER">Viewer</option><option value="EDITOR">Editor</option></select></label> : <span className="permission-pill">{share.permission}</span>}</span>{editingShareId === share.id ? <span><button type="button" className="ghost-button" onClick={() => saveSharePermission(share)}>Save</button><button type="button" className="link-button" onClick={cancelEditShare}>Cancel</button></span> : <span><button type="button" className="ghost-button" onClick={() => beginEditShare(share)}>Edit Permission</button><button type="button" className="link-button danger-text" onClick={() => removeShare(share)}>Remove Access</button></span>}</div>)}</div>}{shareManagementError && <p className="notice error">{shareManagementError}</p>}</div></div>
 }

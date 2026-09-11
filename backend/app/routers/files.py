@@ -219,16 +219,16 @@ def rename_file(file_id: int, data: FileRename, current_user: User = Depends(get
     item, share = require_file_access(file_id, current_user, db, required_permission="EDITOR")
     if item.owner_id != current_user.id and (not share or share.permission.upper() != "EDITOR"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the file owner or an editor can rename this file")
+
     new_name = Path(data.original_filename.strip()).name
     if not new_name or new_name != data.original_filename.strip():
         raise HTTPException(400, "Invalid filename")
-    old_path = Path(item.file_path)
-    if not old_path.is_file():
-        raise HTTPException(404, "Stored file is missing")
+
     extension = Path(item.original_filename).suffix
     if extension and Path(new_name).suffix.lower() != extension.lower():
         raise HTTPException(400, "The original file extension must be preserved")
 
+    # If file uses storage_backend (encrypted local or S3), just update original_filename in DB
     if getattr(item, "storage_backend", None) and getattr(item, "storage_key", None):
         item.original_filename = new_name
         db.commit()
@@ -236,13 +236,17 @@ def rename_file(file_id: int, data: FileRename, current_user: User = Depends(get
         log_activity(db, current_user, "rename", f"Renamed file to {new_name}", item.id)
         return to_response(item)
 
-    new_stored_name = f"{Path(item.stored_filename).stem.split('_')[0]}_{new_name}"
-    new_path = old_path.with_name(new_stored_name)
-    if new_path != old_path:
-        old_path.rename(new_path)
+    # If it uses plain local file path:
+    old_path = Path(item.file_path)
+    if old_path.is_file():
+        new_stored_name = f"{Path(item.stored_filename).stem.split('_')[0]}_{new_name}"
+        new_path = old_path.with_name(new_stored_name)
+        if new_path != old_path:
+            old_path.rename(new_path)
+        item.stored_filename = new_stored_name
+        item.file_path = str(new_path)
+
     item.original_filename = new_name
-    item.stored_filename = new_stored_name
-    item.file_path = str(new_path)
     db.commit()
     db.refresh(item)
     log_activity(db, current_user, "rename", f"Renamed file to {new_name}", item.id)
