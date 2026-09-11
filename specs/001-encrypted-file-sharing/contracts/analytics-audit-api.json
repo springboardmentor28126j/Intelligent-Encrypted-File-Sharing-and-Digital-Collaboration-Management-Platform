@@ -1,0 +1,74 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TrustShare Monitoring, Audit & Analytics API",
+    "version": "1.0.0",
+    "description": "API for audit log inspection, activity tracking, security alerts, and analytics dashboards"
+  },
+  "paths": {
+    "/api/v1/audit/logs": {
+      "get": {
+        "summary": "Query immutable audit logs",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "category", "in": "query", "schema": { "type": "string" }, "required": false },
+          { "name": "action", "in": "query", "schema": { "type": "string" }, "required": false },
+          { "name": "status", "in": "query", "schema": { "type": "string" }, "required": false },
+          { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date-time" }, "required": false },
+          { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date-time" }, "required": false }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of matching audit log entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "event_id": { "type": "string" },
+                      "timestamp": { "type": "string", "format": "date-time" },
+                      "category": { "type": "string" },
+                      "action": { "type": "string" },
+                      "actor": { "type": "object" },
+                      "resource": { "type": "object" },
+                      "status": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "Forbidden - requires Admin privileges for global logs" }
+        }
+      }
+    },
+    "/api/v1/analytics/dashboard": {
+      "get": {
+        "summary": "Get storage and activity metrics for user/admin",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Aggregated analytics metrics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "storage_used_bytes": { "type": "integer" },
+                    "storage_quota_bytes": { "type": "integer" },
+                    "total_files": { "type": "integer" },
+                    "active_share_links": { "type": "integer" },
+                    "recent_downloads_count": { "type": "integer" },
+                    "security_alerts_count": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

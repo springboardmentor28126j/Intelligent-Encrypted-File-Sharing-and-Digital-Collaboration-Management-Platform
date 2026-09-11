@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "trustshare-backend"
+version = "1.0.0"
+description = "TrustShare Intelligent Encrypted File Sharing Platform Backend"
+authors = ["TrustShare Engineering"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "ASYNC", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra -q --cov=src --cov-report=term"
+testpaths = ["tests"]
+asyncio_mode = "auto"

@@ -1,0 +1,136 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TrustShare File Management & Encryption API",
+    "version": "1.0.0",
+    "description": "Secure multipart upload, encrypted storage, versioning, and folder management API"
+  },
+  "paths": {
+    "/api/v1/files/upload": {
+      "post": {
+        "summary": "Securely upload and encrypt a file",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "folder_id": { "type": "string", "format": "uuid", "nullable": true },
+                  "category": { "type": "string", "default": "general" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "File encrypted and stored successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "name": { "type": "string" },
+                    "size_bytes": { "type": "integer" },
+                    "mime_type": { "type": "string" },
+                    "current_version": { "type": "integer" },
+                    "category": { "type": "string" },
+                    "created_at": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid file type or size exceeds limit" },
+          "413": { "description": "Storage quota exceeded" }
+        }
+      }
+    },
+    "/api/v1/files": {
+      "get": {
+        "summary": "List and search files",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "folder_id", "in": "query", "schema": { "type": "string", "format": "uuid" }, "required": false },
+          { "name": "search", "in": "query", "schema": { "type": "string" }, "required": false },
+          { "name": "category", "in": "query", "schema": { "type": "string" }, "required": false },
+          { "name": "mime_type", "in": "query", "schema": { "type": "string" }, "required": false }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of user files matching criteria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "format": "uuid" },
+                      "name": { "type": "string" },
+                      "size_bytes": { "type": "integer" },
+                      "mime_type": { "type": "string" },
+                      "category": { "type": "string" },
+                      "current_version": { "type": "integer" },
+                      "updated_at": { "type": "string", "format": "date-time" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files/{file_id}/download": {
+      "get": {
+        "summary": "Stream decrypted file to authorized owner",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "file_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "version", "in": "query", "required": false, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Decrypted binary file stream",
+            "content": {
+              "application/octet-stream": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "404": { "description": "File not found" }
+        }
+      }
+    },
+    "/api/v1/folders": {
+      "post": {
+        "summary": "Create a folder",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "parent_id": { "type": "string", "format": "uuid", "nullable": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Folder created successfully" }
+        }
+      }
+    }
+  }
+}

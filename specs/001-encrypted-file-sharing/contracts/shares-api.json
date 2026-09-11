@@ -1,0 +1,108 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TrustShare Secure Sharing & Link Management API",
+    "version": "1.0.0",
+    "description": "API for creating, accessing, validating, and revoking protected expiring share links"
+  },
+  "paths": {
+    "/api/v1/shares": {
+      "post": {
+        "summary": "Create an expiring shareable link",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["file_id", "expires_in_hours"],
+                "properties": {
+                  "file_id": { "type": "string", "format": "uuid" },
+                  "permission_type": { "type": "string", "enum": ["view_only", "download_allowed"], "default": "view_only" },
+                  "passphrase": { "type": "string", "nullable": true },
+                  "max_downloads": { "type": "integer", "nullable": true },
+                  "expires_in_hours": { "type": "integer", "minimum": 1, "maximum": 720 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Share link created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "share_url": { "type": "string" },
+                    "permission_type": { "type": "string" },
+                    "requires_passphrase": { "type": "boolean" },
+                    "expires_at": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shares/{token}/access": {
+      "post": {
+        "summary": "Validate access to shared file and retrieve preview/download authorization",
+        "parameters": [
+          { "name": "token", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "passphrase": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Access granted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "file_name": { "type": "string" },
+                    "mime_type": { "type": "string" },
+                    "size_bytes": { "type": "integer" },
+                    "permission_type": { "type": "string" },
+                    "temporary_access_token": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Passphrase required or incorrect" },
+          "403": { "description": "Link expired, download limit reached, or access revoked" },
+          "404": { "description": "Invalid share token" }
+        }
+      }
+    },
+    "/api/v1/shares/{share_id}/revoke": {
+      "delete": {
+        "summary": "Revoke an active share link immediately",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "share_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Share link revoked successfully" }
+        }
+      }
+    }
+  }
+}
