@@ -3,8 +3,8 @@ schemas.py – Pydantic v2 request/response schemas for TrustShare.
 
 Validates all incoming payloads and structures API responses for:
   - User registration, login, and profile
-  - File uploads, metadata, listing, and storage metrics
-  - Share link generation, permissions, and public recipient view
+  - File uploads, metadata, listing, and storage metrics with AES-256 encryption status
+  - Share link generation, user-to-user sharing, permissions, and public recipient view
   - System health checks for PostgreSQL, MongoDB, and Redis
 """
 
@@ -12,7 +12,7 @@ from datetime import datetime
 import enum
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from app.models import UserRole
+from app.models import UserRole, SharePermission
 
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
@@ -25,11 +25,6 @@ class FileCategory(str, enum.Enum):
     presentation = "presentation"
     archive = "archive"
     other = "other"
-
-
-class SharePermission(str, enum.Enum):
-    view_only = "view_only"
-    can_download = "can_download"
 
 
 class ShareDuration(str, enum.Enum):
@@ -120,16 +115,57 @@ class ShareLinkCreate(BaseModel):
         ge=1,
         description="Optional maximum number of downloads permitted before link expires",
     )
+    recipient_email: Optional[EmailStr] = Field(
+        default=None,
+        description="Optional recipient email for direct user sharing",
+    )
+
+
+class UserShareCreate(BaseModel):
+    """Payload for sharing directly with another registered user."""
+    recipient_email: EmailStr = Field(
+        ...,
+        description="Email address of the registered recipient",
+    )
+    permission: SharePermission = Field(
+        default=SharePermission.can_download,
+        description="Permission level granted (view_only, can_download)",
+    )
+    duration: ShareDuration = Field(
+        default=ShareDuration.seven_days,
+        description="Preset expiration duration",
+    )
+    custom_expires_at: Optional[datetime] = None
 
 
 class ShareLinkOut(BaseModel):
-    """Public details of an active share link."""
+    """Public details of an active share link or user grant."""
+    id: Optional[int] = None
     share_token: str
     share_url: str
     permission: SharePermission
+    recipient_email: Optional[str] = None
     expires_at: Optional[datetime] = None
     max_downloads: Optional[int] = None
     download_count: int = 0
+    created_at: datetime
+    is_expired: bool = False
+    is_revoked: bool = False
+
+
+class SharedWithMeOut(BaseModel):
+    """File shared directly with the authenticated user."""
+    share_id: int
+    file_id: str
+    original_name: str
+    file_size: int
+    content_type: str
+    extension: str
+    category: FileCategory
+    owner_email: str
+    permission: SharePermission
+    can_download: bool
+    expires_at: Optional[datetime] = None
     created_at: datetime
     is_expired: bool = False
 
@@ -146,6 +182,8 @@ class PublicShareOut(BaseModel):
     share_token: str
     permission: SharePermission
     can_download: bool
+    is_encrypted: bool = True
+    encryption_algorithm: str = "AES-256-GCM"
     expires_at: Optional[datetime] = None
     is_expired: bool = False
 
@@ -153,7 +191,10 @@ class PublicShareOut(BaseModel):
 # ─── File Metadata Schemas ────────────────────────────────────────────────────
 
 class FileMetadataOut(BaseModel):
-    """Full metadata for a file stored in MongoDB."""
+    """
+    Full metadata for a file.
+    CRITICAL: Encryption keys and secret materials are STRICTLY OMITTED.
+    """
     id: str
     original_name: str
     stored_name: str
@@ -169,6 +210,9 @@ class FileMetadataOut(BaseModel):
     download_count: int = 0
     shares: List[ShareLinkOut] = []
     is_public: bool = False
+    is_encrypted: bool = True
+    encryption_algorithm: str = "AES-256-GCM"
+    storage_backend: str = "local"
 
 
 class FileSummaryOut(BaseModel):
@@ -184,6 +228,9 @@ class FileSummaryOut(BaseModel):
     shares_count: int = 0
     owner_email: str
     description: Optional[str] = None
+    is_encrypted: bool = True
+    encryption_algorithm: str = "AES-256-GCM"
+    storage_backend: str = "local"
 
 
 class StorageStatsOut(BaseModel):

@@ -26,6 +26,21 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = 50
     ALLOWED_EXTENSIONS: str = ".pdf,.doc,.docx,.txt,.rtf,.odt,.xlsx,.xls,.csv,.pptx,.ppt,.png,.jpg,.jpeg,.gif,.webp,.svg,.bmp,.zip,.tar,.gz,.7z"
 
+    # Encryption & Key Management (AES-256-GCM)
+    # Master Key (KEK) used in Envelope Encryption to encrypt Data Encryption Keys (DEKs).
+    # 32 bytes (64 hex chars). In production, set via MASTER_KEY_HEX or connect to AWS KMS/Azure Key Vault.
+    MASTER_KEY_HEX: str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+    # Storage Backend Configuration ("local" or "s3")
+    STORAGE_BACKEND: str = "local"
+
+    # AWS S3 Configuration
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "us-east-1"
+    AWS_S3_BUCKET_NAME: str = "trustshare-encrypted-files"
+    AWS_S3_ENDPOINT_URL: str = ""
+
     # JWT
     SECRET_KEY: str = "supersecretkey_change_in_production_32chars"
     ALGORITHM: str = "HS256"

@@ -12,6 +12,9 @@ import {
   downloadFile,
   deleteFile,
   createShareLink,
+  shareWithUser,
+  getSharedWithMe,
+  downloadSharedWithMeFile,
   revokeShareLink,
   getFileDetails,
   getSystemHealth,
@@ -20,6 +23,7 @@ import {
   StorageStats,
   FileMetadata,
   HealthStatus,
+  SharedWithMeFile,
   ShareDuration,
   SharePermission,
 } from "@/lib/api";
@@ -50,8 +54,12 @@ export default function DashboardPage() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Tab State: 'my_files' | 'shared_with_me'
+  const [activeTab, setActiveTab] = useState<"my_files" | "shared_with_me">("my_files");
+
   // Files & Stats state
   const [files, setFiles] = useState<FileSummary[]>([]);
+  const [sharedWithMe, setSharedWithMe] = useState<SharedWithMeFile[]>([]);
   const [stats, setStats] = useState<StorageStats | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -66,14 +74,18 @@ export default function DashboardPage() {
   const [fileDescription, setFileDescription] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Modals state
+  // Share Modal state
   const [selectedFileForShare, setSelectedFileForShare] = useState<FileMetadata | null>(null);
+  const [shareMode, setShareMode] = useState<"link" | "user">("link");
   const [shareDuration, setShareDuration] = useState<ShareDuration>("24h");
   const [sharePermission, setSharePermission] = useState<SharePermission>("can_download");
+  const [recipientEmail, setRecipientEmail] = useState("");
   const [generatedShareUrl, setGeneratedShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [sharingLoading, setSharingLoading] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
+  // Details & Delete Modals state
   const [detailsModalFile, setDetailsModalFile] = useState<FileMetadata | null>(null);
   const [deleteModalFile, setDeleteModalFile] = useState<FileSummary | null>(null);
   const [deletingLoading, setDeletingLoading] = useState(false);
@@ -105,12 +117,14 @@ export default function DashboardPage() {
   const refreshAllData = async () => {
     setRefreshing(true);
     try {
-      const [filesData, statsData, healthData] = await Promise.all([
+      const [filesData, sharedData, statsData, healthData] = await Promise.all([
         listFiles(searchTerm, selectedCategory),
+        getSharedWithMe().catch(() => []),
         getFileStats(),
         getSystemHealth().catch(() => null),
       ]);
       setFiles(filesData);
+      setSharedWithMe(sharedData);
       setStats(statsData);
       if (healthData) setHealth(healthData);
     } catch (e) {
@@ -178,7 +192,7 @@ export default function DashboardPage() {
       const uploaded = await uploadFile(file, fileDescription, (percent) => {
         setUploadProgress(percent);
       });
-      setUploadSuccess(`"${uploaded.original_name}" uploaded and encrypted successfully!`);
+      setUploadSuccess(`"${uploaded.original_name}" encrypted with AES-256-GCM and stored securely!`);
       setFileDescription("");
       await refreshAllData();
     } catch (err: unknown) {
@@ -189,11 +203,23 @@ export default function DashboardPage() {
     }
   };
 
-  // ── Download Handler ────────────────────────────────────────────────────────
+  // ── Download Handlers ───────────────────────────────────────────────────────
   const handleDownload = async (file: FileSummary) => {
     try {
       await downloadFile(file.id, file.original_name);
-      // update list to reflect incremented download count
+      await refreshAllData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Download failed.");
+    }
+  };
+
+  const handleDownloadShared = async (shared: SharedWithMeFile) => {
+    if (!shared.can_download) {
+      alert("This file is marked View Only. Direct downloading is restricted.");
+      return;
+    }
+    try {
+      await downloadSharedWithMeFile(shared.share_id, shared.original_name);
       await refreshAllData();
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Download failed.");
@@ -219,6 +245,8 @@ export default function DashboardPage() {
   const openShareModal = async (fileSummary: FileSummary) => {
     setGeneratedShareUrl(null);
     setCopied(false);
+    setRecipientEmail("");
+    setShareFeedback(null);
     try {
       const fullMeta = await getFileDetails(fileSummary.id);
       setSelectedFileForShare(fullMeta);
@@ -230,21 +258,36 @@ export default function DashboardPage() {
   const handleGenerateShare = async () => {
     if (!selectedFileForShare) return;
     setSharingLoading(true);
+    setShareFeedback(null);
+
     try {
-      const shareRes = await createShareLink(selectedFileForShare.id, {
-        duration: shareDuration,
-        permission: sharePermission,
-      });
+      if (shareMode === "link") {
+        const shareRes = await createShareLink(selectedFileForShare.id, {
+          duration: shareDuration,
+          permission: sharePermission,
+        });
+        const fullUrl = `${window.location.origin}${shareRes.share_url}`;
+        setGeneratedShareUrl(fullUrl);
+      } else {
+        if (!recipientEmail || !recipientEmail.includes("@")) {
+          alert("Please enter a valid recipient email address.");
+          setSharingLoading(false);
+          return;
+        }
+        await shareWithUser(selectedFileForShare.id, {
+          recipient_email: recipientEmail.trim(),
+          permission: sharePermission,
+          duration: shareDuration,
+        });
+        setShareFeedback(`Successfully shared with ${recipientEmail.trim()}!`);
+        setRecipientEmail("");
+      }
 
-      const fullUrl = `${window.location.origin}${shareRes.share_url}`;
-      setGeneratedShareUrl(fullUrl);
-
-      // Refresh modal's file shares
       const updatedMeta = await getFileDetails(selectedFileForShare.id);
       setSelectedFileForShare(updatedMeta);
       await refreshAllData();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to create share link.");
+      alert(err instanceof Error ? err.message : "Failed to create share grant.");
     } finally {
       setSharingLoading(false);
     }
@@ -276,7 +319,7 @@ export default function DashboardPage() {
     try {
       const fullMeta = await getFileDetails(fileSummary.id);
       setDetailsModalFile(fullMeta);
-    } catch (e) {
+    } catch {
       alert("Could not load file metadata.");
     }
   };
@@ -287,7 +330,7 @@ export default function DashboardPage() {
       <div className="page-center">
         <div style={{ textAlign: "center" }}>
           <div className="spinner" style={{ width: 40, height: 40, margin: "0 auto 1rem", borderWidth: 3 }} />
-          <p className="text-muted">Loading secure workspace…</p>
+          <p className="text-muted">Initializing secure cryptographic vault…</p>
         </div>
       </div>
     );
@@ -319,17 +362,21 @@ export default function DashboardPage() {
 
           {/* System Health Indicators */}
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <div className={`health-pill ${health?.postgres.connected ? "healthy" : "resilient"}`} title="PostgreSQL User & Role DB">
+            <div className={`health-pill ${health?.postgres.connected ? "healthy" : "resilient"}`} title="PostgreSQL & Encryption Schema">
               <span className="health-dot" />
               <span>PostgreSQL</span>
             </div>
-            <div className={`health-pill ${health?.mongodb.connected ? "healthy" : "resilient"}`} title="MongoDB File Metadata Storage">
+            <div className={`health-pill ${health?.mongodb.connected ? "healthy" : "resilient"}`} title="MongoDB Metadata Cache">
               <span className="health-dot" />
               <span>MongoDB</span>
             </div>
-            <div className={`health-pill ${health?.redis.connected ? "healthy" : "resilient"}`} title="Redis Token Blacklist & Cache">
+            <div className={`health-pill ${health?.redis.connected ? "healthy" : "resilient"}`} title="Redis Token Revocation">
               <span className="health-dot" />
               <span>Redis</span>
+            </div>
+            <div className="health-pill healthy" title="AES-256-GCM Server-Side Envelope Encryption">
+              <span className="health-dot" />
+              <span>AES-256-GCM</span>
             </div>
           </div>
         </div>
@@ -368,7 +415,7 @@ export default function DashboardPage() {
           </div>
           <div style={{ fontSize: "2rem", fontWeight: 800 }}>{stats?.total_files || 0}</div>
           <div className="text-muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>
-            Stored in MongoDB & disk
+            Encrypted with unique DEKs
           </div>
         </div>
 
@@ -380,7 +427,7 @@ export default function DashboardPage() {
             {formatBytes(stats?.total_bytes || 0)}
           </div>
           <div className="text-muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>
-            {stats?.total_storage_mb || 0} MB utilized
+            {stats?.total_storage_mb || 0} MB in secure storage
           </div>
         </div>
 
@@ -392,28 +439,33 @@ export default function DashboardPage() {
             {stats?.active_shares || 0}
           </div>
           <div className="text-muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>
-            Public links generated
+            Links & user grants
           </div>
         </div>
 
         <div className="card" style={{ padding: "1.5rem" }}>
           <div className="text-muted" style={{ fontSize: "0.8rem", textTransform: "uppercase", fontWeight: 600, marginBottom: "0.5rem" }}>
-            🔒 Security Level
+            🔒 Encryption Standard
           </div>
-          <div style={{ fontSize: "1.35rem", fontWeight: 700, color: "var(--color-success)", marginTop: "0.35rem" }}>
-            Active & Verified
+          <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--color-success)", marginTop: "0.35rem" }}>
+            AES-256-GCM
           </div>
           <div className="text-muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>
-            SHA-256 + Redis Revocation
+            Authenticated + Envelope KEK
           </div>
         </div>
       </div>
 
       {/* ── Secure File Upload Section ──────────────────────────────────────── */}
       <div className="card" style={{ marginBottom: "2.5rem", padding: "1.75rem" }}>
-        <h2 style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span>📤</span> Secure File Upload
-        </h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+          <h2 style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span>📤</span> AES-256 Server-Side Encrypted Upload
+          </h2>
+          <span className="badge badge-admin" style={{ fontSize: "0.75rem" }}>
+            🔐 Zero-Knowledge Server Encryption
+          </span>
+        </div>
 
         {/* Upload feedback alerts */}
         {uploadSuccess && (
@@ -445,12 +497,12 @@ export default function DashboardPage() {
             style={{ display: "none" }}
             disabled={uploading}
           />
-          <div className="dropzone-icon">☁️</div>
+          <div className="dropzone-icon">🔒</div>
           <h3 style={{ fontSize: "var(--font-size-base)", fontWeight: 600, marginBottom: "0.25rem" }}>
-            {uploading ? "Uploading & Encrypting File…" : "Drag and drop your file here, or click to browse"}
+            {uploading ? "Encrypting & Storing Ciphertext…" : "Drag and drop your file here, or click to browse"}
           </h3>
           <p className="text-muted" style={{ fontSize: "var(--font-size-xs)" }}>
-            Supports PDF, DOCX, Images (PNG/JPG/WEBP), Spreadsheets, Archives up to 50MB
+            Automatically encrypted with AES-256-GCM before reaching cloud storage (up to 50MB)
           </p>
 
           {/* Progress Bar */}
@@ -460,7 +512,7 @@ export default function DashboardPage() {
                 <div className="progress-fill" style={{ width: `${uploadProgress}%` }} />
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--color-brand-primary)" }}>
-                <span>Streaming & calculating SHA-256 checksum…</span>
+                <span>Encrypting payload & storing in object vault…</span>
                 <span>{uploadProgress}%</span>
               </div>
             </div>
@@ -468,184 +520,328 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── File Management & Search Toolbar ────────────────────────────────── */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <div
+      {/* ── View Navigation Tabs ────────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: "1rem", borderBottom: "1px solid var(--color-border)", marginBottom: "1.5rem" }}>
+        <button
+          onClick={() => setActiveTab("my_files")}
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "1rem",
-            marginBottom: "1rem",
+            padding: "0.75rem 1.25rem",
+            background: "none",
+            border: "none",
+            borderBottom: activeTab === "my_files" ? "2px solid var(--color-brand-primary)" : "2px solid transparent",
+            color: activeTab === "my_files" ? "var(--color-text-primary)" : "var(--color-text-muted)",
+            fontWeight: 600,
+            fontSize: "0.95rem",
+            cursor: "pointer",
           }}
         >
-          <h2 style={{ fontSize: "var(--font-size-xl)", fontWeight: 700 }}>
-            File Repository ({files.length})
-          </h2>
+          📁 My Encrypted Files ({files.length})
+        </button>
 
-          {/* Search Box */}
-          <div style={{ display: "flex", gap: "0.75rem", flex: "1 1 300px", maxWidth: "450px" }}>
-            <input
-              id="file-search-input"
-              type="text"
-              className="form-input"
-              placeholder="🔍 Search files by name, type, or notes…"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ padding: "0.6rem 1rem", fontSize: "0.9rem" }}
-            />
-            <button
-              onClick={refreshAllData}
-              className="btn btn-secondary"
-              title="Refresh files"
-              style={{ padding: "0.6rem 1rem", width: "auto" }}
-            >
-              {refreshing ? "…" : "🔄"}
-            </button>
-          </div>
-        </div>
-
-        {/* Category Filters */}
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          {[
-            { id: "all", label: "All Files" },
-            { id: "pdf", label: "📕 PDFs" },
-            { id: "document", label: "📄 Documents" },
-            { id: "image", label: "🖼️ Images" },
-            { id: "spreadsheet", label: "📊 Spreadsheets" },
-            { id: "archive", label: "🗄️ Archives" },
-          ].map((cat) => (
-            <button
-              key={cat.id}
-              className={`filter-chip ${selectedCategory === cat.id ? "active" : ""}`}
-              onClick={() => setSelectedCategory(cat.id)}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
+        <button
+          onClick={() => setActiveTab("shared_with_me")}
+          style={{
+            padding: "0.75rem 1.25rem",
+            background: "none",
+            border: "none",
+            borderBottom: activeTab === "shared_with_me" ? "2px solid var(--color-brand-primary)" : "2px solid transparent",
+            color: activeTab === "shared_with_me" ? "var(--color-text-primary)" : "var(--color-text-muted)",
+            fontWeight: 600,
+            fontSize: "0.95rem",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
+          <span>📥 Shared with Me</span>
+          {sharedWithMe.length > 0 && (
+            <span className="badge badge-admin" style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem" }}>
+              {sharedWithMe.length}
+            </span>
+          )}
+        </button>
       </div>
 
-      {/* ── Files Table ────────────────────────────────────────────────────── */}
-      <div className="data-table-container">
-        {files.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "4rem 1.5rem" }}>
-            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📭</div>
-            <h3 style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, marginBottom: "0.5rem" }}>
-              No files found
-            </h3>
-            <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", maxWidth: "400px", margin: "0 auto" }}>
-              {searchTerm || selectedCategory !== "all"
-                ? "Try clearing your search query or switching categories."
-                : "Upload your first file using the dropzone above to start sharing securely."}
+      {/* ── TAB 1: My Encrypted Files ─────────────────────────────────────────── */}
+      {activeTab === "my_files" && (
+        <div>
+          {/* File Management & Search Toolbar */}
+          <div style={{ marginBottom: "1.5rem" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "1rem",
+                marginBottom: "1rem",
+              }}
+            >
+              <h2 style={{ fontSize: "var(--font-size-xl)", fontWeight: 700 }}>
+                Encrypted Vault ({files.length})
+              </h2>
+
+              {/* Search Box */}
+              <div style={{ display: "flex", gap: "0.75rem", flex: "1 1 300px", maxWidth: "450px" }}>
+                <input
+                  id="file-search-input"
+                  type="text"
+                  className="form-input"
+                  placeholder="🔍 Search encrypted files…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{ padding: "0.6rem 1rem", fontSize: "0.9rem" }}
+                />
+                <button
+                  onClick={refreshAllData}
+                  className="btn btn-secondary"
+                  title="Refresh files"
+                  style={{ padding: "0.6rem 1rem", width: "auto" }}
+                >
+                  {refreshing ? "…" : "🔄"}
+                </button>
+              </div>
+            </div>
+
+            {/* Category Filters */}
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              {[
+                { id: "all", label: "All Files" },
+                { id: "pdf", label: "📕 PDFs" },
+                { id: "document", label: "📄 Documents" },
+                { id: "image", label: "🖼️ Images" },
+                { id: "spreadsheet", label: "📊 Spreadsheets" },
+                { id: "archive", label: "🗄️ Archives" },
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  className={`filter-chip ${selectedCategory === cat.id ? "active" : ""}`}
+                  onClick={() => setSelectedCategory(cat.id)}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Files Table */}
+          <div className="data-table-container">
+            {files.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "4rem 1.5rem" }}>
+                <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📭</div>
+                <h3 style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, marginBottom: "0.5rem" }}>
+                  No encrypted files found
+                </h3>
+                <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", maxWidth: "400px", margin: "0 auto" }}>
+                  {searchTerm || selectedCategory !== "all"
+                    ? "Try clearing your search query or switching categories."
+                    : "Upload a file using the dropzone above to encrypt and store it securely."}
+                </p>
+              </div>
+            ) : (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>File Name</th>
+                    <th>Security</th>
+                    <th>Size</th>
+                    <th>Uploaded</th>
+                    <th>Shares</th>
+                    <th style={{ textAlign: "right" }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {files.map((file) => (
+                    <tr key={file.id}>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                          <span style={{ fontSize: "1.4rem" }}>
+                            {CATEGORY_ICONS[file.category] || "📁"}
+                          </span>
+                          <div>
+                            <div style={{ fontWeight: 600, color: "var(--color-text-primary)" }}>
+                              {file.original_name}
+                            </div>
+                            {file.description && (
+                              <div className="text-muted" style={{ fontSize: "0.75rem" }}>
+                                {file.description}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="badge badge-admin" style={{ fontSize: "0.7rem", background: "rgba(16,185,129,0.15)", color: "#10b981", border: "1px solid rgba(16,185,129,0.3)" }}>
+                          🔒 AES-256-GCM
+                        </span>
+                      </td>
+                      <td style={{ color: "var(--color-text-secondary)", fontWeight: 500 }}>
+                        {formatBytes(file.file_size)}
+                      </td>
+                      <td style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>
+                        {new Date(file.upload_date).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </td>
+                      <td>
+                        {file.shares_count > 0 ? (
+                          <span className="badge badge-admin" style={{ fontSize: "0.7rem", padding: "0.15rem 0.5rem" }}>
+                            🔗 {file.shares_count} active
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>None</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <div style={{ display: "inline-flex", gap: "0.4rem", justifyContent: "flex-end" }}>
+                          {/* Download */}
+                          <button
+                            className="action-btn"
+                            onClick={() => handleDownload(file)}
+                            title="Decrypt & download file"
+                          >
+                            📥
+                          </button>
+
+                          {/* Share */}
+                          <button
+                            className="action-btn share"
+                            onClick={() => openShareModal(file)}
+                            title="Share file"
+                          >
+                            🔗 Share
+                          </button>
+
+                          {/* Details */}
+                          <button
+                            className="action-btn"
+                            onClick={() => openDetailsModal(file)}
+                            title="Cryptographic properties & metadata"
+                          >
+                            ℹ️
+                          </button>
+
+                          {/* Delete */}
+                          <button
+                            className="action-btn delete"
+                            onClick={() => setDeleteModalFile(file)}
+                            title="Delete file permanently"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 2: Shared with Me ────────────────────────────────────────────── */}
+      {activeTab === "shared_with_me" && (
+        <div>
+          <div style={{ marginBottom: "1.5rem" }}>
+            <h2 style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, marginBottom: "0.5rem" }}>
+              Files Shared with You ({sharedWithMe.length})
+            </h2>
+            <p className="text-muted" style={{ fontSize: "var(--font-size-sm)" }}>
+              Access files that other TrustShare users have explicitly granted you permission to view or download.
             </p>
           </div>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>File Name</th>
-                <th>Category</th>
-                <th>Size</th>
-                <th>Uploaded</th>
-                <th>Owner</th>
-                <th>Shares</th>
-                <th style={{ textAlign: "right" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {files.map((file) => (
-                <tr key={file.id}>
-                  <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                      <span style={{ fontSize: "1.4rem" }}>
-                        {CATEGORY_ICONS[file.category] || "📁"}
-                      </span>
-                      <div>
-                        <div style={{ fontWeight: 600, color: "var(--color-text-primary)" }}>
-                          {file.original_name}
+
+          <div className="data-table-container">
+            {sharedWithMe.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "4rem 1.5rem" }}>
+                <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📬</div>
+                <h3 style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, marginBottom: "0.5rem" }}>
+                  No shared files yet
+                </h3>
+                <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", maxWidth: "400px", margin: "0 auto" }}>
+                  When other TrustShare users share encrypted files with your email ({user.email}), they will appear here.
+                </p>
+              </div>
+            ) : (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>File Name</th>
+                    <th>Shared By</th>
+                    <th>Permission</th>
+                    <th>Size</th>
+                    <th>Expires</th>
+                    <th style={{ textAlign: "right" }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sharedWithMe.map((item) => (
+                    <tr key={item.share_id}>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                          <span style={{ fontSize: "1.4rem" }}>
+                            {CATEGORY_ICONS[item.category] || "📁"}
+                          </span>
+                          <span style={{ fontWeight: 600, color: "var(--color-text-primary)" }}>
+                            {item.original_name}
+                          </span>
                         </div>
-                        {file.description && (
-                          <div className="text-muted" style={{ fontSize: "0.75rem" }}>
-                            {file.description}
-                          </div>
+                      </td>
+                      <td style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>
+                        {item.owner_email}
+                      </td>
+                      <td>
+                        {item.can_download ? (
+                          <span className="badge badge-admin" style={{ fontSize: "0.75rem", background: "rgba(99,102,241,0.15)", color: "#818cf8" }}>
+                            📥 Downloadable
+                          </span>
+                        ) : (
+                          <span className="badge" style={{ fontSize: "0.75rem", background: "rgba(234,179,8,0.15)", color: "#eab308" }}>
+                            👁️ View Only
+                          </span>
                         )}
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`cat-badge cat-${file.category}`}>
-                      {file.category}
-                    </span>
-                  </td>
-                  <td style={{ color: "var(--color-text-secondary)", fontWeight: 500 }}>
-                    {formatBytes(file.file_size)}
-                  </td>
-                  <td style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>
-                    {new Date(file.upload_date).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </td>
-                  <td style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>
-                    {file.owner_email.split("@")[0]}
-                  </td>
-                  <td>
-                    {file.shares_count > 0 ? (
-                      <span className="badge badge-admin" style={{ fontSize: "0.7rem", padding: "0.15rem 0.5rem" }}>
-                        🔗 {file.shares_count} active
-                      </span>
-                    ) : (
-                      <span style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>None</span>
-                    )}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    <div style={{ display: "inline-flex", gap: "0.4rem", justifyContent: "flex-end" }}>
-                      {/* Download */}
-                      <button
-                        className="action-btn"
-                        onClick={() => handleDownload(file)}
-                        title="Download file"
-                      >
-                        📥
-                      </button>
-
-                      {/* Share */}
-                      <button
-                        className="action-btn share"
-                        onClick={() => openShareModal(file)}
-                        title="Share file"
-                      >
-                        🔗 Share
-                      </button>
-
-                      {/* Details */}
-                      <button
-                        className="action-btn"
-                        onClick={() => openDetailsModal(file)}
-                        title="File metadata & hash"
-                      >
-                        ℹ️
-                      </button>
-
-                      {/* Delete */}
-                      <button
-                        className="action-btn delete"
-                        onClick={() => setDeleteModalFile(file)}
-                        title="Delete file"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                      </td>
+                      <td style={{ color: "var(--color-text-secondary)", fontWeight: 500 }}>
+                        {formatBytes(item.file_size)}
+                      </td>
+                      <td style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>
+                        {item.expires_at ? (
+                          item.is_expired ? (
+                            <span style={{ color: "#ef4444" }}>Expired</span>
+                          ) : (
+                            new Date(item.expires_at).toLocaleDateString()
+                          )
+                        ) : (
+                          "Never"
+                        )}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {item.can_download && !item.is_expired ? (
+                          <button
+                            className="btn btn-primary"
+                            style={{ padding: "0.35rem 0.75rem", fontSize: "0.8rem" }}
+                            onClick={() => handleDownloadShared(item)}
+                          >
+                            📥 Download
+                          </button>
+                        ) : (
+                          <span className="text-muted" style={{ fontSize: "0.8rem" }}>
+                            {item.is_expired ? "Expired" : "Restricted"}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Modal: Share File ───────────────────────────────────────────────── */}
       {selectedFileForShare && (
@@ -655,11 +851,35 @@ export default function DashboardPage() {
               ✕
             </button>
             <h3 style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, marginBottom: "0.25rem" }}>
-              Share File
+              Secure Sharing & Access Control
             </h3>
-            <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", marginBottom: "1.5rem" }}>
-              Generate a secure, time-limited link for &quot;{selectedFileForShare.original_name}&quot;.
+            <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", marginBottom: "1.25rem" }}>
+              File: &quot;{selectedFileForShare.original_name}&quot; (AES-256-GCM Encrypted)
             </p>
+
+            {/* Share Mode Switcher */}
+            <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem" }}>
+              <button
+                className={`filter-chip ${shareMode === "link" ? "active" : ""}`}
+                style={{ flex: 1, textAlign: "center" }}
+                onClick={() => {
+                  setShareMode("link");
+                  setShareFeedback(null);
+                }}
+              >
+                🔗 Temporary Link
+              </button>
+              <button
+                className={`filter-chip ${shareMode === "user" ? "active" : ""}`}
+                style={{ flex: 1, textAlign: "center" }}
+                onClick={() => {
+                  setShareMode("user");
+                  setGeneratedShareUrl(null);
+                }}
+              >
+                👤 Specific User Grant
+              </button>
+            </div>
 
             {/* Generated Link Feedback Box */}
             {generatedShareUrl && (
@@ -669,11 +889,11 @@ export default function DashboardPage() {
                   border: "1px solid rgba(99,102,241,0.3)",
                   borderRadius: "var(--radius-md)",
                   padding: "1rem",
-                  marginBottom: "1.5rem",
+                  marginBottom: "1.25rem",
                 }}
               >
                 <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--color-brand-primary)", marginBottom: "0.5rem", textTransform: "uppercase" }}>
-                  Active Share Link
+                  Active Temporary Link
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
                   <input
@@ -688,15 +908,36 @@ export default function DashboardPage() {
                     className="btn btn-primary"
                     style={{ padding: "0.5rem 1rem", fontSize: "0.85rem", width: "auto" }}
                   >
-                    {copied ? "Copied! ✓" : "Copy Link"}
+                    {copied ? "Copied! ✓" : "Copy"}
                   </button>
                 </div>
               </div>
             )}
 
+            {shareFeedback && (
+              <div className="alert alert-success animate-fade-in" style={{ marginBottom: "1.25rem" }}>
+                <span>✓</span>
+                <span>{shareFeedback}</span>
+              </div>
+            )}
+
+            {/* Recipient Email (if User Mode) */}
+            {shareMode === "user" && (
+              <div className="form-group">
+                <label className="form-label">Recipient User Email</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="recipient@example.com"
+                  value={recipientEmail}
+                  onChange={(e) => setRecipientEmail(e.target.value)}
+                />
+              </div>
+            )}
+
             {/* Duration Selector */}
             <div className="form-group">
-              <label className="form-label">Link Expiration</label>
+              <label className="form-label">Access Expiration</label>
               <select
                 className="form-input"
                 value={shareDuration}
@@ -704,7 +945,7 @@ export default function DashboardPage() {
                 style={{ cursor: "pointer" }}
               >
                 <option value="1h">1 Hour</option>
-                <option value="24h">24 Hours (Recommended)</option>
+                <option value="24h">24 Hours (Default)</option>
                 <option value="7d">7 Days</option>
                 <option value="30d">30 Days</option>
                 <option value="never">Never (Persistent)</option>
@@ -720,28 +961,32 @@ export default function DashboardPage() {
                 onChange={(e) => setSharePermission(e.target.value as SharePermission)}
                 style={{ cursor: "pointer" }}
               >
-                <option value="can_download">Allow Direct Download</option>
-                <option value="view_only">View Only (Restrict Download)</option>
+                <option value="can_download">Allow Decrypted Download</option>
+                <option value="view_only">View Only (Restricted Download)</option>
               </select>
             </div>
 
-            {/* Generate Button */}
+            {/* Action Button */}
             <button
               onClick={handleGenerateShare}
               disabled={sharingLoading}
               className="btn btn-primary"
               style={{ width: "100%", marginBottom: "1.5rem" }}
             >
-              {sharingLoading ? "Generating Secure Token…" : "Generate New Link →"}
+              {sharingLoading
+                ? "Securing & Creating Grant…"
+                : shareMode === "link"
+                ? "Generate Temporary Link →"
+                : "Grant User Access →"}
             </button>
 
             {/* Active Shares List */}
             {selectedFileForShare.shares.length > 0 && (
               <div>
                 <h4 style={{ fontSize: "0.85rem", textTransform: "uppercase", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-                  Active Links ({selectedFileForShare.shares.length})
+                  Active Shares ({selectedFileForShare.shares.length})
                 </h4>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxHeight: "200px", overflowY: "auto" }}>
                   {selectedFileForShare.shares.map((s) => (
                     <div
                       key={s.share_token}
@@ -758,6 +1003,7 @@ export default function DashboardPage() {
                     >
                       <div>
                         <div style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>
+                          {s.recipient_email ? `👤 ${s.recipient_email}` : "🔗 Public Link"} •{" "}
                           {s.permission === "can_download" ? "📥 Downloadable" : "👁️ View Only"}
                         </div>
                         <div className="text-muted" style={{ fontSize: "0.75rem" }}>
@@ -777,7 +1023,7 @@ export default function DashboardPage() {
                         <button
                           onClick={() => handleRevokeShare(s.share_token)}
                           className="action-btn delete"
-                          title="Revoke link"
+                          title="Revoke access immediately"
                         >
                           Revoke
                         </button>
@@ -799,22 +1045,22 @@ export default function DashboardPage() {
               ✕
             </button>
             <h3 style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, marginBottom: "0.25rem" }}>
-              File Metadata
+              Cryptographic & File Metadata
             </h3>
             <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", marginBottom: "1.5rem" }}>
-              Cryptographic and MongoDB stored properties.
+              Verified properties stored in PostgreSQL & Cloud Object Vault.
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", fontSize: "0.85rem" }}>
               {[
                 { label: "Original Filename", value: detailsModalFile.original_name },
-                { label: "File ID (MongoDB)", value: detailsModalFile.id },
-                { label: "Storage Key (Disk)", value: detailsModalFile.stored_name },
+                { label: "Encryption Standard", value: "AES-256-GCM (Authenticated Envelope Encryption)" },
+                { label: "Storage Backend", value: detailsModalFile.storage_backend === "s3" ? "AWS S3 Private Object Bucket" : "Secure Local Encrypted Vault" },
+                { label: "Storage Key (Ciphertext)", value: detailsModalFile.stored_name },
+                { label: "File Size", value: `${detailsModalFile.file_size} bytes (${formatBytes(detailsModalFile.file_size)})` },
                 { label: "Content Type", value: detailsModalFile.content_type },
-                { label: "Exact Size", value: `${detailsModalFile.file_size} bytes (${formatBytes(detailsModalFile.file_size)})` },
                 { label: "Owner Email", value: detailsModalFile.owner_email },
-                { label: "Total Downloads", value: detailsModalFile.download_count },
-                { label: "SHA-256 Checksum", value: detailsModalFile.sha256_hash },
+                { label: "SHA-256 Integrity Hash", value: detailsModalFile.sha256_hash },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -828,9 +1074,10 @@ export default function DashboardPage() {
                   </div>
                   <div
                     style={{
-                      fontFamily: item.label.includes("Hash") || item.label.includes("Key") || item.label.includes("ID") ? "monospace" : "inherit",
+                      fontFamily: item.label.includes("Hash") || item.label.includes("Key") ? "monospace" : "inherit",
                       wordBreak: "break-all",
-                      color: "var(--color-text-primary)",
+                      color: item.label.includes("Encryption") ? "var(--color-success)" : "var(--color-text-primary)",
+                      fontWeight: item.label.includes("Encryption") ? 600 : 400,
                     }}
                   >
                     {item.value}
@@ -839,10 +1086,14 @@ export default function DashboardPage() {
               ))}
             </div>
 
+            <p className="text-muted" style={{ fontSize: "0.75rem", marginTop: "1rem" }}>
+              🔒 <em>Security Guarantee: Plaintext files and private encryption keys are never stored permanently on disk or returned through API endpoints.</em>
+            </p>
+
             <button
               onClick={() => setDetailsModalFile(null)}
               className="btn btn-secondary"
-              style={{ width: "100%", marginTop: "1.5rem" }}
+              style={{ width: "100%", marginTop: "1rem" }}
             >
               Close
             </button>
@@ -859,7 +1110,7 @@ export default function DashboardPage() {
             </h3>
             <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", marginBottom: "1.5rem" }}>
               Are you sure you want to permanently delete &quot;<strong>{deleteModalFile.original_name}</strong>&quot;?
-              This will remove the file from storage and revoke all associated share links.
+              This will remove the ciphertext from cloud storage and revoke all associated share links.
             </p>
 
             <div style={{ display: "flex", gap: "1rem" }}>

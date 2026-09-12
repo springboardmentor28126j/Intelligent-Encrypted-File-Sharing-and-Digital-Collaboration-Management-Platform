@@ -1,16 +1,19 @@
 """
-services/file_service.py – Secure file storage, validation, hashing, and category helpers.
+services/file_service.py – Secure file storage, AES-256 encryption, validation, and category helpers.
 
 Implements:
   - File extension & MIME type validation
   - Explicit rejection of executable/script/dangerous formats
   - Size limitation checks
   - Path traversal sanitization
-  - SHA-256 cryptographic checksum calculation during streaming writes
-  - Unique UUID storage filename generation
-  - Category mapping (documents, images, PDFs, archives, spreadsheets)
+  - SHA-256 cryptographic checksum calculation
+  - AES-256-GCM Server-Side Encryption on upload
+  - Envelope Encryption with Master Key Key Management
+  - Cloud Object Storage backend integration
+  - Authorized Server-Side Decryption on retrieval
 """
 
+import base64
 from datetime import datetime, timedelta, timezone
 import hashlib
 import os
@@ -24,6 +27,9 @@ from fastapi import HTTPException, UploadFile, status
 
 from app.config import settings
 from app.schemas import FileCategory, ShareDuration
+from app.services.crypto_service import crypto_service
+from app.services.key_manager import key_manager
+from app.services.storage_service import storage_backend
 
 # ─── Allowed & Forbidden Extensions ──────────────────────────────────────────
 
@@ -72,11 +78,8 @@ def sanitize_filename(filename: str) -> str:
     Sanitize filename to prevent path traversal and shell injection attacks.
     Removes directory separators and non-standard characters.
     """
-    # Extract only the base name
     base_name = os.path.basename(filename).replace("\\", "/").split("/")[-1]
-    # Remove null bytes
     base_name = base_name.replace("\x00", "")
-    # Keep alphanumeric, dots, underscores, dashes, spaces
     cleaned = re.sub(r"[^\w\.\-\s]", "_", base_name).strip()
     return cleaned if cleaned else "unnamed_file"
 
@@ -133,78 +136,106 @@ def validate_file(file: UploadFile) -> Tuple[str, str, FileCategory]:
 
 def ensure_upload_dir() -> Path:
     """Ensure the uploads storage directory exists on disk."""
-    upload_path = Path(settings.UPLOAD_DIR)
+    upload_path = Path(settings.UPLOAD_DIR) / "encrypted"
     upload_path.mkdir(parents=True, exist_ok=True)
     return upload_path
 
 
-async def save_uploaded_file(file: UploadFile, sanitized_name: str, extension: str) -> Tuple[str, str, int, str]:
+async def save_uploaded_file(
+    file: UploadFile,
+    sanitized_name: str,
+    extension: str,
+) -> Tuple[str, str, int, str, str, str]:
     """
-    Stream and persist uploaded file to disk securely.
-    Calculates SHA-256 checksum and enforces max file size limit.
+    Process, AES-256-GCM encrypt, and persist uploaded file to cloud/local object storage.
+
+    Steps:
+      1. Reads file chunks into memory / buffer while calculating SHA-256 and enforcing size limit.
+      2. Generates unique 256-bit DEK & 96-bit nonce.
+      3. Encrypts file bytes with AES-256-GCM.
+      4. Protects DEK via Envelope Encryption with Master KEK.
+      5. Stores ONLY encrypted ciphertext in object storage.
+      6. Returns metadata including cryptographic nonce and encrypted DEK reference.
 
     Returns:
-        Tuple of (file_id, stored_filename, file_size_bytes, sha256_hash)
+        Tuple of (file_id, storage_key, file_size_bytes, sha256_hash, encrypted_dek, nonce_hex)
     """
-    upload_dir = ensure_upload_dir()
     file_id = str(uuid.uuid4())
-    stored_filename = f"{file_id}{extension}"
-    target_path = upload_dir / stored_filename
+    storage_key = f"encrypted_{file_id}{extension}.enc"
 
     max_bytes = settings.MAX_FILE_SIZE_MB * 1024 * 1024
-    total_bytes = 0
     sha256 = hashlib.sha256()
+    chunks = []
+    total_bytes = 0
 
     chunk_size = 1024 * 1024  # 1MB chunks
 
     try:
-        with open(target_path, "wb") as buffer:
-            while True:
-                chunk = await file.read(chunk_size)
-                if not chunk:
-                    break
-                total_bytes += len(chunk)
-                if total_bytes > max_bytes:
-                    # Cleanup partial file on size breach
-                    buffer.close()
-                    if target_path.exists():
-                        target_path.unlink()
-                    raise HTTPException(
-                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                        detail=f"File exceeds maximum allowed size of {settings.MAX_FILE_SIZE_MB}MB.",
-                    )
-                sha256.update(chunk)
-                buffer.write(chunk)
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            total_bytes += len(chunk)
+            if total_bytes > max_bytes:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"File exceeds maximum allowed size of {settings.MAX_FILE_SIZE_MB}MB.",
+                )
+            sha256.update(chunk)
+            chunks.append(chunk)
     except HTTPException:
         raise
     except Exception as exc:
-        if target_path.exists():
-            target_path.unlink()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to securely save file to storage: {exc}",
+            detail=f"Error reading uploaded file: {exc}",
         )
 
-    return file_id, stored_filename, total_bytes, sha256.hexdigest()
+    plaintext_data = b"".join(chunks)
+
+    # 1. Generate unique 256-bit Data Encryption Key (DEK)
+    dek = key_manager.generate_dek()
+
+    # 2. Generate 12-byte random nonce for AES-GCM
+    nonce = crypto_service.generate_nonce()
+
+    # 3. Encrypt file plaintext with AES-256-GCM
+    ciphertext, _ = crypto_service.encrypt(plaintext_data, key=dek, nonce=nonce)
+
+    # 4. Envelope-encrypt the DEK using the Master KEK
+    encrypted_dek = key_manager.encrypt_dek(dek)
+    nonce_hex = nonce.hex()
+
+    # 5. Store ONLY encrypted ciphertext in storage backend
+    content_type = file.content_type or "application/octet-stream"
+    storage_backend.save_file(storage_key, ciphertext, content_type=content_type)
+
+    return file_id, storage_key, total_bytes, sha256.hexdigest(), encrypted_dek, nonce_hex
 
 
-def remove_file_from_storage(stored_filename: str) -> bool:
-    """Delete the actual physical file from the upload storage directory."""
-    try:
-        upload_dir = ensure_upload_dir()
-        target_path = upload_dir / stored_filename
-        if target_path.exists():
-            target_path.unlink()
-            return True
-        return False
-    except Exception:
-        return False
+def decrypt_and_retrieve_file(storage_key: str, encrypted_dek: str, nonce_hex: str) -> bytes:
+    """
+    Retrieve encrypted file ciphertext from storage and decrypt it with AES-256-GCM.
+
+    Returns:
+        Decrypted plaintext bytes.
+    """
+    # 1. Retrieve ciphertext from storage backend
+    ciphertext = storage_backend.get_file(storage_key)
+
+    # 2. Decrypt DEK using Master KEK
+    dek = key_manager.decrypt_dek(encrypted_dek)
+
+    # 3. Decrypt ciphertext with DEK and nonce
+    nonce = bytes.fromhex(nonce_hex)
+    plaintext = crypto_service.decrypt(ciphertext, key=dek, nonce=nonce)
+
+    return plaintext
 
 
-def get_file_storage_path(stored_filename: str) -> Path:
-    """Get absolute Path to stored file on disk."""
-    upload_dir = ensure_upload_dir()
-    return upload_dir / stored_filename
+def remove_file_from_storage(storage_key: str) -> bool:
+    """Delete the encrypted file from object storage."""
+    return storage_backend.delete_file(storage_key)
 
 
 def calculate_expiration(
@@ -229,7 +260,6 @@ def calculate_expiration(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="custom_expires_at is required when duration is set to 'custom'.",
             )
-        # Ensure timezone-aware comparison
         if custom_expires_at.tzinfo is None:
             custom_expires_at = custom_expires_at.replace(tzinfo=timezone.utc)
         if custom_expires_at <= now:
@@ -243,4 +273,4 @@ def calculate_expiration(
 
 def generate_share_token() -> str:
     """Generate a cryptographically secure URL-safe share token."""
-    return secrets.token_urlsafe(18)
+    return secrets.token_urlsafe(24)

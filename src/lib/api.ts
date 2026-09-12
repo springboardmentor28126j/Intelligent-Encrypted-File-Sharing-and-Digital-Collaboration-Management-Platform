@@ -1,11 +1,11 @@
 /**
- * api.ts – Centralized API client for TrustShare frontend.
+ * api.ts – Centralized API client for TrustShare frontend with Milestone 2 Encryption & Sharing.
  *
  * Provides methods for:
  *   - Authentication (register, login, logout, get current user profile)
- *   - File management (upload with progress, list with search/filter, download, delete)
- *   - File sharing (generate share link with expiration & permissions, revoke share)
- *   - Public share recipient access & downloads
+ *   - File management (upload with AES-256 progress, list with search/filter, download, delete)
+ *   - File sharing (generate temporary link, share with specific user, list shared with me)
+ *   - Public share recipient access & secure streaming downloads
  *   - Storage statistics & system health diagnostics (Postgres, MongoDB, Redis)
  */
 
@@ -56,14 +56,17 @@ export type SharePermission = "view_only" | "can_download";
 export type ShareDuration = "1h" | "24h" | "7d" | "30d" | "never" | "custom";
 
 export interface ShareLink {
+  id?: number;
   share_token: string;
   share_url: string;
   permission: SharePermission;
+  recipient_email?: string | null;
   expires_at?: string | null;
   max_downloads?: number | null;
   download_count: number;
   created_at: string;
   is_expired?: boolean;
+  is_revoked?: boolean;
 }
 
 export interface FileMetadata {
@@ -82,6 +85,9 @@ export interface FileMetadata {
   download_count: number;
   shares: ShareLink[];
   is_public: boolean;
+  is_encrypted: boolean;
+  encryption_algorithm: string;
+  storage_backend: string;
 }
 
 export interface FileSummary {
@@ -96,23 +102,48 @@ export interface FileSummary {
   shares_count: number;
   owner_email: string;
   description?: string | null;
+  is_encrypted?: boolean;
+  encryption_algorithm?: string;
+  storage_backend?: string;
 }
 
 export interface StorageStats {
-  total_files: int;
-  total_bytes: int;
+  total_files: number;
+  total_bytes: number;
   total_storage_mb: number;
   active_shares: number;
   categories_count: Record<string, number>;
 }
-
-type int = number;
 
 export interface ShareCreatePayload {
   duration: ShareDuration;
   custom_expires_at?: string | null;
   permission: SharePermission;
   max_downloads?: number | null;
+  recipient_email?: string | null;
+}
+
+export interface UserSharePayload {
+  recipient_email: string;
+  permission: SharePermission;
+  duration: ShareDuration;
+  custom_expires_at?: string | null;
+}
+
+export interface SharedWithMeFile {
+  share_id: number;
+  file_id: string;
+  original_name: string;
+  file_size: number;
+  content_type: string;
+  extension: string;
+  category: FileCategory;
+  owner_email: string;
+  permission: SharePermission;
+  can_download: boolean;
+  expires_at?: string | null;
+  created_at: string;
+  is_expired: boolean;
 }
 
 export interface PublicShareData {
@@ -126,6 +157,8 @@ export interface PublicShareData {
   share_token: string;
   permission: SharePermission;
   can_download: boolean;
+  is_encrypted: boolean;
+  encryption_algorithm: string;
   expires_at?: string | null;
   is_expired: boolean;
 }
@@ -171,12 +204,10 @@ async function apiFetch<T>(
     ...((options.headers as Record<string, string>) || {}),
   };
 
-  // Attach auth token if available and not already specified
   if (token && !headers["Authorization"]) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  // Set json content-type only if not FormData
   if (!(options.body instanceof FormData) && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
@@ -321,7 +352,6 @@ export async function uploadFile(
     formData.append("description", description);
   }
 
-  // Use XMLHttpRequest to track actual upload progress
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_BASE}/files/upload`, true);
@@ -427,6 +457,50 @@ export async function createShareLink(
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function shareWithUser(
+  fileId: string,
+  payload: UserSharePayload
+): Promise<ShareLink> {
+  return apiFetch<ShareLink>(`/files/${fileId}/share-user`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getSharedWithMe(): Promise<SharedWithMeFile[]> {
+  return apiFetch<SharedWithMeFile[]>("/files/shared-with-me", {
+    method: "GET",
+  });
+}
+
+export async function downloadSharedWithMeFile(shareId: number, filename: string): Promise<void> {
+  const token = getToken();
+  const url = `${API_BASE}/files/shared-with-me/${shareId}/download`;
+
+  const response = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!response.ok) {
+    let msg = `Download failed with status ${response.status}`;
+    try {
+      const err = await response.json();
+      if (err.detail) msg = err.detail;
+    } catch {}
+    throw new Error(msg);
+  }
+
+  const blob = await response.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = downloadUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(downloadUrl);
 }
 
 export async function revokeShareLink(

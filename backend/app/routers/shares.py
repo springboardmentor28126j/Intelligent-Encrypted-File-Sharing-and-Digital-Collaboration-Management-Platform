@@ -1,18 +1,19 @@
 """
-routers/shares.py – Public share recipient endpoints.
+routers/shares.py – Public share recipient endpoints with AES-256 decryption.
 
 Routes:
   GET /share/{token}          – View shared file information & check validity
-  GET /share/{token}/download – Download shared file securely with permission & expiry enforcement
+  GET /share/{token}/download – Decrypt & download shared file securely with permission & expiry enforcement
 """
 
 from datetime import datetime, timezone
+import io
 from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 
 from app.repositories import file_repo
 from app.schemas import FileCategory, PublicShareOut, SharePermission
-from app.services.file_service import get_file_storage_path
+from app.services.file_service import decrypt_and_retrieve_file
 
 router = APIRouter(prefix="/share", tags=["Public File Sharing"])
 
@@ -57,6 +58,12 @@ def get_public_share(token: str) -> PublicShareOut:
 
     file_doc, share_doc = result
 
+    if share_doc.get("is_revoked", False):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="This shared link has been revoked by the owner.",
+        )
+
     expired = is_share_expired(share_doc)
     limit_reached = is_download_limit_reached(share_doc)
 
@@ -90,6 +97,8 @@ def get_public_share(token: str) -> PublicShareOut:
         share_token=token,
         permission=permission,
         can_download=can_download,
+        is_encrypted=True,
+        encryption_algorithm="AES-256-GCM",
         expires_at=expires_at,
         is_expired=False,
     )
@@ -97,7 +106,7 @@ def get_public_share(token: str) -> PublicShareOut:
 
 @router.get(
     "/{token}/download",
-    summary="Download a shared file via public link",
+    summary="Download a shared file via public link with server-side decryption",
     description="Streams the file if valid, not expired, and permissions allow downloads.",
 )
 def download_shared_file(token: str):
@@ -110,21 +119,28 @@ def download_shared_file(token: str):
 
     file_doc, share_doc = result
 
-    # 1. Expiration check
+    # 1. Revocation check
+    if share_doc.get("is_revoked", False):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="This shared link has been revoked.",
+        )
+
+    # 2. Expiration check
     if is_share_expired(share_doc):
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="This shared link has expired.",
         )
 
-    # 2. Limit check
+    # 3. Limit check
     if is_download_limit_reached(share_doc):
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="The download limit for this link has been exceeded.",
         )
 
-    # 3. Permission check
+    # 4. Permission check
     permission = share_doc.get("permission")
     if permission == SharePermission.view_only.value:
         raise HTTPException(
@@ -132,23 +148,47 @@ def download_shared_file(token: str):
             detail="This link has view-only permission; direct downloading is restricted.",
         )
 
-    # 4. Storage check
-    file_path = get_file_storage_path(file_doc["stored_name"])
-    if not file_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File content not found in storage.",
+    storage_key = file_doc.get("storage_key") or file_doc.get("stored_name")
+    encrypted_dek = file_doc.get("encrypted_dek")
+    nonce_hex = file_doc.get("nonce")
+
+    # Legacy unencrypted file fallback
+    if not encrypted_dek or not nonce_hex:
+        from app.services.file_service import get_file_storage_path
+        from fastapi.responses import FileResponse
+        file_path = get_file_storage_path(storage_key)
+        if not file_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File content not found in storage.",
+            )
+        file_repo.increment_download_count(file_doc["id"], share_token=token)
+        return FileResponse(
+            path=str(file_path),
+            filename=file_doc["original_name"],
+            media_type=file_doc.get("content_type", "application/octet-stream"),
+            headers={
+                "Content-Disposition": f'attachment; filename="{file_doc["original_name"]}"',
+                "X-Content-Type-Options": "nosniff",
+            },
         )
+
+    # Server-side AES-256-GCM decryption
+    decrypted_bytes = decrypt_and_retrieve_file(
+        storage_key=storage_key,
+        encrypted_dek=encrypted_dek,
+        nonce_hex=nonce_hex,
+    )
 
     # 5. Increment counter
     file_repo.increment_download_count(file_doc["id"], share_token=token)
 
-    return FileResponse(
-        path=str(file_path),
-        filename=file_doc["original_name"],
+    return StreamingResponse(
+        io.BytesIO(decrypted_bytes),
         media_type=file_doc.get("content_type", "application/octet-stream"),
         headers={
             "Content-Disposition": f'attachment; filename="{file_doc["original_name"]}"',
+            "Content-Length": str(len(decrypted_bytes)),
             "X-Content-Type-Options": "nosniff",
         },
     )
