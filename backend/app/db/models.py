@@ -63,3 +63,57 @@ class FileModel(Base):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     owner = relationship("User", back_populates="files")
     folder = relationship("FolderModel", back_populates="files")
+    shared_links = relationship("SharedLink", back_populates="file", cascade="all, delete-orphan")
+
+
+class SharedLink(Base):
+    __tablename__ = "shared_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_id = Column(Integer, ForeignKey("files.id", ondelete="CASCADE"), nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token = Column(String(100), unique=True, index=True, nullable=False)
+    permission = Column(String(20), default="view_only") # view_only, can_download
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    max_downloads = Column(Integer, nullable=True)
+    current_downloads = Column(Integer, default=0)
+    shared_to = Column(String(255), nullable=True)
+    user_file_access_id = Column(Integer, ForeignKey("user_file_access.id", ondelete="CASCADE"), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    file = relationship("FileModel", back_populates="shared_links")
+    owner = relationship("User")
+    activity_logs = relationship("ShareActivityLog", back_populates="shared_link", cascade="all, delete-orphan")
+    user_file_access = relationship("UserFileAccess")
+
+
+class ShareActivityLog(Base):
+    __tablename__ = "share_activity_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    link_id = Column(Integer, ForeignKey("shared_links.id", ondelete="CASCADE"), nullable=False)
+    action = Column(String(50), nullable=False) # e.g., viewed, downloaded
+    ip_address = Column(String(50), nullable=True)
+    user_agent = Column(String(255), nullable=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    shared_link = relationship("SharedLink", back_populates="activity_logs")
+
+
+class UserFileAccess(Base):
+    __tablename__ = "user_file_access"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_id = Column(Integer, ForeignKey("files.id", ondelete="CASCADE"), nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    shared_with_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    permission = Column(String(20), default="view_only") # view_only, can_download, can_edit
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    file = relationship("FileModel")
+    owner = relationship("User", foreign_keys=[owner_id])
+    shared_with_user = relationship("User", foreign_keys=[shared_with_user_id])

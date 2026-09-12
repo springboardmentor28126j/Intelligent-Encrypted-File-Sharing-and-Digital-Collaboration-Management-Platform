@@ -111,3 +111,29 @@ def reset_password_otp(request: ResetPasswordOTPRequest, db: Session = Depends(g
     db.commit()
     
     return {"message": "Password reset successful"}
+
+
+from app.core.deps import get_current_user
+
+@router.get("/search-users")
+def search_users(
+    q: str = "",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query_str = (q or "").strip()
+    if not query_str:
+        # Return recent registered users as quick suggestions
+        users = db.query(User).filter(
+            User.id != current_user.id,
+            User.hashed_password != "PENDING_VERIFICATION"
+        ).order_by(User.id.desc()).limit(10).all()
+    else:
+        search_filter = f"%{query_str}%"
+        users = db.query(User).filter(
+            User.id != current_user.id,
+            User.hashed_password != "PENDING_VERIFICATION",
+            (User.email.ilike(search_filter)) | (User.name.ilike(search_filter))
+        ).limit(10).all()
+
+    return [{"id": u.id, "name": u.name, "email": u.email} for u in users]

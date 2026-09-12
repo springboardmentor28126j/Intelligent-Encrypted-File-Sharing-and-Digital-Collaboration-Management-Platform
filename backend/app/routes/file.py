@@ -7,14 +7,21 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.db.models import FileModel, FolderModel, User
+from app.db.models import FileModel, FolderModel, User, UserFileAccess
 from app.schemas.file import FileOut, FolderCreate, FolderOut, ExplorerContentResponse
 from app.core.deps import get_current_user
+from app.core.supabase_client import (
+    upload_to_supabase,
+    get_signed_url,
+    remove_from_supabase,
+    remove_multiple_from_supabase,
+)
 
 router = APIRouter(prefix="/files", tags=["File Management"])
 
-UPLOAD_DIR = "uploads"
+UPLOAD_DIR = "Uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs("uploads", exist_ok=True)
 
 MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB Max limit
 
@@ -60,14 +67,24 @@ async def upload_file(
     # Generate Unique File Name
     ext = os.path.splitext(file.filename)[1]
     unique_filename = f"{uuid.uuid4().hex}{ext}"
-    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    
+    # Read file bytes
+    file_bytes = await file.read()
 
-    # Save File to Disk
+    # Always save to local storage first (guarantees file upload never fails)
+    local_path = os.path.join(UPLOAD_DIR, unique_filename)
+    with open(local_path, "wb") as f:
+        f.write(file_bytes)
+
+    # Attempt upload to Supabase Storage
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to save file on server")
+        upload_to_supabase(
+            path=unique_filename,
+            file_bytes=file_bytes,
+            content_type=file.content_type
+        )
+    except Exception as e:
+        print(f"Supabase Storage notice: {e}. File stored locally at {local_path}")
 
     # Detect Category
     file_mime = file.content_type or "unknown"
@@ -77,7 +94,7 @@ async def upload_file(
     new_file = FileModel(
         original_filename=file.filename,
         stored_filename=unique_filename,
-        file_path=file_path,
+        file_path=unique_filename,  # storing object name in file_path
         file_size=file_size,
         file_type=file_mime,
         category=category,
@@ -145,31 +162,102 @@ def list_explorer_content(
     }
 
 
-# 4. View File API
+from datetime import timedelta
+from fastapi.responses import RedirectResponse
+
+# 4. View / Download File API
 @router.get("/view/{file_id}")
 def view_file(
     file_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    file_record = db.query(FileModel).filter(
-        FileModel.id == file_id,
-        FileModel.owner_id == current_user.id
-    ).first()
+    file_record = db.query(FileModel).filter(FileModel.id == file_id).first()
 
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
 
-    if not os.path.exists(file_record.file_path):
-        raise HTTPException(status_code=404, detail="Physical file missing on server")
+    # Verify authorization: Owner OR user with granted internal access
+    if file_record.owner_id != current_user.id:
+        has_access = db.query(UserFileAccess).filter(
+            UserFileAccess.file_id == file_id,
+            UserFileAccess.shared_with_user_id == current_user.id
+        ).first()
+        if not has_access:
+            raise HTTPException(status_code=403, detail="You do not have permission to view this file")
 
-    return FileResponse(
-        file_record.file_path, 
-        filename=file_record.original_filename,
-        media_type=file_record.file_type
-    )
+    # 1. Check if the file physically exists on local disk (for existing/local files)
+    potential_paths = [
+        file_record.file_path,
+        os.path.join("Uploads", file_record.stored_filename),
+        os.path.join("uploads", file_record.stored_filename),
+        os.path.join("Uploads", os.path.basename(file_record.file_path)),
+        os.path.join("uploads", os.path.basename(file_record.file_path)),
+    ]
+    for p in potential_paths:
+        if p and os.path.exists(p) and os.path.isfile(p):
+            return FileResponse(
+                path=p,
+                filename=file_record.original_filename,
+                media_type=file_record.file_type
+            )
 
-# 5. Delete File API
+    # 2. Otherwise generate signed URL from Supabase Storage
+    try:
+        url = get_signed_url(file_record.file_path, expires_in=7200)
+        return RedirectResponse(url)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to access file storage: {str(e)}")
+
+
+# 5. Download File API (Enforces 'can_download' permission for shared users)
+@router.get("/download/{file_id}")
+def download_file(
+    file_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    file_record = db.query(FileModel).filter(FileModel.id == file_id).first()
+
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Verify authorization & permission
+    if file_record.owner_id != current_user.id:
+        has_access = db.query(UserFileAccess).filter(
+            UserFileAccess.file_id == file_id,
+            UserFileAccess.shared_with_user_id == current_user.id
+        ).first()
+        if not has_access:
+            raise HTTPException(status_code=403, detail="You do not have access to this file")
+        if has_access.permission != "can_download":
+            raise HTTPException(status_code=403, detail="Download permission denied. You only have view access for this file.")
+
+    # 1. Check if the file physically exists on local disk
+    potential_paths = [
+        file_record.file_path,
+        os.path.join("Uploads", file_record.stored_filename),
+        os.path.join("uploads", file_record.stored_filename),
+        os.path.join("Uploads", os.path.basename(file_record.file_path)),
+        os.path.join("uploads", os.path.basename(file_record.file_path)),
+    ]
+    for p in potential_paths:
+        if p and os.path.exists(p) and os.path.isfile(p):
+            return FileResponse(
+                path=p,
+                filename=file_record.original_filename,
+                media_type="application/octet-stream"
+            )
+
+    # 2. Otherwise generate signed URL from Supabase Storage
+    try:
+        url = get_signed_url(file_record.file_path, expires_in=7200)
+        return RedirectResponse(url)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to access file storage: {str(e)}")
+
+
+# 6. Delete File API
 @router.delete("/delete/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_file(
     file_id: int,
@@ -184,9 +272,24 @@ def delete_file(
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
 
-    # Delete physical file
-    if os.path.exists(file_record.file_path):
-        os.remove(file_record.file_path)
+    # Delete physical file from local disk if it exists
+    potential_paths = [
+        file_record.file_path,
+        os.path.join("Uploads", file_record.stored_filename),
+        os.path.join("uploads", file_record.stored_filename),
+    ]
+    for p in potential_paths:
+        if p and os.path.exists(p) and os.path.isfile(p):
+            try:
+                os.remove(p)
+            except Exception as e:
+                print(f"Error removing local file: {e}")
+
+    # Delete file from Supabase Storage
+    try:
+        remove_from_supabase(file_record.file_path)
+    except Exception as e:
+        print(f"Error removing from Supabase Storage: {e}")
 
     # Delete db record
     db.delete(file_record)
@@ -242,9 +345,13 @@ def delete_folder(
             
         # Find and delete files in this folder
         files_in_folder = db.query(FileModel).filter(FileModel.folder_id == f_id).all()
+        paths_to_delete = [f.file_path for f in files_in_folder if f.file_path]
+        if paths_to_delete:
+            try:
+                remove_multiple_from_supabase(paths_to_delete)
+            except Exception as e:
+                print(f"Error removing from Supabase Storage: {e}")
         for f in files_in_folder:
-            if os.path.exists(f.file_path):
-                os.remove(f.file_path)
             db.delete(f)
             
         # Delete the folder itself
