@@ -29,6 +29,7 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    user: Optional[UserOut] = None
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr

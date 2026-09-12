@@ -75,7 +75,7 @@ function Dashboard() {
 
         {/* Right Main Content Area */}
         <main style={styles.contentArea}>
-          {activeTab === 'dashboard' && <DashboardHome />}
+          {activeTab === 'dashboard' && <DashboardHome onNavigate={setActiveTab} />}
           {activeTab === 'files' && <FileManager />}
           {activeTab === 'shared_with_me' && <SharedWithMePage />}
           {activeTab === 'shared_links' && <SharedLinksPage />}

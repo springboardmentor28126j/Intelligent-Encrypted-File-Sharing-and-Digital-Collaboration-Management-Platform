@@ -15,7 +15,27 @@ export const loginUser = async (credentials) => {
   if (response.data.access_token) {
     localStorage.setItem('token', response.data.access_token);
   }
+  if (response.data.user) {
+    localStorage.setItem('user', JSON.stringify(response.data.user));
+  }
   return response.data;
+};
+
+export const getCurrentUser = async () => {
+  const response = await API.get('/auth/me');
+  if (response.data) {
+    localStorage.setItem('user', JSON.stringify(response.data));
+  }
+  return response.data;
+};
+
+export const getStoredUser = () => {
+  try {
+    const userStr = localStorage.getItem('user');
+    return userStr ? JSON.parse(userStr) : null;
+  } catch (e) {
+    return null;
+  }
 };
 
 export const sendOtp = async (email) => {
@@ -30,4 +50,5 @@ export const resetPasswordWithOtp = async (email, otp, new_password) => {
 
 export const logoutUser = () => {
   localStorage.removeItem('token');
+  localStorage.removeItem('user');
 };

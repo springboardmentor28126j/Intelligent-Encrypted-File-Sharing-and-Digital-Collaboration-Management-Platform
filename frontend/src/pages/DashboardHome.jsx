@@ -1,32 +1,62 @@
 import React, { useState, useEffect } from 'react';
 import { getFilesAndFolders } from '../services/fileService';
+import { getSharedLinks, getSharedWithMe } from '../services/shareService';
+import { getCurrentUser, getStoredUser } from '../services/authService';
 
-function DashboardHome() {
+function DashboardHome({ onNavigate }) {
+  const [userName, setUserName] = useState(() => {
+    const user = getStoredUser();
+    return user?.name || 'User';
+  });
   const [recentFiles, setRecentFiles] = useState([]);
+  const [sharedFilesCount, setSharedFilesCount] = useState(0);
+  const [sharedWithMeCount, setSharedWithMeCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isCardHovered, setIsCardHovered] = useState(false);
+  const [isSharedWithMeHovered, setIsSharedWithMeHovered] = useState(false);
 
   useEffect(() => {
-    const fetchRecentFiles = async () => {
+    const fetchDashboardData = async () => {
       try {
-        const data = await getFilesAndFolders(null, 'all', '');
-        // Sort by id descending (assuming newer files have higher ids) and take top 5
-        const sortedFiles = (data.files || []).sort((a, b) => b.id - a.id).slice(0, 5);
-        setRecentFiles(sortedFiles);
+        const [filesRes, sharedRes, sharedWithMeRes, meRes] = await Promise.allSettled([
+          getFilesAndFolders(null, 'all', ''),
+          getSharedLinks(),
+          getSharedWithMe(),
+          getCurrentUser()
+        ]);
+
+        if (filesRes.status === 'fulfilled') {
+          const sortedFiles = (filesRes.value?.files || []).sort((a, b) => b.id - a.id).slice(0, 5);
+          setRecentFiles(sortedFiles);
+        }
+
+        if (sharedRes.status === 'fulfilled') {
+          const links = sharedRes.value || [];
+          setSharedFilesCount(links.length);
+        }
+
+        if (sharedWithMeRes.status === 'fulfilled') {
+          const shares = sharedWithMeRes.value || [];
+          setSharedWithMeCount(shares.length);
+        }
+
+        if (meRes.status === 'fulfilled' && meRes.value?.name) {
+          setUserName(meRes.value.name);
+        }
       } catch (err) {
-        console.error("Failed to load recent files", err);
+        console.error("Failed to load dashboard data", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchRecentFiles();
+    fetchDashboardData();
   }, []);
 
   return (
     <div style={styles.container}>
       {/* Header Section */}
       <div style={styles.header}>
-        <h1 style={styles.greeting}>Welcome, Vickey</h1>
-        <p style={styles.subtitle}>Your vault is healthy — every file below is encrypted at rest.</p>
+        <h1 style={styles.greeting}>Welcome, {userName}</h1>
       </div>
 
       {/* Stats Cards */}
@@ -44,15 +74,59 @@ function DashboardHome() {
           <h2 style={styles.cardNumber}>32</h2>
           <p style={styles.cardSubText}>⬆ 6 created this week</p>
         </div>
-        <div style={styles.card}>
-          <p style={styles.cardLabel}>Links expiring soon</p>
-          <h2 style={styles.cardNumber}>4</h2>
-          <p style={{ ...styles.cardSubText, color: '#d97706' }}>⏱ within 48 hours</p>
+        <div
+          style={{
+            ...styles.card,
+            ...styles.clickableCard,
+            ...(isSharedWithMeHovered ? styles.cardHover : {})
+          }}
+          onClick={() => onNavigate && onNavigate('shared_with_me')}
+          onMouseEnter={() => setIsSharedWithMeHovered(true)}
+          onMouseLeave={() => setIsSharedWithMeHovered(false)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              onNavigate && onNavigate('shared_with_me');
+            }
+          }}
+          title="Click to view files Shared With Me"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p style={styles.cardLabel}>Shared With Me</p>
+            <span style={{ fontSize: '16px' }}>👥</span>
+          </div>
+          <h2 style={styles.cardNumber}>{sharedWithMeCount}</h2>
+          <p style={{ ...styles.cardSubText, color: '#8b5cf6' }}>
+            Files shared by others →
+          </p>
         </div>
-        <div style={styles.card}>
-          <p style={styles.cardLabel}>Downloads today</p>
-          <h2 style={styles.cardNumber}>117</h2>
-          <p style={styles.cardSubText}>✓ all verified access</p>
+        <div
+          style={{
+            ...styles.card,
+            ...styles.clickableCard,
+            ...(isCardHovered ? styles.cardHover : {})
+          }}
+          onClick={() => onNavigate && onNavigate('shared_links')}
+          onMouseEnter={() => setIsCardHovered(true)}
+          onMouseLeave={() => setIsCardHovered(false)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              onNavigate && onNavigate('shared_links');
+            }
+          }}
+          title="Click to view Shared Files & Links"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p style={styles.cardLabel}>Shared Files & Links</p>
+            <span style={{ fontSize: '16px' }}>🔗</span>
+          </div>
+          <h2 style={styles.cardNumber}>{sharedFilesCount}</h2>
+          <p style={{ ...styles.cardSubText, color: '#2563eb' }}>
+            Click to manage shares →
+          </p>
         </div>
       </div>
 
@@ -156,6 +230,17 @@ const styles = {
   cardLabel: { margin: 0, fontSize: '13px', color: '#64748b', fontWeight: '500' },
   cardNumber: { margin: 0, fontSize: '28px', fontWeight: 'bold', color: '#1e293b' },
   cardSubText: { margin: 0, fontSize: '12px', color: '#10b981', fontWeight: '600' },
+  clickableCard: {
+    cursor: 'pointer',
+    transition: 'all 0.2s ease-in-out',
+    border: '1px solid #e2e8f0',
+  },
+  cardHover: {
+    transform: 'translateY(-2px)',
+    boxShadow: '0 6px 16px rgba(37, 99, 235, 0.12)',
+    borderColor: '#93c5fd',
+    backgroundColor: '#eff6ff',
+  },
   
   bottomLayout: { display: 'flex', gap: '24px', flexWrap: 'wrap' },
   recentFilesSection: { flex: '2', minWidth: '400px', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '20px' },

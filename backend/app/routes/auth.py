@@ -74,7 +74,7 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Invalid credentials")
     
     access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "user": user}
 
 @router.post("/send-otp")
 def send_otp(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
@@ -114,6 +114,10 @@ def reset_password_otp(request: ResetPasswordOTPRequest, db: Session = Depends(g
 
 
 from app.core.deps import get_current_user
+
+@router.get("/me", response_model=UserOut)
+def get_current_user_profile(current_user: User = Depends(get_current_user)):
+    return current_user
 
 @router.get("/search-users")
 def search_users(
