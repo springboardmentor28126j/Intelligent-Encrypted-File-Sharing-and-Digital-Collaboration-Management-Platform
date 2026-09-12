@@ -1,8 +1,8 @@
 # TrustShare
 
-Secure file-sharing platform. Milestone 1 scope: authentication, file
-upload/download, and a full dashboard UI. Encryption (AES-256) and secure
-sharing links are Milestone 2, not yet implemented.
+Secure file-sharing platform. Milestone 1 (authentication, file
+upload/download, full dashboard UI) and Milestone 2 (AES-256 encryption,
+secure sharing links, S3 storage) are both complete.
 
 ## What's included
 - `DESIGN.md` — architecture + DB schema
@@ -37,6 +37,8 @@ npm run dev
    (shown directly on screen for now, since no email service is wired up yet)
 
 ## What's implemented
+
+**Milestone 1**
 - [x] Architecture + DB schema design (`DESIGN.md`)
 - [x] FastAPI backend with JWT auth (register/login)
 - [x] Forgot password / reset password flow
@@ -45,9 +47,17 @@ npm run dev
 - [x] Full dashboard UI: Overview, My files, Upload file, Activity, Profile
 - [x] PostgreSQL (users, files), MongoDB (activity_logs), Redis configured
 
-## What's next (Week 2 / Milestone 2)
-- AES-256 server-side encryption of stored files
-- Secure shareable links with expiration
-- OAuth2 login, MFA
-- Folder organization (currently a placeholder page)
-- Access-level permissions
+**Milestone 2**
+- [x] AES-256-GCM server-side encryption, per-file key with envelope encryption
+- [x] Encrypted file storage in AWS S3
+- [x] Secure shareable links with expiration (Redis-backed tokens)
+- [x] Direct user-to-user sharing with read/write permission levels
+- [x] In-memory decryption on download (plaintext never persisted)
+- [x] Shared PostgreSQL database (Supabase) for team-wide development
+
+## What's next (Milestone 3 — Monitoring, Notifications & Analytics)
+- Security/audit logging beyond the current activity feed
+- Notification system (share alerts, download/access alerts, security warnings)
+- Storage usage and sharing activity analytics dashboard
+- Suspicious activity / unauthorized access detection
+- Role-based access control (role field exists on the user model but isn't enforced yet)
