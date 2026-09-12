@@ -2,7 +2,7 @@ from redis_client import redis_client
 from mongo import activity_logs
 from datetime import datetime
 from fastapi import UploadFile, File, Form
-from fastapi.responses import Response
+from fastapi.responses import FileResponse
 import os
 import secrets
 import uuid
@@ -14,6 +14,8 @@ import models
 import schemas
 import auth
 import encryption  # NEW: AES-256-GCM encrypt/decrypt helpers (Milestone 2)
+import secrets as pysecrets
+from datetime import timedelta
 
 Base.metadata.create_all(bind=engine)
 
@@ -259,3 +261,125 @@ def reset_password(payload: dict, db: Session = Depends(get_db)):
         pass
 
     return {"message": "Password reset successful. You can now log in with your new password."}
+@app.post("/share/{file_id}")
+def create_share_link(file_id: int, payload: dict, db: Session = Depends(get_db)):
+    """Create a secure, time-limited share link for a file, tied to a recipient email."""
+    record = db.query(models.FileRecord).filter(models.FileRecord.id == file_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    requester_email = payload.get("email")
+    requester_role = payload.get("role")
+    recipient_email = payload.get("recipient_email")
+
+    if requester_role != "admin" and record.owner_email != requester_email:
+        raise HTTPException(status_code=403, detail="Only the file owner or an admin can share this file")
+
+    if not recipient_email:
+        raise HTTPException(status_code=400, detail="Recipient email is required")
+
+    expiry_hours = payload.get("expiry_hours", 24)
+    share_token = pysecrets.token_urlsafe(16)
+    expires_at = datetime.utcnow() + timedelta(hours=expiry_hours)
+
+    new_share = models.ShareLink(
+        file_id=file_id,
+        share_token=share_token,
+        created_by=requester_email,
+        recipient_email=recipient_email,
+        expires_at=expires_at
+    )
+    db.add(new_share)
+    db.commit()
+
+    share_url = f"http://localhost:8000/shared/{share_token}"
+
+    # NOTE: Real email delivery is a Milestone 3 (Notification Module) feature —
+    # not wired up yet. For now we log the intent and return the link so the
+    # frontend can show it in dev mode.
+    try:
+        activity_logs.insert_one({
+            "action": "share_link_created",
+            "filename": record.filename,
+            "shared_by": requester_email,
+            "recipient_email": recipient_email,
+            "timestamp": datetime.utcnow()
+        })
+    except Exception as e:
+        print(f"MongoDB logging failed (non-critical): {e}")
+
+    return {
+        "message": f"Share link generated for {recipient_email} (dev mode — email sending not yet wired up)",
+        "share_token": share_token,
+        "expires_at": expires_at.isoformat(),
+        "share_url": share_url,
+        "recipient_email": recipient_email
+    }
+
+
+@app.get("/shared/{share_token}")
+def access_shared_file(share_token: str, db: Session = Depends(get_db)):
+    """Access a file via its share link — checks expiration before allowing download."""
+    share = db.query(models.ShareLink).filter(models.ShareLink.share_token == share_token).first()
+    if not share:
+        raise HTTPException(status_code=404, detail="Invalid share link")
+
+    if datetime.utcnow() > share.expires_at:
+        raise HTTPException(status_code=410, detail="This share link has expired")
+
+    record = db.query(models.FileRecord).filter(models.FileRecord.id == share.file_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="File no longer exists")
+
+    key = encryption.load_key(record.stored_name)
+    if not key:
+        raise HTTPException(status_code=500, detail="Encryption key missing for this file")
+
+    file_path = os.path.join(UPLOAD_DIR, record.stored_name)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File missing on server")
+
+    with open(file_path, "rb") as f:
+        encrypted_bytes = f.read()
+
+    decrypted_bytes = encryption.decrypt_file_bytes(encrypted_bytes, key)
+
+    temp_path = os.path.join(UPLOAD_DIR, f"temp_{record.filename}")
+    with open(temp_path, "wb") as f:
+        f.write(decrypted_bytes)
+
+    try:
+        activity_logs.insert_one({
+            "action": "shared_file_access",
+            "filename": record.filename,
+            "share_token": share_token,
+            "timestamp": datetime.utcnow()
+        })
+    except Exception as e:
+        print(f"MongoDB logging failed (non-critical): {e}")
+
+    return FileResponse(
+        temp_path,
+        filename=record.filename,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename={record.filename}"}
+    )
+
+
+@app.get("/share-info/{share_token}")
+def share_link_info(share_token: str, db: Session = Depends(get_db)):
+    """Check share link validity and get file info without downloading (for the frontend page)."""
+    share = db.query(models.ShareLink).filter(models.ShareLink.share_token == share_token).first()
+    if not share:
+        raise HTTPException(status_code=404, detail="Invalid share link")
+
+    is_expired = datetime.utcnow() > share.expires_at
+
+    record = db.query(models.FileRecord).filter(models.FileRecord.id == share.file_id).first()
+
+    return {
+        "filename": record.filename if record else "Unknown",
+        "expires_at": share.expires_at.isoformat(),
+        "is_expired": is_expired,
+        "shared_by": share.created_by
+    }  

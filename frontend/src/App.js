@@ -19,6 +19,12 @@ function App() {
   const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [generatedToken, setGeneratedToken] = useState('');
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareFileId, setShareFileId] = useState(null);
+  const [shareFileName, setShareFileName] = useState('');
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [expiryHours, setExpiryHours] = useState(24);
+  const [shareResultLink, setShareResultLink] = useState('');
 
   useEffect(() => {
     if (loggedIn) {
@@ -157,6 +163,43 @@ function App() {
       `http://127.0.0.1:8000/download/${fileId}?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`,
       '_blank'
     );
+  };
+
+  const openShareModal = (fileId, filename) => {
+    setShareFileId(fileId);
+    setShareFileName(filename);
+    setRecipientEmail('');
+    setExpiryHours(24);
+    setShareResultLink('');
+    setShowShareModal(true);
+  };
+
+  const closeShareModal = () => {
+    setShowShareModal(false);
+  };
+
+  const handleGenerateShareLink = async () => {
+    if (!recipientEmail) {
+      setIsError(true);
+      setMessage('Enter a recipient email');
+      return;
+    }
+    const ownerEmail = localStorage.getItem('email');
+    const ownerRole = localStorage.getItem('role');
+    try {
+      const res = await axios.post(`http://127.0.0.1:8000/share/${shareFileId}`, {
+        email: ownerEmail,
+        role: ownerRole,
+        recipient_email: recipientEmail,
+        expiry_hours: expiryHours,
+      });
+      setShareResultLink(res.data.share_url);
+      setIsError(false);
+      setMessage(res.data.message);
+    } catch (error) {
+      setIsError(true);
+      setMessage(error.response?.data?.detail || 'Failed to create share link');
+    }
   };
 
   const handleLogout = () => {
@@ -506,6 +549,7 @@ function App() {
                         <td>
                           <div className="file-actions">
                             <button className="icon-btn" onClick={() => handleDownload(f.id)}>Download</button>
+                            <button className="icon-btn" onClick={() => openShareModal(f.id, f.filename)}>Share</button>
                             <button className="icon-btn danger" onClick={() => handleDelete(f.id, f.filename)}>Delete</button>
                           </div>
                         </td>
@@ -603,6 +647,58 @@ function App() {
           </>
         )}
       </div>
+
+      {showShareModal && (
+        <div className="modal-overlay" onClick={closeShareModal}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Share file</h2>
+              <span className="modal-close" onClick={closeShareModal}>✕</span>
+            </div>
+            <p className="subtitle">Send a secure, time-limited link by email</p>
+
+            <div className="modal-file-chip">
+              <div className="name">{shareFileName}</div>
+            </div>
+
+            <div className="field-group">
+              <label>RECIPIENT EMAIL</label>
+              <input
+                type="email"
+                placeholder="friend@example.com"
+                value={recipientEmail}
+                onChange={(e) => setRecipientEmail(e.target.value)}
+              />
+            </div>
+
+            <div className="field-group">
+              <label>LINK EXPIRES IN</label>
+              <select value={expiryHours} onChange={(e) => setExpiryHours(Number(e.target.value))}>
+                <option value={1}>1 hour</option>
+                <option value={24}>24 hours</option>
+                <option value={72}>3 days</option>
+                <option value={168}>7 days</option>
+              </select>
+            </div>
+
+            {shareResultLink && (
+              <div className="dev-note">
+                <strong>Dev mode:</strong> Email sending isn't wired up yet — copy this link manually:
+                <div className="token-box mono">{shareResultLink}</div>
+              </div>
+            )}
+
+            {message && (
+              <div className={`auth-message ${isError ? 'error' : ''}`}>{message}</div>
+            )}
+
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={closeShareModal}>Cancel</button>
+              <button className="btn-primary" onClick={handleGenerateShareLink}>Generate &amp; Send Link</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -699,3 +699,57 @@ body {
   text-align: center;
   letter-spacing: 1px;
 }
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(6, 9, 20, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-card {
+  background: #121a30;
+  border: 1px solid #2d3a5c;
+  border-radius: 16px;
+  padding: 32px;
+  width: 90%;
+  max-width: 520px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-close {
+  cursor: pointer;
+  color: #9aa4bc;
+  font-size: 20px;
+}
+
+.modal-file-chip {
+  background: #0c1224;
+  border: 1px solid #2d3a5c;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 16px 0;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid #2d3a5c;
+  color: #9aa4bc;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+}

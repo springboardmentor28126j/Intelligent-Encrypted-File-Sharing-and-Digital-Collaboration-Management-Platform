@@ -23,3 +23,15 @@ class FileRecord(Base):
     file_size = Column(Integer, default=0)
     is_encrypted = Column(Boolean, default=True)
     upload_time = Column(DateTime, default=datetime.utcnow)
+import secrets as pysecrets
+
+class ShareLink(Base):
+    __tablename__ = "share_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_id = Column(Integer)
+    share_token = Column(String, unique=True, index=True)
+    created_by = Column(String)
+    recipient_email = Column(String, nullable=True)   # NEW
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
