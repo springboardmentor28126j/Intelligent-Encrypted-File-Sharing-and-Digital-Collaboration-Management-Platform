@@ -25,6 +25,7 @@ function App() {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [expiryHours, setExpiryHours] = useState(24);
   const [shareResultLink, setShareResultLink] = useState('');
+  const [activityLogs, setActivityLogs] = useState([]); // NEW: real activity log from backend
 
   useEffect(() => {
     if (loggedIn) {
@@ -32,6 +33,14 @@ function App() {
     }
     // eslint-disable-next-line
   }, [loggedIn]);
+
+  // NEW: fetch activity log whenever the Activity Log tab is opened
+  useEffect(() => {
+    if (loggedIn && activeTab === 'activity') {
+      fetchActivityLog();
+    }
+    // eslint-disable-next-line
+  }, [loggedIn, activeTab]);
 
   const fetchFiles = async () => {
     try {
@@ -43,6 +52,20 @@ function App() {
       setFiles(response.data);
     } catch (error) {
       console.log('Error fetching files');
+    }
+  };
+
+  // NEW: pulls upload/download/delete/share events from the backend
+  const fetchActivityLog = async () => {
+    try {
+      const userEmail = localStorage.getItem('email');
+      const userRole = localStorage.getItem('role');
+      const response = await axios.get(
+        `http://127.0.0.1:8000/activity-log?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
+      );
+      setActivityLogs(response.data);
+    } catch (error) {
+      console.log('Error fetching activity log');
     }
   };
 
@@ -208,6 +231,7 @@ function App() {
     setEmail('');
     setPassword('');
     setFiles([]);
+    setActivityLogs([]);
     setMessage('');
     setActiveTab('files');
   };
@@ -220,6 +244,29 @@ function App() {
     if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
     if (['zip', 'rar'].includes(ext)) return '🗜️';
     return '📁';
+  };
+
+  // NEW: friendly label + icon per action type, for the Activity Log tab
+  const getActionLabel = (action) => {
+    switch (action) {
+      case 'file_upload': return 'uploaded';
+      case 'file_download': return 'downloaded';
+      case 'file_delete': return 'deleted';
+      case 'share_link_created': return 'created a share link for';
+      case 'shared_file_access': return 'accessed via share link';
+      default: return action;
+    }
+  };
+
+  const getActionIcon = (action) => {
+    switch (action) {
+      case 'file_upload': return '⬆️';
+      case 'file_download': return '⬇️';
+      case 'file_delete': return '🗑️';
+      case 'share_link_created': return '🔗';
+      case 'shared_file_access': return '📤';
+      default: return '📄';
+    }
   };
 
   const formatTime = (t) => {
@@ -241,11 +288,6 @@ function App() {
   const filteredFiles = files.filter((f) =>
     f.filename.toLowerCase().includes(search.toLowerCase())
   );
-
-  const sortedActivity = [...files].sort((a, b) => {
-    if (!a.upload_time || !b.upload_time) return 0;
-    return new Date(b.upload_time) - new Date(a.upload_time);
-  });
 
   // ---------- LOGIN / SIGNUP PAGE ----------
   if (!loggedIn) {
@@ -574,17 +616,20 @@ function App() {
 
             <div className="card">
               <h3>Recent activity</h3>
-              {sortedActivity.length === 0 ? (
-                <div className="empty-state">No activity yet — upload a file to see it here.</div>
+              {activityLogs.length === 0 ? (
+                <div className="empty-state">No activity yet — upload, download, share, or delete a file to see it here.</div>
               ) : (
-                sortedActivity.map((f) => (
-                  <div className="activity-item" key={f.id}>
-                    <div className="activity-dot">{getFileIcon(f.filename)}</div>
+                activityLogs.map((log) => (
+                  <div className="activity-item" key={log._id}>
+                    <div className="activity-dot">{getActionIcon(log.action)}</div>
                     <div>
                       <div className="activity-text">
-                        <span className="mono">{f.owner_email}</span> uploaded <span className="mono">{f.filename}</span>
+                        <span className="mono">{log.performed_by}</span> {getActionLabel(log.action)} <span className="mono">{log.filename}</span>
+                        {log.recipient_email && (
+                          <> with <span className="mono">{log.recipient_email}</span></>
+                        )}
                       </div>
-                      <div className="activity-time">{formatTime(f.upload_time)}</div>
+                      <div className="activity-time">{formatTime(log.timestamp)}</div>
                     </div>
                   </div>
                 ))

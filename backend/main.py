@@ -1,10 +1,11 @@
 from redis_client import redis_client
 from mongo import activity_logs
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response  # FIX: Response was missing — download_file needs it
 import os
 import secrets
+import secrets as pysecrets
 import uuid
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Depends, HTTPException
@@ -13,9 +14,8 @@ from database import engine, Base, SessionLocal
 import models
 import schemas
 import auth
-import encryption  # NEW: AES-256-GCM encrypt/decrypt helpers (Milestone 2)
-import secrets as pysecrets
-from datetime import timedelta
+import encryption  # AES-256-GCM encrypt/decrypt helpers (Milestone 2)
+from storage_client import upload_to_storage, download_from_storage, delete_from_storage
 
 Base.metadata.create_all(bind=engine)
 
@@ -35,6 +35,25 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# NEW: single helper so every action logs with the SAME field names.
+# Extra keyword args (share_token, recipient_email, etc.) are still included
+# for that specific action, but every entry always has action/filename/
+# performed_by/timestamp so the Activity Log page can display and filter
+# them consistently.
+def log_activity(action: str, filename: str, performed_by: str, **extra):
+    try:
+        entry = {
+            "action": action,
+            "filename": filename,
+            "performed_by": performed_by,
+            "timestamp": datetime.utcnow(),
+        }
+        entry.update(extra)
+        activity_logs.insert_one(entry)
+    except Exception as e:
+        print(f"MongoDB logging failed (non-critical): {e}")
 
 
 @app.get("/")
@@ -73,9 +92,6 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     return {"access_token": token, "token_type": "bearer", "role": db_user.role, "name": db_user.name}
 
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
 ALLOWED_EXTENSIONS = {
     ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
     ".png", ".jpg", ".jpeg", ".txt", ".zip", ".csv",
@@ -95,18 +111,11 @@ async def upload_file(file: UploadFile = File(...), owner_email: str = Form(...)
     if size_mb > MAX_FILE_SIZE_MB:
         raise HTTPException(status_code=400, detail=f"File exceeds max size of {MAX_FILE_SIZE_MB}MB")
 
-    # NEW (Milestone 2 — encryption): give the file-on-disk a unique, unguessable
-    # name (separate from the original filename) and encrypt the bytes with a
-    # fresh AES-256 key generated just for this file, before writing anything
-    # to disk. The key is stored server-side only — never sent to the client.
     stored_name = f"{uuid.uuid4().hex}{ext}"
     key = encryption.generate_key()
     encrypted_bytes = encryption.encrypt_file_bytes(contents, key)
 
-    file_path = os.path.join(UPLOAD_DIR, stored_name)
-    with open(file_path, "wb") as buffer:
-        buffer.write(encrypted_bytes)
-
+    upload_to_storage(stored_name, encrypted_bytes)
     encryption.save_key(stored_name, key)
 
     existing = db.query(models.FileRecord).filter(
@@ -118,21 +127,13 @@ async def upload_file(file: UploadFile = File(...), owner_email: str = Form(...)
         filename=file.filename,
         stored_name=stored_name,
         owner_email=owner_email,
-        file_size=len(contents),      # original size, shown to the user
+        file_size=len(contents),
         is_encrypted=True,
     )
     db.add(new_file)
     db.commit()
 
-    try:
-        activity_logs.insert_one({
-            "action": "file_upload",
-            "filename": file.filename,
-            "owner_email": owner_email,
-            "timestamp": datetime.utcnow()
-        })
-    except Exception as e:
-        print(f"MongoDB logging failed (non-critical): {e}")
+    log_activity("file_upload", file.filename, owner_email)
 
     msg = "File uploaded and encrypted successfully"
     if existing:
@@ -159,13 +160,20 @@ def delete_file(file_id: int, email: str, role: str, db: Session = Depends(get_d
     if role != "admin" and record.owner_email != email:
         raise HTTPException(status_code=403, detail="You do not have permission to delete this file")
 
-    file_path = os.path.join(UPLOAD_DIR, record.stored_name)
-    if os.path.exists(file_path):
-        os.remove(file_path)
-    encryption.delete_key(record.stored_name)  # NEW: remove the file's encryption key too
+    filename = record.filename  # save before the row is deleted
+
+    try:
+        delete_from_storage(record.stored_name)
+    except Exception as e:
+        print(f"Storage delete failed (non-critical): {e}")
+    encryption.delete_key(record.stored_name)
 
     db.delete(record)
     db.commit()
+
+    # FIX: delete was never logged before — now it is, same as every other action
+    log_activity("file_delete", filename, email)
+
     return {"message": "File deleted successfully"}
 
 
@@ -178,40 +186,49 @@ def download_file(file_id: int, email: str, role: str, db: Session = Depends(get
     if role != "admin" and record.owner_email != email:
         raise HTTPException(status_code=403, detail="You do not have permission to download this file")
 
-    file_path = os.path.join(UPLOAD_DIR, record.stored_name)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File missing on server")
-
-    # NEW (Milestone 2 — decryption workflow): read the encrypted bytes, load
-    # this file's unique key, decrypt in memory, and stream the *original*
-    # bytes back to the user. The plaintext is never written to disk.
     key = encryption.load_key(record.stored_name)
     if key is None:
         raise HTTPException(status_code=500, detail="Encryption key missing — cannot decrypt file")
 
-    with open(file_path, "rb") as f:
-        encrypted_bytes = f.read()
+    try:
+        encrypted_bytes = download_from_storage(record.stored_name)
+    except Exception:
+        raise HTTPException(status_code=404, detail="File missing in cloud storage")
 
     try:
         decrypted_bytes = encryption.decrypt_file_bytes(encrypted_bytes, key)
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to decrypt file — data may be corrupted")
 
-    try:
-        activity_logs.insert_one({
-            "action": "file_download",
-            "filename": record.filename,
-            "owner_email": email,
-            "timestamp": datetime.utcnow()
-        })
-    except Exception as e:
-        print(f"MongoDB logging failed (non-critical): {e}")
+    log_activity("file_download", record.filename, email)
 
     return Response(
         content=decrypted_bytes,
         media_type="application/octet-stream",
         headers={"Content-Disposition": f'attachment; filename="{record.filename}"'}
     )
+
+
+# NEW: the Activity Log tab now calls this instead of reusing the /files list.
+# Standard users see only activity tied to their own actions/files; admins see everything.
+@app.get("/activity-log")
+def get_activity_log(email: str, role: str):
+    try:
+        if role == "admin":
+            logs_cursor = activity_logs.find().sort("timestamp", -1).limit(200)
+        else:
+            logs_cursor = activity_logs.find({"performed_by": email}).sort("timestamp", -1).limit(200)
+
+        logs = []
+        for log in logs_cursor:
+            log["_id"] = str(log["_id"])
+            if isinstance(log.get("timestamp"), datetime):
+                log["timestamp"] = log["timestamp"].isoformat()
+            logs.append(log)
+        return logs
+    except Exception as e:
+        print(f"Failed to fetch activity log: {e}")
+        return []
 
 
 @app.post("/forgot-password")
@@ -261,6 +278,8 @@ def reset_password(payload: dict, db: Session = Depends(get_db)):
         pass
 
     return {"message": "Password reset successful. You can now log in with your new password."}
+
+
 @app.post("/share/{file_id}")
 def create_share_link(file_id: int, payload: dict, db: Session = Depends(get_db)):
     """Create a secure, time-limited share link for a file, tied to a recipient email."""
@@ -294,19 +313,13 @@ def create_share_link(file_id: int, payload: dict, db: Session = Depends(get_db)
 
     share_url = f"http://localhost:8000/shared/{share_token}"
 
-    # NOTE: Real email delivery is a Milestone 3 (Notification Module) feature —
-    # not wired up yet. For now we log the intent and return the link so the
-    # frontend can show it in dev mode.
-    try:
-        activity_logs.insert_one({
-            "action": "share_link_created",
-            "filename": record.filename,
-            "shared_by": requester_email,
-            "recipient_email": recipient_email,
-            "timestamp": datetime.utcnow()
-        })
-    except Exception as e:
-        print(f"MongoDB logging failed (non-critical): {e}")
+    log_activity(
+        "share_link_created",
+        record.filename,
+        requester_email,
+        recipient_email=recipient_email,
+        share_token=share_token,
+    )
 
     return {
         "message": f"Share link generated for {recipient_email} (dev mode — email sending not yet wired up)",
@@ -335,34 +348,26 @@ def access_shared_file(share_token: str, db: Session = Depends(get_db)):
     if not key:
         raise HTTPException(status_code=500, detail="Encryption key missing for this file")
 
-    file_path = os.path.join(UPLOAD_DIR, record.stored_name)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File missing on server")
-
-    with open(file_path, "rb") as f:
-        encrypted_bytes = f.read()
+    try:
+        encrypted_bytes = download_from_storage(record.stored_name)
+    except Exception:
+        raise HTTPException(status_code=404, detail="File missing in cloud storage")
 
     decrypted_bytes = encryption.decrypt_file_bytes(encrypted_bytes, key)
 
-    temp_path = os.path.join(UPLOAD_DIR, f"temp_{record.filename}")
-    with open(temp_path, "wb") as f:
-        f.write(decrypted_bytes)
+    # FIX: use the recipient's email (not the share_token) as performed_by,
+    # so it lines up with every other log entry and can be filtered the same way.
+    log_activity(
+        "shared_file_access",
+        record.filename,
+        share.recipient_email,
+        share_token=share_token,
+    )
 
-    try:
-        activity_logs.insert_one({
-            "action": "shared_file_access",
-            "filename": record.filename,
-            "share_token": share_token,
-            "timestamp": datetime.utcnow()
-        })
-    except Exception as e:
-        print(f"MongoDB logging failed (non-critical): {e}")
-
-    return FileResponse(
-        temp_path,
-        filename=record.filename,
+    return Response(
+        content=decrypted_bytes,
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f"attachment; filename={record.filename}"}
+        headers={"Content-Disposition": f'attachment; filename="{record.filename}"'}
     )
 
 
@@ -382,4 +387,4 @@ def share_link_info(share_token: str, db: Session = Depends(get_db)):
         "expires_at": share.expires_at.isoformat(),
         "is_expired": is_expired,
         "shared_by": share.created_by
-    }  
+    }
