@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getFilesAndFolders, createFolder, uploadFile, viewFile, deleteFile, renameFolder, deleteFolder, downloadFile } from '../services/fileService';
 import FileMetadataModal from './FileMetadataModal';
+import ShareModal from './ShareModal';
 
 function FileManager() {
   const [files, setFiles] = useState([]);
@@ -17,6 +18,9 @@ function FileManager() {
   
   // For Metadata Modal
   const [selectedMetadataFile, setSelectedMetadataFile] = useState(null);
+
+  // For Share Modal
+  const [shareFile, setShareFile] = useState(null);
 
   const categories = [
     { label: 'All files', value: 'all' },
@@ -64,7 +68,11 @@ function FileManager() {
       await uploadFile(file, currentFolder);
       fetchContent();
     } catch (err) {
-      alert("Upload failed");
+      console.error("Upload failed:", err);
+      const detail = err.response?.data?.detail || err.message || "Upload failed";
+      alert(`Upload failed: ${detail}`);
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -295,7 +303,8 @@ function FileManager() {
                     </td>
                     <td style={styles.td}>Just now</td>
                     <td style={styles.tdActions}>
-                       <button onClick={(e) => handleDeleteFile(e, file.id)} style={styles.iconBtnText}>🗑️</button>
+                       <button onClick={(e) => { e.stopPropagation(); setShareFile(file); }} style={styles.iconBtnText} title="Share File">🔗</button>
+                       <button onClick={(e) => handleDeleteFile(e, file.id)} style={styles.iconBtnText} title="Delete File">🗑️</button>
                     </td>
                   </tr>
                 ))}
@@ -314,7 +323,7 @@ function FileManager() {
           {selectedFiles.length > 0 && (
             <div style={styles.actionBar}>
               <span style={styles.actionText}>{selectedFiles.length} selected</span>
-              <button style={styles.actionBtn}>🔗 Share</button>
+              <button style={styles.actionBtn} onClick={() => setShareFile(files.find(f => f.id === selectedFiles[0]))}>🔗 Share</button>
               <button style={styles.actionBtn} onClick={handleDownloadSelectedFiles}>⬇ Download</button>
               <button style={styles.actionBtn}>📁 Move</button>
               <button style={{ ...styles.actionBtn, color: '#ef4444' }} onClick={handleDeleteSelectedFiles}>🗑️ Delete</button>
@@ -327,6 +336,12 @@ function FileManager() {
       <FileMetadataModal 
         file={selectedMetadataFile} 
         onClose={() => setSelectedMetadataFile(null)} 
+      />
+
+      {/* Render Share Modal if a file is selected for sharing */}
+      <ShareModal 
+        file={shareFile}
+        onClose={() => setShareFile(null)}
       />
     </div>
   );

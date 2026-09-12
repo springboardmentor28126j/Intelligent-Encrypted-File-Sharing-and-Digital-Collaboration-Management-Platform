@@ -40,7 +40,7 @@ export const viewFile = async (fileId) => {
 
 // Download File
 export const downloadFile = async (fileId, fileName) => {
-  const response = await api.get(`/files/view/${fileId}`, {
+  const response = await api.get(`/files/download/${fileId}`, {
     responseType: 'blob',
   });
   const url = window.URL.createObjectURL(new Blob([response.data], { type: response.headers['content-type'] }));

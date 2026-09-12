@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPasswordOTP from './pages/ResetPasswordOTP';
 import FileManager from './pages/FileManager';
+import PublicShareView from './pages/PublicShareView';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Route path="/reset-password-otp" element={<ResetPasswordOTP />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/files" element={<FileManager />} />
+        <Route path="/s/:token" element={<PublicShareView />} />
       </Routes>
     </BrowserRouter>
   );

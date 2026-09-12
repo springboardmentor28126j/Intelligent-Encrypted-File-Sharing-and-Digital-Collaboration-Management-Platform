@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { logoutUser } from '../services/authService';
 import FileManager from './FileManager';
 import DashboardHome from './DashboardHome';
+import SharedLinksPage from './SharedLinksPage';
+import SharedWithMePage from './SharedWithMePage';
 
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -50,6 +52,24 @@ function Dashboard() {
             >
               📁 My Files
             </button>
+            <button
+              style={{
+                ...styles.menuItem,
+                ...(activeTab === 'shared_with_me' ? styles.activeMenuItem : {})
+              }}
+              onClick={() => setActiveTab('shared_with_me')}
+            >
+              👥 Shared With Me
+            </button>
+            <button
+              style={{
+                ...styles.menuItem,
+                ...(activeTab === 'shared_links' ? styles.activeMenuItem : {})
+              }}
+              onClick={() => setActiveTab('shared_links')}
+            >
+              🔗 Shared Files & Links
+            </button>
           </div>
         </aside>
 
@@ -57,6 +77,8 @@ function Dashboard() {
         <main style={styles.contentArea}>
           {activeTab === 'dashboard' && <DashboardHome />}
           {activeTab === 'files' && <FileManager />}
+          {activeTab === 'shared_with_me' && <SharedWithMePage />}
+          {activeTab === 'shared_links' && <SharedLinksPage />}
         </main>
       </div>
     </div>
