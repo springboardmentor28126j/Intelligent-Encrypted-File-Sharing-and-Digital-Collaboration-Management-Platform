@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# TrustShare — Milestone 2 additions
+encryption_keys/
+uploads/
