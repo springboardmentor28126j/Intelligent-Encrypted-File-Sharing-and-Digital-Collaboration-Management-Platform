@@ -185,44 +185,44 @@ Users
                  └──────────< Downloads
 
 
-## 11. Main Relationships
+11. Main Relationships
 
-**Users → Files**  
+Users → Files
 One user can own many files.
 
-**Users → Folders**  
+Users → Folders
 One user can own many folders.
 
-**Folders → Files**  
+Folders → Files
 One folder can contain many files.
 
-**Files → File Versions**  
+Files → File Versions
 One file can have multiple versions.
 
-**Files → File Permissions**  
+Files → File Permissions
 One file can have permissions for multiple users.
 
-**Files → Share Links**  
+Files → Share Links
 One file can have multiple temporary share links.
 
-**Files → Downloads**  
+Files → Downloads
 One file can have multiple download records.
 
-## 12. Security Considerations
+12. Security Considerations
 
 The database does not store the original file content.
 
-Only **encrypted file content** is stored in cloud storage.
+Only encrypted file content is stored in cloud storage.
 
 The database stores:
 
-- **File metadata**
-- **Storage key**
-- **Encryption key reference**
-- **Permissions**
-- **Share-link information**
-- **Download information**
+File metadata
+Storage key
+Encryption key reference
+Permissions
+Share-link information
+Download information
 
-Passwords are stored as **password hashes**.
+Passwords are stored as password hashes.
 
-Temporary share links are stored using **token hashes**.
+Temporary share links are stored using token hashes.
