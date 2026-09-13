@@ -33,14 +33,17 @@ AES-256-GCM Encryption
 Encrypted File
      ↓
 Backblaze B2
+
+
 5. Key Management
 
 TrustShare uses secure encryption key management.
-
 Unique encryption key for each file
 Master encryption key protects file keys
 Encryption key reference stored in PostgreSQL
 Actual encryption keys are protected separately
+
+
 6. Secure File Sharing
 
 TrustShare allows users to securely share files with other registered users.
@@ -58,10 +61,11 @@ Select User
 Set Permission
    ↓
 Shared File
+
+
 7. Temporary Share Links
 
 TrustShare provides temporary share links for controlled file access.
-
 Expiration time
 Maximum download limit
 Link revocation
@@ -75,6 +79,8 @@ Set Download Limit
 Share Link
        ↓
 Access File
+
+
 8. Secure File Storage
 
 Encrypted files are stored in Backblaze B2.
@@ -106,6 +112,8 @@ Key Recovery
 AES-256-GCM Decryption
      ↓
 Authorized User
+
+
 10. Download Tracking
 
 TrustShare records file download activities for tracking and auditing.
