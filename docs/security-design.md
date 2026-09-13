@@ -37,10 +37,10 @@ A unique encryption key is generated for files.
 File keys are protected using a master encryption key.
 Only a key reference is stored in the database.
 Actual encryption keys are not stored directly in PostgreSQL.
+
 6. Secure File Sharing
 
 Files can be shared with specific users using access permissions.
-
 Available permissions:
 View
 Download
@@ -66,6 +66,7 @@ File size
 Storage key
 Checksum
 Encryption key reference
+
 9. Security Flow
 User Authentication
         ↓
