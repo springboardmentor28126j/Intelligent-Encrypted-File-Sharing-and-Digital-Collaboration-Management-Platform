@@ -12,171 +12,1341 @@
 
     <title>TrustShare - Dashboard</title>
 
+
     <style>
+
+        /* =====================================================
+           GLOBAL
+        ===================================================== */
 
         * {
             box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+
+        html {
+            scroll-behavior: smooth;
         }
 
 
         body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #f4f7fb;
+
+            font-family:
+                "Segoe UI",
+                Arial,
+                sans-serif;
+
+            min-height: 100vh;
+
+            color: #1e293b;
+
+            background:
+                radial-gradient(
+                    circle at 5% 5%,
+                    rgba(59, 130, 246, 0.18),
+                    transparent 28%
+                ),
+
+                radial-gradient(
+                    circle at 95% 15%,
+                    rgba(139, 92, 246, 0.15),
+                    transparent 28%
+                ),
+
+                radial-gradient(
+                    circle at 90% 90%,
+                    rgba(236, 72, 153, 0.15),
+                    transparent 30%
+                ),
+
+                linear-gradient(
+                    135deg,
+                    #eef2ff,
+                    #f8faff,
+                    #fdf2f8
+                );
+
+            overflow-x: hidden;
         }
 
+
+        /* =====================================================
+           DECORATIVE BACKGROUND
+        ===================================================== */
+
+        body::before {
+
+            content: "";
+
+            position: fixed;
+
+            width: 280px;
+
+            height: 280px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(99, 102, 241, 0.08);
+
+            top: 80px;
+
+            left: -150px;
+
+            pointer-events: none;
+
+            z-index: 0;
+        }
+
+
+        body::after {
+
+            content: "";
+
+            position: fixed;
+
+            width: 300px;
+
+            height: 300px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(236, 72, 153, 0.07);
+
+            right: -160px;
+
+            bottom: 50px;
+
+            pointer-events: none;
+
+            z-index: 0;
+        }
+
+
+        /* =====================================================
+           NAVBAR
+        ===================================================== */
 
         .navbar {
-            background: #1f4e79;
-            color: white;
-            padding: 18px 40px;
+
+            min-height: 76px;
+
+            padding:
+                0 6%;
 
             display: flex;
-            justify-content: space-between;
+
             align-items: center;
+
+            justify-content: space-between;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #1d4ed8,
+                    #6d28d9,
+                    #be185d
+                );
+
+            color: white;
+
+            box-shadow:
+                0 8px 30px
+                rgba(79, 70, 229, 0.22);
+
+            position: sticky;
+
+            top: 0;
+
+            z-index: 100;
+
         }
 
 
-        .navbar h2 {
-            margin: 0;
+        .navbar::after {
+
+            content: "";
+
+            position: absolute;
+
+            left: 0;
+
+            right: 0;
+
+            bottom: 0;
+
+            height: 2px;
+
+            background:
+                rgba(255,255,255,0.35);
         }
 
+
+        /* Brand */
+
+        .brand {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 12px;
+        }
+
+
+        .brand-icon {
+
+            width: 45px;
+
+            height: 45px;
+
+            border-radius: 14px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            background:
+                rgba(255,255,255,0.18);
+
+            border:
+                1px solid
+                rgba(255,255,255,0.25);
+
+            font-size: 23px;
+
+            box-shadow:
+                0 5px 15px
+                rgba(0,0,0,0.12);
+
+        }
+
+
+        .brand-text h2 {
+
+            font-size: 23px;
+
+            letter-spacing: 0.3px;
+        }
+
+
+        .brand-text span {
+
+            display: block;
+
+            margin-top: 2px;
+
+            color:
+                rgba(255,255,255,0.78);
+
+            font-size: 10px;
+
+            letter-spacing: 1.2px;
+
+            font-weight: 600;
+        }
+
+
+        /* Logout */
 
         .logout {
-            background: #dc3545;
-            color: white;
+
             border: none;
-            padding: 10px 18px;
-            border-radius: 6px;
+
+            padding:
+                10px 18px;
+
+            border-radius: 11px;
+
+            background:
+                rgba(255,255,255,0.14);
+
+            color: white;
+
+            font-size: 13px;
+
+            font-weight: 700;
+
             cursor: pointer;
+
+            border:
+                1px solid
+                rgba(255,255,255,0.20);
+
+            transition:
+                all 0.25s ease;
         }
 
 
         .logout:hover {
-            background: #b02a37;
-        }
 
+            background:
+                #ef4444;
 
-        .container {
-            width: 90%;
-            max-width: 1000px;
-            margin: 50px auto;
-        }
-
-
-        .welcome {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
+            transform:
+                translateY(-2px);
 
             box-shadow:
-                0 5px 20px rgba(0, 0, 0, 0.08);
+                0 7px 18px
+                rgba(239,68,68,0.28);
+        }
+
+
+        /* =====================================================
+           MAIN CONTAINER
+        ===================================================== */
+
+        .container {
+
+            width: 90%;
+
+            max-width: 1250px;
+
+            margin:
+                35px auto 60px;
+
+            position: relative;
+
+            z-index: 2;
+        }
+
+
+        /* =====================================================
+           WELCOME HERO
+        ===================================================== */
+
+        .welcome {
+
+            position: relative;
+
+            overflow: hidden;
+
+            padding:
+                38px 42px;
+
+            border-radius: 25px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    rgba(255,255,255,0.98),
+                    rgba(247,243,255,0.98)
+                );
+
+            border:
+                1px solid #e4e7f5;
+
+            box-shadow:
+                0 15px 40px
+                rgba(79,70,229,0.10);
+
+            margin-bottom: 30px;
+
+            animation:
+                slideDown 0.6s ease;
+        }
+
+
+        @keyframes slideDown {
+
+            from {
+                opacity: 0;
+
+                transform:
+                    translateY(-15px);
+            }
+
+            to {
+                opacity: 1;
+
+                transform:
+                    translateY(0);
+            }
+        }
+
+
+        /* Hero decorations */
+
+        .welcome::before {
+
+            content: "";
+
+            position: absolute;
+
+            width: 260px;
+
+            height: 260px;
+
+            border-radius: 50%;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    rgba(59,130,246,0.14),
+                    rgba(139,92,246,0.08)
+                );
+
+            right: -100px;
+
+            top: -120px;
+        }
+
+
+        .welcome::after {
+
+            content: "";
+
+            position: absolute;
+
+            width: 140px;
+
+            height: 140px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(236,72,153,0.07);
+
+            right: 190px;
+
+            bottom: -90px;
+        }
+
+
+        .welcome-content {
+
+            position: relative;
+
+            z-index: 2;
+        }
+
+
+        /* Session badge */
+
+        .welcome-label {
+
+            display: inline-flex;
+
+            align-items: center;
+
+            gap: 8px;
+
+            padding:
+                7px 13px;
+
+            border-radius: 30px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #eff6ff,
+                    #f5f3ff
+                );
+
+            color: #4f46e5;
+
+            border:
+                1px solid #dbe4ff;
+
+            font-size: 12px;
+
+            font-weight: 700;
+
+            margin-bottom: 15px;
+        }
+
+
+        .status-dot {
+
+            width: 8px;
+
+            height: 8px;
+
+            border-radius: 50%;
+
+            background: #22c55e;
+
+            box-shadow:
+                0 0 0 4px
+                rgba(34,197,94,0.12);
+
+            animation:
+                pulse 2s infinite;
+        }
+
+
+        @keyframes pulse {
+
+            0% {
+                box-shadow:
+                    0 0 0 0
+                    rgba(34,197,94,0.30);
+            }
+
+            70% {
+                box-shadow:
+                    0 0 0 7px
+                    rgba(34,197,94,0);
+            }
+
+            100% {
+                box-shadow:
+                    0 0 0 0
+                    rgba(34,197,94,0);
+            }
+        }
+
+
+        .welcome h1 {
+
+            color: #312e81;
+
+            font-size: 34px;
+
+            margin-bottom: 9px;
+
+            font-weight: 800;
+        }
+
+
+        .welcome p {
+
+            color: #64748b;
+
+            font-size: 14px;
+
+            max-width: 650px;
+
+            line-height: 1.7;
+        }
+
+
+        /* Role */
+
+        .role {
+
+            display: inline-flex;
+
+            align-items: center;
+
+            gap: 6px;
+
+            margin-top: 17px;
+
+            padding:
+                8px 16px;
+
+            border-radius: 30px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #eef2ff,
+                    #f5f3ff
+                );
+
+            color: #5b21b6;
+
+            font-size: 12px;
+
+            font-weight: 800;
+
+            border:
+                1px solid #ddd6fe;
+        }
+
+
+        /* =====================================================
+           QUICK STATS
+        ===================================================== */
+
+        .stats {
+
+            display: grid;
+
+            grid-template-columns:
+                repeat(3, 1fr);
+
+            gap: 18px;
 
             margin-bottom: 30px;
         }
 
 
-        .welcome h1 {
-            margin-top: 0;
-            color: #1f4e79;
+        .stat {
+
+            padding:
+                18px 20px;
+
+            border-radius: 17px;
+
+            background:
+                rgba(255,255,255,0.90);
+
+            border:
+                1px solid #e5e7f0;
+
+            box-shadow:
+                0 7px 20px
+                rgba(15,23,42,0.06);
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 13px;
+
+            transition:
+                all 0.25s ease;
         }
 
 
-        .welcome p {
-            color: #666;
+        .stat:hover {
+
+            transform:
+                translateY(-4px);
+
+            box-shadow:
+                0 12px 25px
+                rgba(79,70,229,0.10);
         }
 
 
-        .role {
-            display: inline-block;
-            margin-top: 10px;
-            padding: 6px 12px;
-            border-radius: 20px;
-            background: #e8f1f8;
-            color: #1f4e79;
-            font-weight: bold;
+        .stat-icon {
+
+            width: 45px;
+
+            height: 45px;
+
+            border-radius: 13px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            font-size: 21px;
+
+            background:
+                #eef2ff;
+        }
+
+
+        .stat:nth-child(2)
+        .stat-icon {
+
+            background:
+                #ecfeff;
+        }
+
+
+        .stat:nth-child(3)
+        .stat-icon {
+
+            background:
+                #fdf2f8;
+        }
+
+
+        .stat-text strong {
+
+            display: block;
+
+            color: #312e81;
+
             font-size: 14px;
         }
 
 
+        .stat-text span {
+
+            display: block;
+
+            margin-top: 3px;
+
+            color: #94a3b8;
+
+            font-size: 11px;
+        }
+
+
+        /* =====================================================
+           SECTION HEADING
+        ===================================================== */
+
+        .section-heading {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            margin-bottom: 18px;
+        }
+
+
+        .section-heading h2 {
+
+            color: #312e81;
+
+            font-size: 21px;
+
+            font-weight: 800;
+        }
+
+
+        .section-heading span {
+
+            color: #94a3b8;
+
+            font-size: 12px;
+        }
+
+
+        /* =====================================================
+           CARDS
+        ===================================================== */
+
         .cards {
+
             display: grid;
 
             grid-template-columns:
-                repeat(auto-fit, minmax(220px, 1fr));
+                repeat(
+                    auto-fit,
+                    minmax(240px, 1fr)
+                );
 
             gap: 20px;
         }
 
 
         .card {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
+
+            position: relative;
+
+            overflow: hidden;
+
+            padding: 25px;
+
+            border-radius: 19px;
+
+            background:
+                rgba(255,255,255,0.94);
+
+            border:
+                1px solid #e5e7f0;
 
             box-shadow:
-                0 5px 20px rgba(0, 0, 0, 0.08);
+                0 8px 25px
+                rgba(15,23,42,0.06);
 
-            text-align: center;
+            transition:
+                transform 0.3s ease,
+                box-shadow 0.3s ease,
+                border-color 0.3s ease;
+
+            animation:
+                cardAppear 0.6s ease;
+        }
+
+
+        @keyframes cardAppear {
+
+            from {
+
+                opacity: 0;
+
+                transform:
+                    translateY(15px);
+            }
+
+            to {
+
+                opacity: 1;
+
+                transform:
+                    translateY(0);
+            }
+        }
+
+
+        .card:hover {
+
+            transform:
+                translateY(-7px);
+
+            box-shadow:
+                0 18px 35px
+                rgba(79,70,229,0.12);
+
+            border-color:
+                #c7d2fe;
+        }
+
+
+        /* Colored top border */
+
+        .card::before {
+
+            content: "";
+
+            position: absolute;
+
+            left: 0;
+
+            top: 0;
+
+            width: 100%;
+
+            height: 4px;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #2563eb,
+                    #7c3aed,
+                    #db2777
+                );
+
+            opacity: 0;
+
+            transition:
+                opacity 0.25s ease;
+        }
+
+
+        .card:hover::before {
+
+            opacity: 1;
+        }
+
+
+        /* =====================================================
+           CARD ICONS
+        ===================================================== */
+
+        .card-icon {
+
+            width: 57px;
+
+            height: 57px;
+
+            border-radius: 16px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            font-size: 26px;
+
+            margin-bottom: 18px;
+
+            border: 1px solid
+                rgba(99,102,241,0.08);
+        }
+
+
+        .profile-icon {
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #eef2ff,
+                    #e0e7ff
+                );
+        }
+
+
+        .files-icon {
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #eff6ff,
+                    #dbeafe
+                );
+        }
+
+
+        .share-icon {
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #f5f3ff,
+                    #ede9fe
+                );
+        }
+
+
+        .shared-icon {
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ecfdf5,
+                    #d1fae5
+                );
+        }
+
+
+        .admin-icon {
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #fff7ed,
+                    #fed7aa
+                );
         }
 
 
         .card h2 {
-            color: #1f4e79;
+
+            color: #312e81;
+
+            font-size: 18px;
+
+            margin-bottom: 8px;
         }
 
 
         .card p {
-            color: #666;
+
+            color: #64748b;
+
+            font-size: 12.5px;
+
+            line-height: 1.65;
+
+            min-height: 43px;
+
+            margin-bottom: 18px;
         }
 
 
+        /* =====================================================
+           CARD BUTTON
+        ===================================================== */
+
         .card button {
-            background: #1f4e79;
-            color: white;
+
+            width: 100%;
+
+            padding:
+                11px 16px;
 
             border: none;
 
-            padding: 10px 20px;
+            border-radius: 10px;
 
-            border-radius: 6px;
+            background:
+                linear-gradient(
+                    135deg,
+                    #2563eb,
+                    #7c3aed
+                );
+
+            color: white;
+
+            font-size: 12px;
+
+            font-weight: 700;
 
             cursor: pointer;
+
+            transition:
+                all 0.25s ease;
+
+            box-shadow:
+                0 6px 14px
+                rgba(79,70,229,0.20);
         }
 
 
         .card button:hover {
-            background: #163a5c;
+
+            transform:
+                translateY(-2px);
+
+            box-shadow:
+                0 9px 20px
+                rgba(79,70,229,0.27);
         }
 
 
-        /* Admin card */
+        /* Different button colors */
+
+        .files-card button {
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #2563eb,
+                    #0284c7
+                );
+        }
+
+
+        .share-card button {
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #7c3aed,
+                    #a21caf
+                );
+        }
+
+
+        .shared-card button {
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #059669,
+                    #0d9488
+                );
+        }
+
+
+        /* =====================================================
+           ADMIN CARD
+        ===================================================== */
 
         #adminCard {
+
             display: none;
+
+            background:
+                linear-gradient(
+                    145deg,
+                    #ffffff,
+                    #fffaf2
+                );
+
+            border-color:
+                #f3dfbd;
+        }
+
+
+        #adminCard::before {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #d97706,
+                    #f59e0b
+                );
         }
 
 
         #adminCard h2 {
-            color: #8b5e00;
+
+            color: #92400e;
         }
 
 
         #adminCard button {
-            background: #8b5e00;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #d97706,
+                    #ea580c
+                );
+
+            box-shadow:
+                0 6px 15px
+                rgba(217,119,6,0.20);
         }
 
 
         #adminCard button:hover {
-            background: #6f4b00;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #b45309,
+                    #c2410c
+                );
         }
 
+
+        /* =====================================================
+           SECURITY BANNER
+        ===================================================== */
+
+        .security-banner {
+
+            margin-top: 30px;
+
+            padding:
+                18px 22px;
+
+            border-radius: 17px;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 14px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #eff6ff,
+                    #f5f3ff,
+                    #fdf2f8
+                );
+
+            border:
+                1px solid #dbe4ff;
+
+            box-shadow:
+                0 7px 20px
+                rgba(79,70,229,0.06);
+        }
+
+
+        .security-icon {
+
+            width: 43px;
+
+            height: 43px;
+
+            flex-shrink: 0;
+
+            border-radius: 12px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #dbeafe,
+                    #ede9fe
+                );
+
+            font-size: 20px;
+        }
+
+
+        .security-text h3 {
+
+            color: #4338ca;
+
+            font-size: 14px;
+
+            margin-bottom: 3px;
+        }
+
+
+        .security-text p {
+
+            color: #64748b;
+
+            font-size: 11px;
+
+            line-height: 1.5;
+        }
+
+
+        /* =====================================================
+           MESSAGE
+        ===================================================== */
 
         #message {
+
             text-align: center;
-            margin-top: 20px;
-            color: #dc3545;
+
+            margin-top: 18px;
+
+            color: #dc2626;
+
+            font-size: 13px;
+
+            font-weight: 600;
         }
+
+
+        /* =====================================================
+           FOOTER
+        ===================================================== */
+
+        .footer {
+
+            text-align: center;
+
+            margin-top: 22px;
+
+            color: #94a3b8;
+
+            font-size: 11px;
+        }
+
+
+        /* =====================================================
+           RESPONSIVE
+        ===================================================== */
+
+        @media (max-width: 800px) {
+
+            .navbar {
+
+                padding:
+                    0 20px;
+            }
+
+
+            .container {
+
+                width: 92%;
+
+                margin-top: 25px;
+            }
+
+
+            .stats {
+
+                grid-template-columns:
+                    1fr;
+            }
+
+
+            .welcome {
+
+                padding:
+                    28px 25px;
+            }
+
+
+            .welcome h1 {
+
+                font-size: 27px;
+            }
+
+
+            .cards {
+
+                grid-template-columns:
+                    repeat(
+                        2,
+                        1fr
+                    );
+            }
+
+        }
+
+
+        @media (max-width: 550px) {
+
+            .navbar {
+
+                min-height: 70px;
+            }
+
+
+            .brand-text span {
+
+                display: none;
+            }
+
+
+            .brand-text h2 {
+
+                font-size: 19px;
+            }
+
+
+            .brand-icon {
+
+                width: 40px;
+
+                height: 40px;
+            }
+
+
+            .logout {
+
+                padding:
+                    8px 13px;
+
+                font-size: 12px;
+            }
+
+
+            .container {
+
+                width: 94%;
+
+                margin-top: 20px;
+            }
+
+
+            .welcome {
+
+                padding:
+                    24px 20px;
+            }
+
+
+            .welcome h1 {
+
+                font-size: 23px;
+            }
+
+
+            .welcome p {
+
+                font-size: 12px;
+            }
+
+
+            .cards {
+
+                grid-template-columns:
+                    1fr;
+            }
+
+
+            .section-heading {
+
+                align-items:
+                    flex-start;
+
+                flex-direction:
+                    column;
+
+                gap: 5px;
+            }
+
+
+            .security-banner {
+
+                align-items:
+                    flex-start;
+
+                padding:
+                    16px;
+            }
+
+        }
+
 
     </style>
 
@@ -186,13 +1356,37 @@
 <body>
 
 
-    <!-- Navigation Bar -->
+    <!-- =====================================================
+         NAVBAR
+    ====================================================== -->
 
-    <div class="navbar">
+    <nav class="navbar">
 
-        <h2>
-            TrustShare
-        </h2>
+
+        <div class="brand">
+
+
+            <div class="brand-icon">
+
+                🔐
+
+            </div>
+
+
+            <div class="brand-text">
+
+                <h2>
+                    TrustShare
+                </h2>
+
+                <span>
+                    SECURE FILE SHARING
+                </span>
+
+            </div>
+
+
+        </div>
 
 
         <button
@@ -200,161 +1394,426 @@
             onclick="logout()"
         >
 
-            Logout
+            ⇥ Logout
 
         </button>
 
-    </div>
+
+    </nav>
 
 
-    <!-- Main Container -->
 
-    <div class="container">
+    <!-- =====================================================
+         MAIN
+    ====================================================== -->
 
-
-        <!-- Welcome Section -->
-
-        <div class="welcome">
-
-            <h1 id="welcomeMessage">
-                Welcome to TrustShare
-            </h1>
+    <main class="container">
 
 
-            <p>
-                Securely manage and share your data.
-            </p>
+
+        <!-- =================================================
+             WELCOME
+        ================================================== -->
+
+        <section class="welcome">
 
 
-            <div
-                id="roleDisplay"
-                class="role"
-            >
-                User
+            <div class="welcome-content">
+
+
+                <div class="welcome-label">
+
+                    <span class="status-dot"></span>
+
+                    Secure Session Active
+
+                </div>
+
+
+                <h1 id="welcomeMessage">
+
+                    Welcome to TrustShare
+
+                </h1>
+
+
+                <p>
+
+                    Securely manage, protect and share
+                    your files through your trusted
+                    collaboration workspace.
+
+                </p>
+
+
+                <div
+                    id="roleDisplay"
+                    class="role"
+                >
+
+                    👤 Role: USER
+
+                </div>
+
+
             </div>
+
+
+        </section>
+
+
+
+        <!-- =================================================
+             QUICK INFORMATION
+        ================================================== -->
+
+        <div class="stats">
+
+
+            <div class="stat">
+
+                <div class="stat-icon">
+
+                    🔐
+
+                </div>
+
+
+                <div class="stat-text">
+
+                    <strong>
+                        Secure Authentication
+                    </strong>
+
+                    <span>
+                        JWT protected session
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div class="stat">
+
+                <div class="stat-icon">
+
+                    🔒
+
+                </div>
+
+
+                <div class="stat-text">
+
+                    <strong>
+                        Protected Files
+                    </strong>
+
+                    <span>
+                        Encrypted file storage
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div class="stat">
+
+                <div class="stat-icon">
+
+                    🛡️
+
+                </div>
+
+
+                <div class="stat-text">
+
+                    <strong>
+                        Controlled Access
+                    </strong>
+
+                    <span>
+                        Role-based permissions
+                    </span>
+
+                </div>
+
+            </div>
+
 
         </div>
 
 
-        <!-- Dashboard Cards -->
+
+        <!-- =================================================
+             SECTION HEADING
+        ================================================== -->
+
+        <div class="section-heading">
+
+            <h2>
+                Dashboard
+            </h2>
+
+            <span>
+                Manage your TrustShare account
+            </span>
+
+        </div>
+
+
+
+        <!-- =================================================
+             DASHBOARD CARDS
+        ================================================== -->
 
         <div class="cards">
 
 
-            <!-- My Profile -->
+
+            <!-- ================================
+                 PROFILE
+            ================================= -->
 
             <div class="card">
 
+
+                <div class="card-icon profile-icon">
+
+                    👤
+
+                </div>
+
+
                 <h2>
-                    👤 My Profile
+                    My Profile
                 </h2>
 
+
                 <p>
-                    View your TrustShare account information.
+
+                    View your TrustShare account
+                    information and personal
+                    profile details.
+
                 </p>
+
 
                 <button
                     onclick="openProfile()"
                 >
 
-                    View Profile
+                    View Profile →
 
                 </button>
+
 
             </div>
 
 
-            <!-- My Files -->
 
-            <div class="card">
+            <!-- ================================
+                 MY FILES
+            ================================= -->
+
+            <div class="card files-card">
+
+
+                <div class="card-icon files-icon">
+
+                    📁
+
+                </div>
+
 
                 <h2>
-                    📁 My Files
+                    My Files
                 </h2>
 
+
                 <p>
-                    Manage your uploaded files.
+
+                    Upload, manage, delete and
+                    download your securely
+                    stored files.
+
                 </p>
+
 
                 <button
                     onclick="myFiles()"
                 >
 
-                    My Files
+                    Open My Files →
 
                 </button>
+
 
             </div>
 
 
-            <!-- Share Data -->
 
-            <div class="card">
+            <!-- ================================
+                 SHARE DATA
+            ================================= -->
+
+            <div class="card share-card">
+
+
+                <div class="card-icon share-icon">
+
+                    🔐
+
+                </div>
+
 
                 <h2>
-                    🔐 Share Data
+                    Share Data
                 </h2>
 
+
                 <p>
-                    Securely share your data with another user.
+
+                    Securely share files with
+                    another TrustShare user
+                    using controlled access.
+
                 </p>
+
 
                 <button
                     onclick="shareData()"
                 >
 
-                    Share Data
+                    Share Data →
 
                 </button>
+
 
             </div>
 
 
-            <!-- Shared With Me -->
 
-            <div class="card">
+            <!-- ================================
+                 SHARED WITH ME
+            ================================= -->
+
+            <div class="card shared-card">
+
+
+                <div class="card-icon shared-icon">
+
+                    📥
+
+                </div>
+
 
                 <h2>
-                    📥 Shared With Me
+                    Shared With Me
                 </h2>
 
+
                 <p>
-                    View data that other users shared with you.
+
+                    View and access files that
+                    other TrustShare users have
+                    shared with you.
+
                 </p>
+
 
                 <button
                     onclick="sharedData()"
                 >
 
-                    View Shared Data
+                    View Shared Data →
 
                 </button>
+
 
             </div>
 
 
-            <!-- ADMIN PANEL -->
+
+            <!-- ================================
+                 ADMIN
+            ================================= -->
 
             <div
                 class="card"
                 id="adminCard"
             >
 
+
+                <div class="card-icon admin-icon">
+
+                    👑
+
+                </div>
+
+
                 <h2>
-                    👑 Admin Panel
+                    Admin Panel
                 </h2>
 
+
                 <p>
-                    Manage users and administrative functions.
+
+                    Manage users and perform
+                    authorized administrative
+                    operations.
+
                 </p>
+
 
                 <button
                     onclick="openAdminPanel()"
                 >
 
-                    Admin Panel
+                    Open Admin Panel →
 
                 </button>
+
+
+            </div>
+
+
+
+        </div>
+
+
+
+        <!-- =================================================
+             SECURITY BANNER
+        ================================================== -->
+
+        <div class="security-banner">
+
+
+            <div class="security-icon">
+
+                🛡️
+
+            </div>
+
+
+            <div class="security-text">
+
+                <h3>
+
+                    TrustShare Security
+
+                </h3>
+
+
+                <p>
+
+                    Your session is protected by
+                    JWT authentication and
+                    role-based access control.
+
+                </p>
 
             </div>
 
@@ -362,20 +1821,37 @@
         </div>
 
 
+
+        <!-- MESSAGE -->
+
         <div id="message"></div>
 
 
-    </div>
+
+        <!-- FOOTER -->
+
+        <div class="footer">
+
+            🔐 TrustShare © 2026
+            • Secure File Sharing System
+
+        </div>
+
+
+    </main>
+
 
 
     <script>
 
 
-        // ==========================================
-        // CHECK WHETHER USER IS LOGGED IN
-        // ==========================================
+        /* =================================================
+           CHECK LOGIN
+        ================================================= */
+
 
         function checkLogin() {
+
 
             const token =
                 localStorage.getItem(
@@ -385,8 +1861,10 @@
 
             if (!token) {
 
+
                 window.location.href =
                     "login.html";
+
 
                 return false;
 
@@ -399,11 +1877,13 @@
 
 
 
-        // ==========================================
-        // LOAD DASHBOARD INFORMATION
-        // ==========================================
+        /* =================================================
+           LOAD DASHBOARD
+        ================================================= */
+
 
         async function loadDashboard() {
+
 
             if (!checkLogin()) {
 
@@ -430,7 +1910,10 @@
                 ) || "user";
 
 
-            // Display welcome message
+            /* -----------------------------------------
+               WELCOME MESSAGE
+            ----------------------------------------- */
+
 
             document.getElementById(
                 "welcomeMessage"
@@ -438,19 +1921,26 @@
                 "Welcome, " + name + "!";
 
 
-            // Display role
+            /* -----------------------------------------
+               ROLE
+            ----------------------------------------- */
+
 
             document.getElementById(
                 "roleDisplay"
             ).innerText =
-                "Role: " + role.toUpperCase();
+                "👤 Role: " +
+                role.toUpperCase();
 
 
-            // ==========================================
-            // FRONTEND ROLE-BASED ACCESS
-            // ==========================================
+
+            /* -----------------------------------------
+               ADMIN CARD
+            ----------------------------------------- */
+
 
             if (role === "admin") {
+
 
                 document.getElementById(
                     "adminCard"
@@ -459,7 +1949,9 @@
 
             }
 
+
             else {
+
 
                 document.getElementById(
                     "adminCard"
@@ -469,12 +1961,20 @@
             }
 
 
+
+            /* -----------------------------------------
+               VERIFY TOKEN WITH BACKEND
+            ----------------------------------------- */
+
+
             try {
+
 
                 const response =
                     await fetch(
                         "http://127.0.0.1:8000/profile",
                         {
+
                             method: "GET",
 
                             headers: {
@@ -492,25 +1992,44 @@
                     await response.json();
 
 
+                console.log(
+                    "Dashboard profile response:",
+                    data
+                );
+
+
+                /* -------------------------------------
+                   TOKEN EXPIRED / INVALID
+                ------------------------------------- */
+
+
                 if (!response.ok) {
+
 
                     if (
                         response.status === 401
                     ) {
 
+
                         localStorage.clear();
+
 
                         window.location.href =
                             "login.html";
+
+
+                        return;
 
                     }
 
                 }
 
+
             }
 
 
             catch (error) {
+
 
                 console.error(
                     "Dashboard error:",
@@ -529,11 +2048,13 @@
 
 
 
-        // ==========================================
-        // OPEN PROFILE
-        // ==========================================
+        /* =================================================
+           OPEN PROFILE
+        ================================================= */
+
 
         function openProfile() {
+
 
             window.location.href =
                 "profile.html";
@@ -542,11 +2063,13 @@
 
 
 
-        // ==========================================
-        // OPEN MY FILES
-        // ==========================================
+        /* =================================================
+           MY FILES
+        ================================================= */
+
 
         function myFiles() {
+
 
             window.location.href =
                 "my-files.html";
@@ -555,11 +2078,13 @@
 
 
 
-        // ==========================================
-        // OPEN SHARE DATA
-        // ==========================================
+        /* =================================================
+           SHARE DATA
+        ================================================= */
+
 
         function shareData() {
+
 
             window.location.href =
                 "share-data.html";
@@ -568,11 +2093,13 @@
 
 
 
-        // ==========================================
-        // OPEN SHARED WITH ME
-        // ==========================================
+        /* =================================================
+           SHARED WITH ME
+        ================================================= */
+
 
         function sharedData() {
+
 
             window.location.href =
                 "shared-with-me.html";
@@ -581,11 +2108,13 @@
 
 
 
-        // ==========================================
-        // OPEN ADMIN PANEL
-        // ==========================================
+        /* =================================================
+           ADMIN PANEL
+        ================================================= */
+
 
         function openAdminPanel() {
+
 
             const role =
                 localStorage.getItem(
@@ -593,13 +2122,13 @@
                 );
 
 
-            // Extra frontend check
-
             if (role !== "admin") {
+
 
                 alert(
                     "Access denied. Admin privileges required."
                 );
+
 
                 return;
 
@@ -613,13 +2142,16 @@
 
 
 
-        // ==========================================
-        // LOGOUT
-        // ==========================================
+        /* =================================================
+           LOGOUT
+        ================================================= */
+
 
         function logout() {
 
+
             localStorage.clear();
+
 
             window.location.href =
                 "login.html";
@@ -628,9 +2160,10 @@
 
 
 
-        // ==========================================
-        // START DASHBOARD
-        // ==========================================
+        /* =================================================
+           START
+        ================================================= */
+
 
         loadDashboard();
 

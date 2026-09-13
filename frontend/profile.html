@@ -2,96 +2,564 @@
 <html lang="en">
 
 <head>
-
     <meta charset="UTF-8">
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
 
-    <title>TrustShare - Profile</title>
+    <title>My Profile - TrustShare</title>
 
     <style>
 
-        body {
+        * {
+            box-sizing: border-box;
             margin: 0;
-            font-family: Arial, sans-serif;
-            background: #f4f7fb;
-            min-height: 100vh;
+            padding: 0;
+            font-family: Arial, Helvetica, sans-serif;
         }
 
+        body {
+            min-height: 100vh;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #eef2ff,
+                    #f5f3ff,
+                    #fce7f3
+                );
+
+            color: #1e293b;
+        }
+
+        /* ================= NAVBAR ================= */
+
         .navbar {
-            background: #1f4e79;
+            background:
+                linear-gradient(
+                    135deg,
+                    #4f46e5,
+                    #7c3aed,
+                    #db2777
+                );
+
             color: white;
+
             padding: 18px 40px;
+
             display: flex;
+
             justify-content: space-between;
+
+            align-items: center;
+
+            box-shadow:
+                0 5px 20px
+                rgba(79, 70, 229, 0.25);
+        }
+
+        .logo {
+            font-size: 25px;
+            font-weight: bold;
+        }
+
+        .nav-right {
+            display: flex;
+            gap: 12px;
             align-items: center;
         }
 
-        .navbar h2 {
-            margin: 0;
-        }
-
-        .logout {
-            background: #dc3545;
-            color: white;
+        .nav-btn {
             border: none;
+
             padding: 10px 18px;
-            border-radius: 6px;
+
+            border-radius: 10px;
+
+            background:
+                rgba(255, 255, 255, 0.18);
+
+            color: white;
+
+            font-size: 14px;
+
+            font-weight: bold;
+
             cursor: pointer;
+
+            transition: 0.3s;
         }
 
-        .logout:hover {
-            background: #b02a37;
+        .nav-btn:hover {
+            background: white;
+            color: #4f46e5;
+
+            transform: translateY(-2px);
         }
+
+
+        /* ================= MAIN ================= */
 
         .container {
-            width: 500px;
-            max-width: 90%;
-            margin: 60px auto;
-            background: white;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 1000px;
+
+            margin: 45px auto;
         }
 
-        h1 {
-            color: #1f4e79;
-            margin-bottom: 10px;
-        }
-
-        .welcome {
-            color: #666;
+        .page-header {
+            text-align: center;
             margin-bottom: 30px;
         }
 
-        .profile-box {
-            background: #f4f7fb;
-            padding: 20px;
-            border-radius: 8px;
+        .page-header h1 {
+            font-size: 34px;
+
+            color: #312e81;
+
+            margin-bottom: 10px;
         }
 
-        .profile-item {
-            margin-bottom: 15px;
+        .page-header p {
+            color: #64748b;
+            font-size: 16px;
         }
 
-        .profile-item:last-child {
-            margin-bottom: 0;
-        }
 
-        .label {
+        /* ================= SECURITY BADGE ================= */
+
+        .security-badge {
+            width: fit-content;
+
+            margin: 20px auto;
+
+            padding: 10px 20px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #dcfce7,
+                    #d1fae5
+                );
+
+            border: 1px solid #86efac;
+
+            border-radius: 30px;
+
+            color: #166534;
+
             font-weight: bold;
-            color: #333;
+
+            font-size: 14px;
+
+            box-shadow:
+                0 5px 15px
+                rgba(22, 101, 52, 0.08);
         }
 
-        .value {
-            color: #555;
-            margin-top: 5px;
+
+        /* ================= PROFILE CARD ================= */
+
+        .profile-card {
+            background: white;
+
+            border-radius: 22px;
+
+            padding: 35px;
+
+            box-shadow:
+                0 15px 40px
+                rgba(79, 70, 229, 0.12);
+
+            border:
+                1px solid
+                rgba(99, 102, 241, 0.12);
+
+            overflow: hidden;
+
+            position: relative;
         }
 
-        #message {
+        .profile-card::before {
+            content: "";
+
+            position: absolute;
+
+            top: 0;
+            left: 0;
+
+            width: 100%;
+            height: 6px;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #4f46e5,
+                    #7c3aed,
+                    #db2777,
+                    #06b6d4
+                );
+        }
+
+
+        /* ================= PROFILE ICON ================= */
+
+        .profile-icon {
+            width: 95px;
+            height: 95px;
+
+            margin: 0 auto 20px;
+
+            border-radius: 50%;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            font-size: 42px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #e0e7ff,
+                    #f3e8ff
+                );
+
+            border: 5px solid white;
+
+            box-shadow:
+                0 8px 25px
+                rgba(79, 70, 229, 0.2);
+        }
+
+
+        /* ================= ACCOUNT TITLE ================= */
+
+        .account-title {
             text-align: center;
-            margin-top: 20px;
-            color: #dc3545;
+
+            margin-bottom: 30px;
+        }
+
+        .account-title h2 {
+            color: #312e81;
+
+            font-size: 23px;
+
+            margin-bottom: 5px;
+        }
+
+        .account-title p {
+            color: #64748b;
+
+            font-size: 14px;
+        }
+
+
+        /* ================= LOADING ================= */
+
+        .loading {
+            text-align: center;
+
+            padding: 25px;
+
+            color: #6366f1;
+
+            font-weight: bold;
+
+            font-size: 16px;
+        }
+
+
+        /* ================= ERROR ================= */
+
+        .error-message {
+            display: none;
+
+            text-align: center;
+
+            padding: 15px;
+
+            margin-bottom: 20px;
+
+            border-radius: 12px;
+
+            background: #fee2e2;
+
+            color: #b91c1c;
+
+            font-weight: bold;
+        }
+
+
+        /* ================= INFORMATION ================= */
+
+        .info-grid {
+            display: grid;
+
+            grid-template-columns:
+                repeat(2, 1fr);
+
+            gap: 20px;
+        }
+
+        .info-box {
+            padding: 22px;
+
+            border-radius: 16px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #f8fafc,
+                    #eef2ff
+                );
+
+            border:
+                1px solid #e2e8f0;
+
+            transition: 0.3s;
+        }
+
+        .info-box:hover {
+            transform: translateY(-3px);
+
+            box-shadow:
+                0 8px 20px
+                rgba(79, 70, 229, 0.1);
+        }
+
+        .info-label {
+            font-size: 13px;
+
+            font-weight: bold;
+
+            color: #64748b;
+
+            margin-bottom: 9px;
+        }
+
+        .info-value {
+            font-size: 18px;
+
+            color: #1e293b;
+
+            font-weight: bold;
+
+            word-break: break-word;
+        }
+
+
+        /* ================= ROLE ================= */
+
+        .role-badge {
+            display: inline-block;
+
+            padding: 7px 15px;
+
+            border-radius: 20px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ede9fe,
+                    #ddd6fe
+                );
+
+            color: #5b21b6;
+
+            font-size: 13px;
+
+            font-weight: bold;
+        }
+
+
+        /* ================= ACTIVE ACCOUNT ================= */
+
+        .active-box {
+            margin-top: 25px;
+
+            padding: 20px;
+
+            border-radius: 16px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ecfdf5,
+                    #f0fdf4
+                );
+
+            border:
+                1px solid #bbf7d0;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 15px;
+        }
+
+        .active-icon {
+            width: 45px;
+            height: 45px;
+
+            border-radius: 50%;
+
+            background: #dcfce7;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            font-size: 23px;
+
+            flex-shrink: 0;
+        }
+
+        .active-text h3 {
+            color: #166534;
+
+            font-size: 17px;
+
+            margin-bottom: 4px;
+        }
+
+        .active-text p {
+            color: #15803d;
+
+            font-size: 13px;
+        }
+
+
+        /* ================= BUTTONS ================= */
+
+        .buttons {
+            display: flex;
+
+            justify-content: center;
+
+            gap: 15px;
+
+            margin-top: 30px;
+        }
+
+        .back-btn,
+        .logout-btn {
+            border: none;
+
+            padding: 13px 25px;
+
+            border-radius: 12px;
+
+            font-size: 14px;
+
+            font-weight: bold;
+
+            cursor: pointer;
+
+            transition: 0.3s;
+        }
+
+        .back-btn {
+            background:
+                linear-gradient(
+                    135deg,
+                    #4f46e5,
+                    #6366f1
+                );
+
+            color: white;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+
+            box-shadow:
+                0 8px 20px
+                rgba(79, 70, 229, 0.3);
+        }
+
+        .logout-btn {
+            background:
+                linear-gradient(
+                    135deg,
+                    #ef4444,
+                    #db2777
+                );
+
+            color: white;
+        }
+
+        .logout-btn:hover {
+            transform: translateY(-2px);
+
+            box-shadow:
+                0 8px 20px
+                rgba(239, 68, 68, 0.25);
+        }
+
+
+        /* ================= FOOTER ================= */
+
+        footer {
+            text-align: center;
+
+            margin-top: 35px;
+
+            padding-bottom: 25px;
+
+            color: #64748b;
+
+            font-size: 13px;
+        }
+
+
+        /* ================= RESPONSIVE ================= */
+
+        @media (max-width: 700px) {
+
+            .navbar {
+                padding: 15px 20px;
+            }
+
+            .logo {
+                font-size: 20px;
+            }
+
+            .container {
+                width: 94%;
+
+                margin-top: 30px;
+            }
+
+            .page-header h1 {
+                font-size: 28px;
+            }
+
+            .profile-card {
+                padding: 25px 18px;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .buttons {
+                flex-direction: column;
+            }
+
+            .back-btn,
+            .logout-btn {
+                width: 100%;
+            }
+
+            .active-box {
+                align-items: flex-start;
+            }
         }
 
     </style>
@@ -101,86 +569,295 @@
 
 <body>
 
-    <div class="navbar">
 
-        <h2>TrustShare</h2>
+    <!-- ================= NAVBAR ================= -->
 
-        <button class="logout" onclick="logout()">
-            Logout
-        </button>
+    <nav class="navbar">
 
-    </div>
+        <div class="logo">
+            🔐 TrustShare
+        </div>
+
+        <div class="nav-right">
+
+            <button
+                class="nav-btn"
+                onclick="goDashboard()"
+            >
+                🏠 Dashboard
+            </button>
+
+            <button
+                class="nav-btn"
+                onclick="logout()"
+            >
+                Logout
+            </button>
+
+        </div>
+
+    </nav>
 
 
-    <div class="container">
+    <!-- ================= MAIN ================= -->
 
-        <h1>My Profile</h1>
-
-        <p class="welcome">
-            Welcome to your TrustShare account.
-        </p>
+    <main class="container">
 
 
-        <div class="profile-box">
+        <div class="page-header">
 
-            <div class="profile-item">
+            <h1>
+                My Profile
+            </h1>
 
-                <div class="label">
-                    User ID
-                </div>
+            <p>
+                View your TrustShare account information and security details.
+            </p>
 
-                <div class="value" id="userId">
-                    Loading...
-                </div>
+            <div class="security-badge">
+                🛡️ Secure Account
+            </div>
+
+        </div>
+
+
+        <!-- ================= PROFILE CARD ================= -->
+
+        <div class="profile-card">
+
+
+            <div class="profile-icon">
+                👤
+            </div>
+
+
+            <div class="account-title">
+
+                <h2>
+                    Account Information
+                </h2>
+
+                <p>
+                    Your registered TrustShare account details
+                </p>
 
             </div>
 
 
-            <div class="profile-item">
+            <!-- LOADING -->
 
-                <div class="label">
-                    Name
-                </div>
-
-                <div class="value" id="userName">
-                    Loading...
-                </div>
-
+            <div
+                id="loading"
+                class="loading"
+            >
+                Loading profile...
             </div>
 
 
-            <div class="profile-item">
+            <!-- ERROR -->
 
-                <div class="label">
-                    Email
+            <div
+                id="errorMessage"
+                class="error-message"
+            >
+                Unable to load profile information.
+            </div>
+
+
+            <!-- PROFILE CONTENT -->
+
+            <div
+                id="profileContent"
+                style="display: none;"
+            >
+
+
+                <div class="info-grid">
+
+
+                    <!-- USER ID -->
+
+                    <div class="info-box">
+
+                        <div class="info-label">
+                            🆔 User ID
+                        </div>
+
+                        <div
+                            class="info-value"
+                            id="userId"
+                        >
+                            -
+                        </div>
+
+                    </div>
+
+
+                    <!-- NAME -->
+
+                    <div class="info-box">
+
+                        <div class="info-label">
+                            👤 Name
+                        </div>
+
+                        <div
+                            class="info-value"
+                            id="userName"
+                        >
+                            -
+                        </div>
+
+                    </div>
+
+
+                    <!-- EMAIL -->
+
+                    <div class="info-box">
+
+                        <div class="info-label">
+                            📧 Email Address
+                        </div>
+
+                        <div
+                            class="info-value"
+                            id="userEmail"
+                        >
+                            -
+                        </div>
+
+                    </div>
+
+
+                    <!-- ROLE -->
+
+                    <div class="info-box">
+
+                        <div class="info-label">
+                            🛡️ Account Role
+                        </div>
+
+                        <div class="info-value">
+
+                            <span
+                                class="role-badge"
+                                id="userRole"
+                            >
+                                USER
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
                 </div>
 
-                <div class="value" id="userEmail">
-                    Loading...
+
+                <!-- ACCOUNT ACTIVE -->
+
+                <div class="active-box">
+
+                    <div class="active-icon">
+                        ✅
+                    </div>
+
+                    <div class="active-text">
+
+                        <h3>
+                            Account Active
+                        </h3>
+
+                        <p>
+                            Your TrustShare account is authenticated
+                            and protected by secure access control.
+                        </p>
+
+                    </div>
+
                 </div>
+
+
+                <!-- BUTTONS -->
+
+                <div class="buttons">
+
+                    <button
+                        class="back-btn"
+                        onclick="goDashboard()"
+                    >
+                        🏠 Back to Dashboard
+                    </button>
+
+                    <button
+                        class="logout-btn"
+                        onclick="logout()"
+                    >
+                        ⇥ Logout
+                    </button>
+
+                </div>
+
 
             </div>
 
         </div>
 
 
-        <div id="message"></div>
+        <!-- FOOTER -->
 
-    </div>
+        <footer>
+            🔐 TrustShare • Secure File Sharing System
+        </footer>
 
+
+    </main>
+
+
+    <!-- ================= JAVASCRIPT ================= -->
 
     <script>
 
+
+        const API_URL =
+            "http://127.0.0.1:8000";
+
+
+        // ==========================================
+        // GET TOKEN
+        // ==========================================
+
+        function getToken() {
+
+            return localStorage.getItem(
+                "access_token"
+            );
+
+        }
+
+
+        // ==========================================
+        // LOAD PROFILE
+        // ==========================================
+
         async function loadProfile() {
 
-            const token = localStorage.getItem("access_token");
 
-            const message = document.getElementById("message");
+            const token = getToken();
 
-            // Check whether the user is logged in
+
+            // --------------------------------------
+            // CHECK LOGIN
+            // --------------------------------------
+
             if (!token) {
 
-                window.location.href = "login.html";
+                alert(
+                    "Please login first."
+                );
+
+                window.location.href =
+                    "login.html";
 
                 return;
 
@@ -189,79 +866,291 @@
 
             try {
 
-                const response = await fetch(
-                    "http://127.0.0.1:8000/profile",
-                    {
-                        method: "GET",
 
-                        headers: {
-                            "Authorization": "Bearer " + token
-                        }
-                    }
+                console.log(
+                    "Loading TrustShare profile..."
                 );
 
 
-                const data = await response.json();
+                // ----------------------------------
+                // API REQUEST
+                // ----------------------------------
+
+                const response =
+                    await fetch(
+                        API_URL + "/profile",
+                        {
+                            method: "GET",
+
+                            headers: {
+                                "Authorization":
+                                    "Bearer " + token,
+
+                                "Content-Type":
+                                    "application/json"
+                            }
+                        }
+                    );
 
 
-                if (response.ok) {
+                console.log(
+                    "Profile API status:",
+                    response.status
+                );
 
-                    document.getElementById("userId").innerText =
-                        data.user.user_id;
 
-                    document.getElementById("userEmail").innerText =
-                        data.user.email;
+                // ----------------------------------
+                // UNAUTHORIZED
+                // ----------------------------------
 
-                    const savedName =
-                        localStorage.getItem("user_name");
+                if (response.status === 401) {
 
-                    document.getElementById("userName").innerText =
-                        savedName || "User";
+                    localStorage.removeItem(
+                        "access_token"
+                    );
+
+                    alert(
+                        "Your session has expired. Please login again."
+                    );
+
+                    window.location.href =
+                        "login.html";
+
+                    return;
 
                 }
 
-                else if (response.status === 401) {
 
-                    localStorage.clear();
+                // ----------------------------------
+                // OTHER API ERROR
+                // ----------------------------------
 
-                    window.location.href = "login.html";
+                if (!response.ok) {
+
+                    const errorText =
+                        await response.text();
+
+                    console.error(
+                        "Profile API error:",
+                        errorText
+                    );
+
+                    throw new Error(
+                        "Profile request failed"
+                    );
 
                 }
 
-                else {
 
-                    message.innerText =
-                        "Unable to load profile.";
+                // ----------------------------------
+                // READ RESPONSE
+                // ----------------------------------
 
-                }
+                const data =
+                    await response.json();
+
+
+                console.log(
+                    "Complete profile response:",
+                    data
+                );
+
+
+                /*
+                    This page supports BOTH:
+
+                    FORMAT 1:
+
+                    {
+                        "user_id": 2,
+                        "name": "Akshara",
+                        "email": "example@gmail.com",
+                        "role": "user"
+                    }
+
+
+                    FORMAT 2:
+
+                    {
+                        "user": {
+                            "user_id": 2,
+                            "name": "Akshara",
+                            "email": "example@gmail.com",
+                            "role": "user"
+                        }
+                    }
+                */
+
+
+                const user =
+                    data.user || data;
+
+
+                console.log(
+                    "User information:",
+                    user
+                );
+
+
+                // ----------------------------------
+                // USER ID
+                // ----------------------------------
+
+                document.getElementById(
+                    "userId"
+                ).textContent =
+                    user.user_id ??
+                    user.id ??
+                    "N/A";
+
+
+                // ----------------------------------
+                // NAME
+                // ----------------------------------
+
+                document.getElementById(
+                    "userName"
+                ).textContent =
+                    user.name ??
+                    "N/A";
+
+
+                // ----------------------------------
+                // EMAIL
+                // ----------------------------------
+
+                document.getElementById(
+                    "userEmail"
+                ).textContent =
+                    user.email ??
+                    "N/A";
+
+
+                // ----------------------------------
+                // ROLE
+                // ----------------------------------
+
+                const role =
+                    user.role ??
+                    "user";
+
+
+                document.getElementById(
+                    "userRole"
+                ).textContent =
+                    String(role).toUpperCase();
+
+
+                // ----------------------------------
+                // HIDE LOADING
+                // ----------------------------------
+
+                document.getElementById(
+                    "loading"
+                ).style.display =
+                    "none";
+
+
+                // ----------------------------------
+                // HIDE ERROR
+                // ----------------------------------
+
+                document.getElementById(
+                    "errorMessage"
+                ).style.display =
+                    "none";
+
+
+                // ----------------------------------
+                // SHOW PROFILE
+                // ----------------------------------
+
+                document.getElementById(
+                    "profileContent"
+                ).style.display =
+                    "block";
+
 
             }
 
             catch (error) {
 
-                console.error(error);
 
-                message.innerText =
-                    "Cannot connect to the TrustShare server.";
+                console.error(
+                    "Profile loading error:",
+                    error
+                );
+
+
+                document.getElementById(
+                    "loading"
+                ).style.display =
+                    "none";
+
+
+                document.getElementById(
+                    "errorMessage"
+                ).style.display =
+                    "block";
+
+
+                document.getElementById(
+                    "profileContent"
+                ).style.display =
+                    "none";
+
+
+                document.getElementById(
+                    "errorMessage"
+                ).textContent =
+                    "❌ Unable to load profile information. Please make sure the FastAPI backend is running.";
 
             }
 
         }
 
 
-        function logout() {
+        // ==========================================
+        // GO TO DASHBOARD
+        // ==========================================
 
-            localStorage.clear();
+        function goDashboard() {
 
-            window.location.href = "login.html";
+            window.location.href =
+                "dashboard.html";
 
         }
 
 
-        // Load profile when page opens
+        // ==========================================
+        // LOGOUT
+        // ==========================================
+
+        function logout() {
+
+            localStorage.removeItem(
+                "access_token"
+            );
+
+            localStorage.removeItem(
+                "user"
+            );
+
+            window.location.href =
+                "login.html";
+
+        }
+
+
+        // ==========================================
+        // LOAD PROFILE ON PAGE OPEN
+        // ==========================================
+
         loadProfile();
 
+
     </script>
+
 
 </body>
 

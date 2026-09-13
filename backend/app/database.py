@@ -2,23 +2,34 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from decouple import config
 
-DB_HOST = config("DB_HOST")
-DB_PORT = config("DB_PORT")
-DB_NAME = config("DB_NAME")
-DB_USER = config("DB_USER")
-DB_PASSWORD = config("DB_PASSWORD")
 
-DATABASE_URL = (
-    f"postgresql://{DB_USER}:{DB_PASSWORD}"
-    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+# Read the shared Neon PostgreSQL connection URL from .env
+DATABASE_URL = config("DATABASE_URL")
+
+
+# Create database engine
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True
 )
 
-engine = create_engine(DATABASE_URL)
 
+# Create database session
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
     bind=engine
 )
 
+
+# Base class for database models
 Base = declarative_base()
+
+
+# Database dependency
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

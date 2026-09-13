@@ -5,7 +5,10 @@
 
     <meta charset="UTF-8">
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
     <title>TrustShare - My Files</title>
 
@@ -13,103 +16,1128 @@
 
         * {
             box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
 
         body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #f4f7fb;
+            font-family: "Segoe UI", Arial, sans-serif;
+            min-height: 100vh;
+
+            background:
+                radial-gradient(
+                    circle at 10% 10%,
+                    rgba(99, 102, 241, 0.18),
+                    transparent 30%
+                ),
+                radial-gradient(
+                    circle at 90% 20%,
+                    rgba(236, 72, 153, 0.16),
+                    transparent 30%
+                ),
+                radial-gradient(
+                    circle at 50% 100%,
+                    rgba(6, 182, 212, 0.15),
+                    transparent 35%
+                ),
+                #f5f7ff;
+
+            color: #1e293b;
         }
+
+        /* =====================================================
+           NAVBAR
+        ===================================================== */
 
         .navbar {
-            background: #1f4e79;
-            color: white;
-            padding: 18px 40px;
+            height: 76px;
+            padding: 0 6%;
 
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: space-between;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #312e81,
+                    #4f46e5,
+                    #7c3aed
+                );
+
+            color: white;
+
+            box-shadow:
+                0 8px 25px
+                rgba(79, 70, 229, 0.25);
+
+            position: relative;
+            z-index: 10;
         }
 
-        .navbar h2 {
-            margin: 0;
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 44px;
+            height: 44px;
+
+            border-radius: 13px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            font-size: 23px;
+
+            background:
+                rgba(255,255,255,0.18);
+
+            border:
+                1px solid
+                rgba(255,255,255,0.25);
+
+            box-shadow:
+                0 5px 15px
+                rgba(0,0,0,0.12);
+        }
+
+        .brand h2 {
+            font-size: 22px;
+            letter-spacing: 0.3px;
+        }
+
+        .brand small {
+            display: block;
+            color: #ddd6fe;
+            font-size: 10px;
+            letter-spacing: 1px;
+            margin-top: 2px;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .dashboard-button,
+        .logout {
+            border: none;
+            color: white;
+
+            padding: 10px 17px;
+
+            border-radius: 10px;
+
+            cursor: pointer;
+
+            font-weight: 600;
+            font-size: 13px;
+
+            transition: 0.3s;
         }
 
         .dashboard-button {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 6px;
-            cursor: pointer;
-            margin-right: 10px;
+            background:
+                rgba(255,255,255,0.16);
+
+            border:
+                1px solid
+                rgba(255,255,255,0.2);
         }
 
         .dashboard-button:hover {
-            background: #218838;
+            background:
+                rgba(255,255,255,0.27);
+
+            transform:
+                translateY(-2px);
         }
 
         .logout {
-            background: #dc3545;
-            color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 6px;
-            cursor: pointer;
+            background:
+                linear-gradient(
+                    135deg,
+                    #ef4444,
+                    #ec4899
+                );
+
+            box-shadow:
+                0 5px 12px
+                rgba(239,68,68,0.25);
         }
 
         .logout:hover {
-            background: #b02a37;
+            transform:
+                translateY(-2px);
+
+            box-shadow:
+                0 8px 18px
+                rgba(239,68,68,0.35);
         }
+
+        /* =====================================================
+           CONTAINER
+        ===================================================== */
 
         .container {
             width: 90%;
-            max-width: 1000px;
-            margin: 40px auto;
+            max-width: 1150px;
+
+            margin: 38px auto 60px;
         }
 
-        .header,
-        .upload-box,
-        .files-box {
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+        /* =====================================================
+           HEADER
+        ===================================================== */
+
+        .header {
+            position: relative;
+            overflow: hidden;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ffffff,
+                    #f5f3ff
+                );
+
+            padding: 32px 35px;
+
+            border-radius: 22px;
+
             margin-bottom: 25px;
+
+            border:
+                1px solid #e4e4f7;
+
+            box-shadow:
+                0 12px 35px
+                rgba(79,70,229,0.09);
         }
 
-        h1,
-        h2 {
-            color: #1f4e79;
+        .header::before {
+            content: "";
+
+            position: absolute;
+
+            width: 180px;
+            height: 180px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(124,58,237,0.08);
+
+            right: -60px;
+            top: -80px;
         }
+
+        .header::after {
+            content: "";
+
+            position: absolute;
+
+            width: 100px;
+            height: 100px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(236,72,153,0.08);
+
+            right: 100px;
+            bottom: -65px;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .header-badge {
+            display: inline-flex;
+
+            align-items: center;
+            gap: 7px;
+
+            padding: 6px 12px;
+
+            border-radius: 30px;
+
+            background:
+                #ede9fe;
+
+            color:
+                #6d28d9;
+
+            font-size: 11px;
+            font-weight: 700;
+
+            margin-bottom: 12px;
+        }
+
+        .header h1 {
+            color:
+                #312e81;
+
+            font-size: 32px;
+
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color:
+                #64748b;
+
+            font-size: 14px;
+
+            line-height: 1.6;
+        }
+
+        /* =====================================================
+           UPLOAD BOX
+        ===================================================== */
+
+        .upload-box {
+            position: relative;
+            overflow: hidden;
+
+            background: white;
+
+            padding: 30px;
+
+            border-radius: 20px;
+
+            margin-bottom: 25px;
+
+            border:
+                1px solid #e5e7eb;
+
+            box-shadow:
+                0 10px 30px
+                rgba(15,23,42,0.08);
+        }
+
+        .upload-box::before {
+            content: "";
+
+            position: absolute;
+
+            left: 0;
+            top: 0;
+
+            width: 100%;
+            height: 5px;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #06b6d4,
+                    #6366f1,
+                    #a855f7,
+                    #ec4899
+                );
+        }
+
+        .upload-title {
+            display: flex;
+
+            align-items: center;
+
+            gap: 13px;
+
+            margin-bottom: 18px;
+        }
+
+        .upload-icon {
+            width: 50px;
+            height: 50px;
+
+            border-radius: 14px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            font-size: 25px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #cffafe,
+                    #ddd6fe
+                );
+        }
+
+        .upload-title h2 {
+            color:
+                #312e81;
+
+            font-size: 20px;
+        }
+
+        .upload-title span {
+            display: block;
+
+            color:
+                #94a3b8;
+
+            font-size: 11px;
+
+            margin-top: 3px;
+        }
+
+        /* =====================================================
+           FILE INPUT
+        ===================================================== */
+
+        .file-input-wrapper {
+            padding: 22px;
+
+            border-radius: 15px;
+
+            border:
+                2px dashed #c4b5fd;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #faf5ff,
+                    #eff6ff
+                );
+
+            text-align: center;
+
+            transition: 0.3s;
+        }
+
+        .file-input-wrapper:hover {
+            border-color:
+                #7c3aed;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #f5f3ff,
+                    #ecfeff
+                );
+        }
+
+        .file-input-label {
+            display: block;
+
+            color:
+                #4f46e5;
+
+            font-weight: 600;
+
+            font-size: 14px;
+
+            margin-bottom: 10px;
+        }
+
+        #fileInput {
+            max-width: 100%;
+
+            font-size: 13px;
+
+            color:
+                #475569;
+        }
+
+        /* =====================================================
+           SELECTED FILES
+        ===================================================== */
+
+        .selected-files {
+            margin-top: 18px;
+
+            padding: 15px 18px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #eff6ff,
+                    #f5f3ff
+                );
+
+            border-radius: 12px;
+
+            border:
+                1px solid #dbeafe;
+
+            display: none;
+
+            color:
+                #475569;
+
+            line-height: 1.8;
+
+            font-size: 13px;
+        }
+
+        .selected-files strong {
+            color:
+                #4f46e5;
+        }
+
+        /* =====================================================
+           UPLOAD BUTTON
+        ===================================================== */
 
         .upload-button {
-            background: #1f4e79;
-            color: white;
+            width: 100%;
+
+            margin-top: 18px;
+
+            padding: 13px 20px;
+
             border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
+
+            border-radius: 11px;
+
+            color: white;
+
+            font-size: 14px;
+
+            font-weight: 700;
+
             cursor: pointer;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #06b6d4,
+                    #4f46e5,
+                    #7c3aed
+                );
+
+            box-shadow:
+                0 8px 18px
+                rgba(79,70,229,0.22);
+
+            transition: 0.3s;
         }
 
         .upload-button:hover {
-            background: #163a5c;
+            transform:
+                translateY(-3px);
+
+            box-shadow:
+                0 12px 25px
+                rgba(79,70,229,0.32);
+        }
+
+        .upload-button:disabled {
+            background:
+                #94a3b8;
+
+            cursor:
+                not-allowed;
+
+            transform:
+                none;
+
+            box-shadow:
+                none;
         }
 
         #message {
             margin-top: 15px;
-            color: #555;
+
+            padding: 10px;
+
+            text-align: center;
+
+            color:
+                #475569;
+
+            font-size: 13px;
         }
 
+        /* =====================================================
+           FILES BOX
+        ===================================================== */
+
+        .files-box {
+            background: white;
+
+            padding: 28px;
+
+            border-radius: 20px;
+
+            border:
+                1px solid #e5e7eb;
+
+            box-shadow:
+                0 10px 30px
+                rgba(15,23,42,0.08);
+        }
+
+        .files-heading {
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            margin-bottom: 20px;
+        }
+
+        .files-heading-left {
+            display: flex;
+
+            align-items: center;
+
+            gap: 12px;
+        }
+
+        .folder-icon {
+            width: 45px;
+            height: 45px;
+
+            border-radius: 13px;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #fef3c7,
+                    #fde68a
+                );
+
+            font-size: 22px;
+        }
+
+        .files-heading h2 {
+            color:
+                #312e81;
+
+            font-size: 20px;
+        }
+
+        .files-heading p {
+            color:
+                #94a3b8;
+
+            font-size: 11px;
+
+            margin-top: 3px;
+        }
+
+        .file-count {
+            padding: 7px 13px;
+
+            border-radius: 30px;
+
+            background:
+                #ede9fe;
+
+            color:
+                #6d28d9;
+
+            font-size: 12px;
+
+            font-weight: 700;
+        }
+
+        /* =====================================================
+           FILE LIST
+        ===================================================== */
+
         #fileList {
-            margin-top: 15px;
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 12px;
         }
 
         .file-item {
-            background: #f4f7fb;
-            padding: 12px;
+            display: flex;
+
+            align-items: center;
+
+            gap: 15px;
+
+            padding: 17px;
+
+            border-radius: 15px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #f8fafc,
+                    #f5f3ff
+                );
+
+            border:
+                1px solid #e7e5f8;
+
+            transition: 0.3s;
+        }
+
+        .file-item:hover {
+            transform:
+                translateX(5px);
+
+            border-color:
+                #c4b5fd;
+
+            box-shadow:
+                0 8px 20px
+                rgba(99,102,241,0.10);
+        }
+
+        .file-symbol {
+            width: 48px;
+            height: 48px;
+
+            flex-shrink: 0;
+
+            border-radius: 13px;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            font-size: 22px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #dbeafe,
+                    #e0e7ff
+                );
+        }
+
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            display: block;
+
+            font-size: 14px;
+
+            color:
+                #334155;
+
+            font-weight: 650;
+
+            word-break: break-word;
+        }
+
+        .file-subtitle {
+            display: block;
+
+            color:
+                #94a3b8;
+
+            font-size: 11px;
+
+            margin-top: 4px;
+        }
+
+        .file-id-text {
+            display: block;
+
+            color:
+                #64748b;
+
+            font-size: 10px;
+
+            margin-top: 3px;
+        }
+
+        .file-actions {
+            display: flex;
+
+            gap: 7px;
+
+            flex-wrap: wrap;
+
+            justify-content: flex-end;
+        }
+
+        /* =====================================================
+           FILE BUTTONS
+        ===================================================== */
+
+        .download-button,
+        .share-button,
+        .temporary-button,
+        .delete-button {
+            color: white;
+
+            border: none;
+
+            padding: 9px 13px;
+
+            border-radius: 9px;
+
+            cursor: pointer;
+
+            font-size: 12px;
+
+            font-weight: 600;
+
+            white-space: nowrap;
+
+            transition: 0.25s;
+        }
+
+        .download-button {
+            background:
+                linear-gradient(
+                    135deg,
+                    #0ea5e9,
+                    #2563eb
+                );
+        }
+
+        .share-button {
+            background:
+                linear-gradient(
+                    135deg,
+                    #8b5cf6,
+                    #a855f7
+                );
+        }
+
+        .temporary-button {
+            background:
+                linear-gradient(
+                    135deg,
+                    #f59e0b,
+                    #f97316
+                );
+        }
+
+        .delete-button {
+            background:
+                linear-gradient(
+                    135deg,
+                    #ef4444,
+                    #dc2626
+                );
+        }
+
+        .download-button:hover,
+        .share-button:hover,
+        .temporary-button:hover,
+        .delete-button:hover {
+            transform:
+                translateY(-2px);
+        }
+
+        .download-button:disabled,
+        .share-button:disabled,
+        .temporary-button:disabled,
+        .delete-button:disabled {
+            background:
+                #94a3b8;
+
+            cursor:
+                not-allowed;
+
+            transform:
+                none;
+        }
+
+        /* =====================================================
+           TEMPORARY LINK BOX
+        ===================================================== */
+
+        .temporary-link-box {
+            background:
+                linear-gradient(
+                    135deg,
+                    #fff7ed,
+                    #fdf4ff,
+                    #eff6ff
+                );
+
+            border:
+                2px solid #c084fc;
+
+            border-radius: 18px;
+
+            padding: 24px;
+
+            margin-bottom: 25px;
+
+            display: none;
+
+            box-shadow:
+                0 10px 30px
+                rgba(168,85,247,0.12);
+
+            position: relative;
+
+            overflow: hidden;
+        }
+
+        .temporary-link-box::before {
+            content: "🔗";
+
+            position: absolute;
+
+            right: 25px;
+            top: 15px;
+
+            font-size: 55px;
+
+            opacity: 0.08;
+        }
+
+        .temporary-link-box h3 {
+            color:
+                #7e22ce;
+
+            font-size: 19px;
+
+            margin-bottom: 8px;
+        }
+
+        .temporary-link-box > p {
+            color:
+                #64748b;
+
+            font-size: 13px;
+        }
+
+        .temporary-url {
+            background:
+                white;
+
+            padding: 14px;
+
+            border-radius: 10px;
+
+            word-break: break-all;
+
+            margin: 14px 0;
+
+            border:
+                1px solid #ddd6fe;
+
+            font-size: 13px;
+        }
+
+        .temporary-url a {
+            color:
+                #4f46e5;
+
+            text-decoration:
+                none;
+
+            font-weight: 600;
+        }
+
+        .expiry-text {
+            color:
+                #ea580c;
+
+            font-weight:
+                700;
+
+            font-size:
+                13px;
+
+            margin-bottom:
+                15px;
+        }
+
+        .copy-button,
+        .open-link-button {
+            border: none;
+
+            padding: 10px 15px;
+
+            border-radius: 9px;
+
+            color: white;
+
+            cursor: pointer;
+
+            font-size: 12px;
+
+            font-weight: 600;
+
+            transition: 0.25s;
+        }
+
+        .copy-button {
+            background:
+                linear-gradient(
+                    135deg,
+                    #6366f1,
+                    #7c3aed
+                );
+        }
+
+        .open-link-button {
+            background:
+                linear-gradient(
+                    135deg,
+                    #10b981,
+                    #059669
+                );
+
+            margin-left: 6px;
+        }
+
+        .copy-button:hover,
+        .open-link-button:hover {
+            transform:
+                translateY(-2px);
+        }
+
+        /* =====================================================
+           EMPTY / LOADING
+        ===================================================== */
+
+        .empty-message {
+            text-align: center;
+
+            padding: 35px 15px;
+
+            color:
+                #94a3b8;
+
+            font-size: 14px;
+        }
+
+        .empty-message-icon {
+            font-size: 38px;
+
             margin-bottom: 10px;
-            border-radius: 6px;
+        }
+
+        /* =====================================================
+           RESPONSIVE
+        ===================================================== */
+
+        @media (max-width: 900px) {
+
+            .file-item {
+                align-items:
+                    flex-start;
+            }
+
+            .file-actions {
+                width:
+                    100%;
+
+                justify-content:
+                    flex-start;
+            }
+
+        }
+
+        @media (max-width: 600px) {
+
+            .navbar {
+                padding:
+                    0 18px;
+            }
+
+            .brand small {
+                display:
+                    none;
+            }
+
+            .brand h2 {
+                font-size:
+                    19px;
+            }
+
+            .dashboard-button,
+            .logout {
+                padding:
+                    8px 11px;
+
+                font-size:
+                    11px;
+            }
+
+            .container {
+                width:
+                    94%;
+
+                margin-top:
+                    25px;
+            }
+
+            .header {
+                padding:
+                    26px 22px;
+            }
+
+            .header h1 {
+                font-size:
+                    26px;
+            }
+
+            .upload-box,
+            .files-box {
+                padding:
+                    22px 18px;
+            }
+
+            .files-heading {
+                align-items:
+                    flex-start;
+            }
+
+            .file-item {
+                flex-direction:
+                    column;
+            }
+
+            .file-info {
+                width:
+                    100%;
+            }
+
+            .file-actions {
+                display:
+                    grid;
+
+                grid-template-columns:
+                    1fr;
+
+                width:
+                    100%;
+            }
+
+            .download-button,
+            .share-button,
+            .temporary-button,
+            .delete-button {
+                width:
+                    100%;
+            }
+
+            .open-link-button {
+                margin-left:
+                    0;
+
+                margin-top:
+                    6px;
+            }
+
         }
 
     </style>
@@ -119,29 +1147,48 @@
 
 <body>
 
-
-    <!-- Navigation -->
+    <!-- =====================================================
+         NAVBAR
+    ====================================================== -->
 
     <div class="navbar">
 
-        <h2>TrustShare</h2>
+        <div class="brand">
 
-        <div>
+            <div class="brand-icon">
+                🔐
+            </div>
+
+            <div>
+
+                <h2>
+                    TrustShare
+                </h2>
+
+                <small>
+                    SECURE FILE SHARING
+                </small>
+
+            </div>
+
+        </div>
+
+
+        <div class="nav-buttons">
 
             <button
                 class="dashboard-button"
-                onclick="goToDashboard()">
-
-                Dashboard
-
+                onclick="goToDashboard()"
+            >
+                🏠 Dashboard
             </button>
+
 
             <button
                 class="logout"
-                onclick="logout()">
-
-                Logout
-
+                onclick="logout()"
+            >
+                ⇥ Logout
             </button>
 
         </div>
@@ -149,59 +1196,34 @@
     </div>
 
 
+    <!-- =====================================================
+         MAIN
+    ====================================================== -->
+
     <div class="container">
 
 
-        <!-- Header -->
+        <!-- =================================================
+             HEADER
+        ================================================== -->
 
         <div class="header">
 
-            <h1>My Files</h1>
+            <div class="header-content">
 
-            <p>
-                Manage your uploaded files securely.
-            </p>
-
-        </div>
+                <div class="header-badge">
+                    🔒 Secure Storage
+                </div>
 
 
-        <!-- Upload File -->
+                <h1>
+                    My Files
+                </h1>
 
-        <div class="upload-box">
-
-            <h2>Upload File</h2>
-
-            <input
-                type="file"
-                id="fileInput"
-            >
-
-            <br>
-            <br>
-
-            <button
-                class="upload-button"
-                onclick="uploadFile()">
-
-                Upload File
-
-            </button>
-
-            <div id="message"></div>
-
-        </div>
-
-
-        <!-- Uploaded Files -->
-
-        <div class="files-box">
-
-            <h2>My Uploaded Files</h2>
-
-            <div id="fileList">
 
                 <p>
-                    Loading your files...
+                    Manage, protect and securely share
+                    your uploaded files from one place.
                 </p>
 
             </div>
@@ -209,18 +1231,206 @@
         </div>
 
 
+        <!-- =================================================
+             UPLOAD SECTION
+        ================================================== -->
+
+        <div class="upload-box">
+
+            <div class="upload-title">
+
+                <div class="upload-icon">
+                    ☁️
+                </div>
+
+
+                <div>
+
+                    <h2>
+                        Upload Files
+                    </h2>
+
+                    <span>
+                        Select one or multiple files
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div class="file-input-wrapper">
+
+                <label
+                    class="file-input-label"
+                    for="fileInput"
+                >
+                    📤 Choose files to upload
+                </label>
+
+
+                <input
+                    type="file"
+                    id="fileInput"
+                    multiple
+                    onchange="showSelectedFiles()"
+                >
+
+            </div>
+
+
+            <div
+                id="selectedFiles"
+                class="selected-files"
+            >
+            </div>
+
+
+            <button
+                id="uploadButton"
+                class="upload-button"
+                onclick="uploadFiles()"
+            >
+                🚀 Upload Selected Files
+            </button>
+
+
+            <div id="message"></div>
+
+        </div>
+
+
+        <!-- =================================================
+             TEMPORARY LINK
+        ================================================== -->
+
+        <div
+            id="temporaryLinkBox"
+            class="temporary-link-box"
+        >
+
+            <h3>
+                🔗 Temporary Link Created
+            </h3>
+
+
+            <p>
+                Share this secure temporary link with
+                the recipient:
+            </p>
+
+
+            <div
+                id="temporaryUrl"
+                class="temporary-url"
+            >
+            </div>
+
+
+            <p
+                id="expiryText"
+                class="expiry-text"
+            >
+                ⏱ This link expires in 12 hours.
+            </p>
+
+
+            <button
+                class="copy-button"
+                onclick="copyTemporaryLink()"
+            >
+                📋 Copy Link
+            </button>
+
+
+            <button
+                class="open-link-button"
+                onclick="openTemporaryLink()"
+            >
+                🔗 Open Link
+            </button>
+
+        </div>
+
+
+        <!-- =================================================
+             FILE LIST
+        ================================================== -->
+
+        <div class="files-box">
+
+            <div class="files-heading">
+
+                <div class="files-heading-left">
+
+                    <div class="folder-icon">
+                        📁
+                    </div>
+
+
+                    <div>
+
+                        <h2>
+                            My Uploaded Files
+                        </h2>
+
+                        <p>
+                            Your securely stored files
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="fileCount"
+                    class="file-count"
+                >
+                    Loading...
+                </div>
+
+            </div>
+
+
+            <div id="fileList">
+
+                <div class="empty-message">
+
+                    <div class="empty-message-icon">
+                        ⏳
+                    </div>
+
+                    Loading your files...
+
+                </div>
+
+            </div>
+
+        </div>
+
     </div>
 
 
     <script>
 
+        // ==================================================
+        // GLOBAL TEMPORARY LINK
+        // ==================================================
 
-        // Check login
+        let currentTemporaryLink = "";
+
+
+        // ==================================================
+        // CHECK LOGIN
+        // ==================================================
 
         function checkLogin() {
 
             const token =
-                localStorage.getItem("access_token");
+                localStorage.getItem(
+                    "access_token"
+                );
 
 
             if (!token) {
@@ -229,6 +1439,7 @@
                     "login.html";
 
                 return false;
+
             }
 
 
@@ -237,8 +1448,76 @@
         }
 
 
+        // ==================================================
+        // SHOW SELECTED FILES
+        // ==================================================
 
-        // Load uploaded files
+        function showSelectedFiles() {
+
+            const fileInput =
+                document.getElementById(
+                    "fileInput"
+                );
+
+
+            const selectedFilesBox =
+                document.getElementById(
+                    "selectedFiles"
+                );
+
+
+            const files =
+                fileInput.files;
+
+
+            if (!files.length) {
+
+                selectedFilesBox.style.display =
+                    "none";
+
+                selectedFilesBox.innerHTML =
+                    "";
+
+                return;
+
+            }
+
+
+            let html =
+                "<strong>📋 Selected files (" +
+                files.length +
+                "):</strong><br><br>";
+
+
+            for (
+                let i = 0;
+                i < files.length;
+                i++
+            ) {
+
+                html +=
+                    "📄 " +
+                    escapeHtml(
+                        files[i].name
+                    ) +
+                    "<br>";
+
+            }
+
+
+            selectedFilesBox.innerHTML =
+                html;
+
+
+            selectedFilesBox.style.display =
+                "block";
+
+        }
+
+
+        // ==================================================
+        // LOAD FILES
+        // ==================================================
 
         async function loadFiles() {
 
@@ -254,6 +1533,33 @@
                 );
 
 
+            const fileCount =
+                document.getElementById(
+                    "fileCount"
+                );
+
+
+            if (!token) {
+
+                window.location.href =
+                    "login.html";
+
+                return;
+
+            }
+
+
+            fileList.innerHTML =
+                `
+                <div class="empty-message">
+                    <div class="empty-message-icon">
+                        ⏳
+                    </div>
+                    Loading your files...
+                </div>
+                `;
+
+
             try {
 
                 const response =
@@ -263,20 +1569,25 @@
                             method: "GET",
 
                             headers: {
+
                                 "Authorization":
-                                    "Bearer " + token
+                                    "Bearer " + token,
+
+                                "Accept":
+                                    "application/json"
+
                             }
                         }
                     );
 
 
-                const data =
-                    await response.json();
+                // =========================================
+                // 401
+                // =========================================
 
-
-                // Unauthorized
-
-                if (response.status === 401) {
+                if (
+                    response.status === 401
+                ) {
 
                     localStorage.clear();
 
@@ -284,43 +1595,205 @@
                         "login.html";
 
                     return;
+
                 }
 
 
-                // Other error
+                // =========================================
+                // 403
+                // =========================================
+
+                if (
+                    response.status === 403
+                ) {
+
+                    fileCount.innerText =
+                        "0 Files";
+
+
+                    fileList.innerHTML =
+                        `
+                        <div class="empty-message">
+
+                            <div class="empty-message-icon">
+                                🚫
+                            </div>
+
+                            You are not authorized to view these files.
+
+                        </div>
+                        `;
+
+                    return;
+
+                }
+
+
+                // =========================================
+                // OTHER ERRORS
+                // =========================================
 
                 if (!response.ok) {
 
+                    fileCount.innerText =
+                        "0 Files";
+
+
                     fileList.innerHTML =
-                        "<p>Unable to load files.</p>";
+                        `
+                        <div class="empty-message">
+
+                            <div class="empty-message-icon">
+                                ⚠️
+                            </div>
+
+                            Unable to load files.
+
+                        </div>
+                        `;
 
                     return;
+
                 }
 
 
-                // No files
+                // =========================================
+                // READ JSON
+                // =========================================
+
+                const data =
+                    await response.json();
+
+
+                console.log(
+                    "Files received from backend:",
+                    data
+                );
+
+
+                // =========================================
+                // FIXED FILE RESPONSE HANDLING
+                //
+                // Supports BOTH:
+                //
+                // 1. Backend returns:
+                //    [
+                //       {...},
+                //       {...}
+                //    ]
+                //
+                // 2. Backend returns:
+                //    {
+                //       "files": [...]
+                //    }
+                // =========================================
+
+                let files = [];
+
 
                 if (
-                    !data.files ||
-                    data.files.length === 0
+                    Array.isArray(data)
                 ) {
 
-                    fileList.innerHTML =
-                        "<p>No files uploaded yet.</p>";
+                    files =
+                        data;
 
-                    return;
+                }
+
+                else if (
+                    data &&
+                    Array.isArray(data.files)
+                ) {
+
+                    files =
+                        data.files;
+
                 }
 
 
-                // Clear loading message
+                console.log(
+                    "Files to display:",
+                    files
+                );
 
-                fileList.innerHTML = "";
+
+                // =========================================
+                // NO FILES
+                // =========================================
+
+                if (
+                    files.length === 0
+                ) {
+
+                    fileCount.innerText =
+                        "0 Files";
 
 
-                // Display each file
+                    fileList.innerHTML =
+                        `
+                        <div class="empty-message">
 
-                data.files.forEach(
-                    function(filename) {
+                            <div class="empty-message-icon">
+                                📂
+                            </div>
+
+                            No files uploaded yet.
+
+                        </div>
+                        `;
+
+                    return;
+
+                }
+
+
+                // =========================================
+                // FILE COUNT
+                // =========================================
+
+                fileCount.innerText =
+                    files.length +
+                    (
+                        files.length === 1
+                            ? " File"
+                            : " Files"
+                    );
+
+
+                // =========================================
+                // CLEAR OLD LIST
+                // =========================================
+
+                fileList.innerHTML =
+                    "";
+
+
+                // =========================================
+                // DISPLAY FILES
+                // =========================================
+
+                files.forEach(
+                    function(file) {
+
+
+                        // ---------------------------------
+                        // GET FILE ID
+                        // ---------------------------------
+
+                        const fileId =
+                            file.file_id ||
+                            file.id;
+
+
+                        // ---------------------------------
+                        // GET FILE NAME
+                        // ---------------------------------
+
+                        const fileName =
+                            file.filename ||
+                            file.original_name ||
+                            "Unnamed file";
+
 
                         const fileItem =
                             document.createElement(
@@ -332,8 +1805,269 @@
                             "file-item";
 
 
-                        fileItem.innerText =
-                            "📄 " + filename;
+                        // ---------------------------------
+                        // FILE SYMBOL
+                        // ---------------------------------
+
+                        const fileSymbol =
+                            document.createElement(
+                                "div"
+                            );
+
+
+                        fileSymbol.className =
+                            "file-symbol";
+
+
+                        fileSymbol.innerText =
+                            "📄";
+
+
+                        // ---------------------------------
+                        // FILE INFO
+                        // ---------------------------------
+
+                        const fileInfo =
+                            document.createElement(
+                                "div"
+                            );
+
+
+                        fileInfo.className =
+                            "file-info";
+
+
+                        const fileNameElement =
+                            document.createElement(
+                                "span"
+                            );
+
+
+                        fileNameElement.className =
+                            "file-name";
+
+
+                        fileNameElement.innerText =
+                            fileName;
+
+
+                        const fileSubtitle =
+                            document.createElement(
+                                "span"
+                            );
+
+
+                        fileSubtitle.className =
+                            "file-subtitle";
+
+
+                        fileSubtitle.innerText =
+                            "🔐 Securely stored";
+
+
+                        const fileIdText =
+                            document.createElement(
+                                "span"
+                            );
+
+
+                        fileIdText.className =
+                            "file-id-text";
+
+
+                        fileIdText.innerText =
+                            "File ID: " +
+                            fileId;
+
+
+                        fileInfo.appendChild(
+                            fileNameElement
+                        );
+
+
+                        fileInfo.appendChild(
+                            fileSubtitle
+                        );
+
+
+                        fileInfo.appendChild(
+                            fileIdText
+                        );
+
+
+                        // ---------------------------------
+                        // ACTIONS
+                        // ---------------------------------
+
+                        const actions =
+                            document.createElement(
+                                "div"
+                            );
+
+
+                        actions.className =
+                            "file-actions";
+
+
+                        // =================================
+                        // DOWNLOAD
+                        // =================================
+
+                        const downloadButton =
+                            document.createElement(
+                                "button"
+                            );
+
+
+                        downloadButton.className =
+                            "download-button";
+
+
+                        downloadButton.innerText =
+                            "⬇ Download";
+
+
+                        downloadButton.onclick =
+                            function() {
+
+                                downloadFile(
+                                    fileId,
+                                    fileName,
+                                    downloadButton
+                                );
+
+                            };
+
+
+                        // =================================
+                        // SHARE
+                        // =================================
+
+                        const shareButton =
+                            document.createElement(
+                                "button"
+                            );
+
+
+                        shareButton.className =
+                            "share-button";
+
+
+                        shareButton.innerText =
+                            "🔗 Share";
+
+
+                        shareButton.onclick =
+                            function() {
+
+                                shareFile(
+                                    fileName,
+                                    shareButton
+                                );
+
+                            };
+
+
+                        // =================================
+                        // TEMPORARY LINK
+                        // =================================
+
+                        const temporaryButton =
+                            document.createElement(
+                                "button"
+                            );
+
+
+                        temporaryButton.className =
+                            "temporary-button";
+
+
+                        temporaryButton.innerText =
+                            "⏱ Temporary Link";
+
+
+                        temporaryButton.onclick =
+                            function() {
+
+                                createTemporaryLink(
+                                    fileId,
+                                    temporaryButton
+                                );
+
+                            };
+
+
+                        // =================================
+                        // DELETE
+                        // =================================
+
+                        const deleteButton =
+                            document.createElement(
+                                "button"
+                            );
+
+
+                        deleteButton.className =
+                            "delete-button";
+
+
+                        deleteButton.innerText =
+                            "🗑 Delete";
+
+
+                        deleteButton.onclick =
+                            function() {
+
+                                deleteFile(
+                                    fileId,
+                                    fileName,
+                                    deleteButton
+                                );
+
+                            };
+
+
+                        // =================================
+                        // ADD BUTTONS
+                        // =================================
+
+                        actions.appendChild(
+                            downloadButton
+                        );
+
+
+                        actions.appendChild(
+                            shareButton
+                        );
+
+
+                        actions.appendChild(
+                            temporaryButton
+                        );
+
+
+                        actions.appendChild(
+                            deleteButton
+                        );
+
+
+                        // =================================
+                        // ADD TO FILE ITEM
+                        // =================================
+
+                        fileItem.appendChild(
+                            fileSymbol
+                        );
+
+
+                        fileItem.appendChild(
+                            fileInfo
+                        );
+
+
+                        fileItem.appendChild(
+                            actions
+                        );
 
 
                         fileList.appendChild(
@@ -348,20 +2082,903 @@
 
             catch (error) {
 
-                console.error(error);
+                console.error(
+                    "Load files error:",
+                    error
+                );
+
+
+                fileCount.innerText =
+                    "0 Files";
+
 
                 fileList.innerHTML =
-                    "<p>Cannot connect to TrustShare server.</p>";
+                    `
+                    <div class="empty-message">
+
+                        <div class="empty-message-icon">
+                            🔌
+                        </div>
+
+                        Cannot connect to TrustShare server.
+
+                    </div>
+                    `;
 
             }
 
         }
 
 
+        // ==================================================
+        // DOWNLOAD FILE
+        // ==================================================
 
-        // Upload file
+        async function downloadFile(
+            fileId,
+            fileName,
+            button
+        ) {
 
-        async function uploadFile() {
+            const token =
+                localStorage.getItem(
+                    "access_token"
+                );
+
+
+            if (!token) {
+
+                window.location.href =
+                    "login.html";
+
+                return;
+
+            }
+
+
+            try {
+
+                button.disabled =
+                    true;
+
+                button.innerText =
+                    "Downloading...";
+
+
+                const response =
+                    await fetch(
+                        "http://127.0.0.1:8000/download/"
+                        + encodeURIComponent(
+                            fileId
+                        ),
+                        {
+                            method: "GET",
+
+                            headers: {
+
+                                "Authorization":
+                                    "Bearer " + token,
+
+                                "Accept":
+                                    "application/octet-stream"
+
+                            }
+                        }
+                    );
+
+
+                // =========================================
+                // 401
+                // =========================================
+
+                if (
+                    response.status === 401
+                ) {
+
+                    localStorage.clear();
+
+                    window.location.href =
+                        "login.html";
+
+                    return;
+
+                }
+
+
+                // =========================================
+                // ERROR RESPONSE
+                // =========================================
+
+                if (!response.ok) {
+
+                    let errorMessage =
+                        "Download failed.";
+
+
+                    try {
+
+                        const errorData =
+                            await response.json();
+
+
+                        if (
+                            errorData.detail
+                        ) {
+
+                            errorMessage =
+                                errorData.detail;
+
+                        }
+
+                    }
+
+                    catch (e) {}
+
+
+                    alert(
+                        "Download failed for "
+                        + fileName
+                        + ".\n\n"
+                        + errorMessage
+                    );
+
+
+                    return;
+
+                }
+
+
+                // =========================================
+                // GET FILE BLOB
+                // =========================================
+
+                const blob =
+                    await response.blob();
+
+
+                if (
+                    !blob ||
+                    blob.size === 0
+                ) {
+
+                    alert(
+                        "The downloaded file is empty."
+                    );
+
+                    return;
+
+                }
+
+
+                // =========================================
+                // CREATE DOWNLOAD LINK
+                // =========================================
+
+                const url =
+                    window.URL.createObjectURL(
+                        blob
+                    );
+
+
+                const link =
+                    document.createElement(
+                        "a"
+                    );
+
+
+                link.href =
+                    url;
+
+
+                link.download =
+                    fileName;
+
+
+                document.body.appendChild(
+                    link
+                );
+
+
+                link.click();
+
+
+                document.body.removeChild(
+                    link
+                );
+
+
+                setTimeout(
+                    function() {
+
+                        window.URL.revokeObjectURL(
+                            url
+                        );
+
+                    },
+                    1000
+                );
+
+            }
+
+
+            catch (error) {
+
+                console.error(
+                    "Download error:",
+                    error
+                );
+
+
+                alert(
+                    "Cannot connect to TrustShare server."
+                );
+
+            }
+
+
+            finally {
+
+                button.disabled =
+                    false;
+
+
+                button.innerText =
+                    "⬇ Download";
+
+            }
+
+        }
+
+
+        // ==================================================
+        // SHARE FILE
+        // ==================================================
+
+        async function shareFile(
+            filename,
+            button
+        ) {
+
+            const token =
+                localStorage.getItem(
+                    "access_token"
+                );
+
+
+            if (!token) {
+
+                window.location.href =
+                    "login.html";
+
+                return;
+
+            }
+
+
+            const recipientEmail =
+                prompt(
+                    "Enter recipient email:"
+                );
+
+
+            if (!recipientEmail) {
+
+                return;
+
+            }
+
+
+            const permissionInput =
+                prompt(
+                    "Enter permission:\n\nread = view/download\n\ndownload = download access",
+                    "read"
+                );
+
+
+            if (!permissionInput) {
+
+                return;
+
+            }
+
+
+            const permission =
+                permissionInput
+                    .trim()
+                    .toLowerCase();
+
+
+            if (
+                permission !== "read" &&
+                permission !== "download"
+            ) {
+
+                alert(
+                    "Permission must be read or download."
+                );
+
+                return;
+
+            }
+
+
+            try {
+
+                button.disabled =
+                    true;
+
+
+                button.innerText =
+                    "Sharing...";
+
+
+                const url =
+                    "http://127.0.0.1:8000/share"
+                    + "?filename="
+                    + encodeURIComponent(
+                        filename
+                    )
+                    + "&recipient_email="
+                    + encodeURIComponent(
+                        recipientEmail
+                    )
+                    + "&permission="
+                    + encodeURIComponent(
+                        permission
+                    );
+
+
+                const response =
+                    await fetch(
+                        url,
+                        {
+                            method: "POST",
+
+                            headers: {
+
+                                "Authorization":
+                                    "Bearer " + token,
+
+                                "Accept":
+                                    "application/json"
+
+                            }
+                        }
+                    );
+
+
+                if (
+                    response.status === 401
+                ) {
+
+                    localStorage.clear();
+
+                    window.location.href =
+                        "login.html";
+
+                    return;
+
+                }
+
+
+                const data =
+                    await response.json();
+
+
+                if (
+                    response.ok
+                ) {
+
+                    alert(
+                        "✅ File shared successfully!\n\n"
+                        + "File: "
+                        + filename
+                        + "\n"
+                        + "Recipient: "
+                        + recipientEmail
+                        + "\n"
+                        + "Permission: "
+                        + permission
+                    );
+
+                }
+
+                else {
+
+                    alert(
+                        "Share failed.\n\n"
+                        + (
+                            data.detail ||
+                            "Unable to share file."
+                        )
+                    );
+
+                }
+
+            }
+
+
+            catch (error) {
+
+                console.error(
+                    "Share error:",
+                    error
+                );
+
+
+                alert(
+                    "Cannot connect to TrustShare server."
+                );
+
+            }
+
+
+            finally {
+
+                button.disabled =
+                    false;
+
+
+                button.innerText =
+                    "🔗 Share";
+
+            }
+
+        }
+
+
+        // ==================================================
+        // CREATE TEMPORARY LINK
+        // ==================================================
+
+        async function createTemporaryLink(
+            fileId,
+            button
+        ) {
+
+            const token =
+                localStorage.getItem(
+                    "access_token"
+                );
+
+
+            if (!token) {
+
+                window.location.href =
+                    "login.html";
+
+                return;
+
+            }
+
+
+            try {
+
+                button.disabled =
+                    true;
+
+
+                button.innerText =
+                    "Creating...";
+
+
+                const response =
+                    await fetch(
+                        "http://127.0.0.1:8000/create-temporary-link/"
+                        + encodeURIComponent(
+                            fileId
+                        ),
+                        {
+                            method: "POST",
+
+                            headers: {
+
+                                "Authorization":
+                                    "Bearer " + token,
+
+                                "Accept":
+                                    "application/json"
+
+                            }
+                        }
+                    );
+
+
+                if (
+                    response.status === 401
+                ) {
+
+                    localStorage.clear();
+
+                    window.location.href =
+                        "login.html";
+
+                    return;
+
+                }
+
+
+                const data =
+                    await response.json();
+
+
+                if (
+                    response.ok
+                ) {
+
+                    currentTemporaryLink =
+                        "http://127.0.0.1:8000/temporary-download/"
+                        + data.token;
+
+
+                    const expiryHours =
+                        data.expires_in_hours ||
+                        12;
+
+
+                    const expiryText =
+                        "This link expires in "
+                        + expiryHours
+                        + " hours.";
+
+
+                    const linkBox =
+                        document.getElementById(
+                            "temporaryLinkBox"
+                        );
+
+
+                    const urlBox =
+                        document.getElementById(
+                            "temporaryUrl"
+                        );
+
+
+                    const expiryBox =
+                        document.getElementById(
+                            "expiryText"
+                        );
+
+
+                    urlBox.innerHTML =
+                        "<a href=\""
+                        + escapeAttribute(
+                            currentTemporaryLink
+                        )
+                        + "\" target=\"_blank\">"
+                        + escapeHtml(
+                            currentTemporaryLink
+                        )
+                        + "</a>";
+
+
+                    expiryBox.innerText =
+                        "⏱ "
+                        + expiryText;
+
+
+                    linkBox.style.display =
+                        "block";
+
+
+                    linkBox.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center"
+                    });
+
+
+                    alert(
+                        "🔗 Temporary link created!\n\n"
+                        + "The link is valid for "
+                        + expiryHours
+                        + " hours."
+                    );
+
+                }
+
+                else {
+
+                    alert(
+                        "Temporary link creation failed.\n\n"
+                        + (
+                            data.detail ||
+                            "Unable to create temporary link."
+                        )
+                    );
+
+                }
+
+            }
+
+
+            catch (error) {
+
+                console.error(
+                    "Temporary link error:",
+                    error
+                );
+
+
+                alert(
+                    "Cannot connect to TrustShare server."
+                );
+
+            }
+
+
+            finally {
+
+                button.disabled =
+                    false;
+
+
+                button.innerText =
+                    "⏱ Temporary Link";
+
+            }
+
+        }
+
+
+        // ==================================================
+        // COPY TEMPORARY LINK
+        // ==================================================
+
+        async function copyTemporaryLink() {
+
+            if (
+                !currentTemporaryLink
+            ) {
+
+                alert(
+                    "No temporary link available."
+                );
+
+                return;
+
+            }
+
+
+            try {
+
+                await navigator.clipboard.writeText(
+                    currentTemporaryLink
+                );
+
+
+                alert(
+                    "📋 Temporary link copied!"
+                );
+
+            }
+
+
+            catch (error) {
+
+                console.error(
+                    "Copy error:",
+                    error
+                );
+
+
+                const textArea =
+                    document.createElement(
+                        "textarea"
+                    );
+
+
+                textArea.value =
+                    currentTemporaryLink;
+
+
+                document.body.appendChild(
+                    textArea
+                );
+
+
+                textArea.select();
+
+
+                document.execCommand(
+                    "copy"
+                );
+
+
+                document.body.removeChild(
+                    textArea
+                );
+
+
+                alert(
+                    "📋 Temporary link copied!"
+                );
+
+            }
+
+        }
+
+
+        // ==================================================
+        // OPEN TEMPORARY LINK
+        // ==================================================
+
+        function openTemporaryLink() {
+
+            if (
+                !currentTemporaryLink
+            ) {
+
+                alert(
+                    "No temporary link available."
+                );
+
+                return;
+
+            }
+
+
+            window.open(
+                currentTemporaryLink,
+                "_blank"
+            );
+
+        }
+
+
+        // ==================================================
+        // DELETE FILE
+        // ==================================================
+
+        async function deleteFile(
+            fileId,
+            fileName,
+            button
+        ) {
+
+            const token =
+                localStorage.getItem(
+                    "access_token"
+                );
+
+
+            if (!token) {
+
+                window.location.href =
+                    "login.html";
+
+                return;
+
+            }
+
+
+            const confirmed =
+                confirm(
+                    "Are you sure you want to delete this file?\n\n"
+                    + fileName
+                    + "\n\n"
+                    + "The file and its sharing records will be removed."
+                );
+
+
+            if (!confirmed) {
+
+                return;
+
+            }
+
+
+            try {
+
+                button.disabled =
+                    true;
+
+
+                button.innerText =
+                    "Deleting...";
+
+
+                const response =
+                    await fetch(
+                        "http://127.0.0.1:8000/files/"
+                        + encodeURIComponent(
+                            fileId
+                        ),
+                        {
+                            method: "DELETE",
+
+                            headers: {
+
+                                "Authorization":
+                                    "Bearer " + token,
+
+                                "Accept":
+                                    "application/json"
+
+                            }
+                        }
+                    );
+
+
+                if (
+                    response.status === 401
+                ) {
+
+                    localStorage.clear();
+
+                    window.location.href =
+                        "login.html";
+
+                    return;
+
+                }
+
+
+                const data =
+                    await response.json();
+
+
+                if (
+                    response.ok
+                ) {
+
+                    alert(
+                        "🗑 File deleted successfully."
+                    );
+
+
+                    loadFiles();
+
+                }
+
+                else {
+
+                    alert(
+                        "Delete failed.\n\n"
+                        + (
+                            data.detail ||
+                            "Unable to delete file."
+                        )
+                    );
+
+                }
+
+            }
+
+
+            catch (error) {
+
+                console.error(
+                    "Delete error:",
+                    error
+                );
+
+
+                alert(
+                    "Cannot connect to TrustShare server."
+                );
+
+            }
+
+
+            finally {
+
+                button.disabled =
+                    false;
+
+
+                button.innerText =
+                    "🗑 Delete";
+
+            }
+
+        }
+
+
+        // ==================================================
+        // UPLOAD MULTIPLE FILES
+        // ==================================================
+
+        async function uploadFiles() {
 
             const fileInput =
                 document.getElementById(
@@ -375,23 +2992,35 @@
                 );
 
 
-            // Check file
+            const uploadButton =
+                document.getElementById(
+                    "uploadButton"
+                );
 
-            if (!fileInput.files.length) {
+
+            const selectedFiles =
+                fileInput.files;
+
+
+            // =========================================
+            // CHECK FILES
+            // =========================================
+
+            if (
+                selectedFiles.length === 0
+            ) {
 
                 message.innerText =
-                    "Please select a file first.";
+                    "⚠️ Please select at least one file.";
 
                 return;
 
             }
 
 
-            const file =
-                fileInput.files[0];
-
-
-            // Get token
+            // =========================================
+            // CHECK TOKEN
+            // =========================================
 
             const token =
                 localStorage.getItem(
@@ -399,104 +3028,207 @@
                 );
 
 
-            // Create FormData
+            if (!token) {
 
-            const formData =
-                new FormData();
+                window.location.href =
+                    "login.html";
+
+                return;
+
+            }
 
 
-            formData.append(
-                "file",
-                file
-            );
+            uploadButton.disabled =
+                true;
+
+
+            let successCount =
+                0;
+
+
+            let failedCount =
+                0;
 
 
             message.innerText =
-                "Uploading file...";
+                "⏳ Uploading files...";
 
 
-            try {
+            // =========================================
+            // UPLOAD ONE BY ONE
+            // =========================================
 
-                const response =
-                    await fetch(
-                        "http://127.0.0.1:8000/upload",
-                        {
-                            method: "POST",
+            for (
+                let i = 0;
+                i < selectedFiles.length;
+                i++
+            ) {
 
-                            headers: {
-                                "Authorization":
-                                    "Bearer " + token
-                            },
+                const file =
+                    selectedFiles[i];
 
-                            body: formData
-                        }
+
+                message.innerText =
+                    "📤 Uploading file "
+                    + (i + 1)
+                    + " of "
+                    + selectedFiles.length
+                    + ": "
+                    + file.name;
+
+
+                const formData =
+                    new FormData();
+
+
+                formData.append(
+                    "file",
+                    file
+                );
+
+
+                try {
+
+                    const response =
+                        await fetch(
+                            "http://127.0.0.1:8000/upload",
+                            {
+                                method: "POST",
+
+                                headers: {
+
+                                    "Authorization":
+                                        "Bearer " + token
+
+                                },
+
+                                body:
+                                    formData
+
+                            }
+                        );
+
+
+                    const data =
+                        await response.json();
+
+
+                    if (
+                        response.ok
+                    ) {
+
+                        successCount++;
+
+                    }
+
+                    else if (
+                        response.status === 401
+                    ) {
+
+                        localStorage.clear();
+
+                        window.location.href =
+                            "login.html";
+
+                        return;
+
+                    }
+
+                    else {
+
+                        failedCount++;
+
+
+                        console.error(
+                            "Upload failed:",
+                            data.detail
+                        );
+
+                    }
+
+                }
+
+
+                catch (error) {
+
+                    console.error(
+                        "Upload error:",
+                        error
                     );
 
 
-                const data =
-                    await response.json();
-
-
-                // Successful upload
-
-                if (response.ok) {
-
-                    message.innerText =
-                        "File uploaded successfully: "
-                        + data.filename;
-
-
-                    fileInput.value = "";
-
-
-                    // Reload file list
-
-                    loadFiles();
-
-                }
-
-
-                // Unauthorized
-
-                else if (
-                    response.status === 401
-                ) {
-
-                    localStorage.clear();
-
-                    window.location.href =
-                        "login.html";
-
-                }
-
-
-                // Other error
-
-                else {
-
-                    message.innerText =
-                        data.detail ||
-                        "Upload failed.";
+                    failedCount++;
 
                 }
 
             }
 
 
-            catch (error) {
+            // =========================================
+            // FINAL MESSAGE
+            // =========================================
 
-                console.error(error);
+            if (
+                failedCount === 0
+            ) {
 
                 message.innerText =
-                    "Cannot connect to TrustShare server.";
+                    "✅ Successfully uploaded "
+                    + successCount
+                    + " file(s).";
 
             }
+
+            else {
+
+                message.innerText =
+                    "Uploaded "
+                    + successCount
+                    + " file(s), but "
+                    + failedCount
+                    + " file(s) failed.";
+
+            }
+
+
+            // =========================================
+            // RESET INPUT
+            // =========================================
+
+            fileInput.value =
+                "";
+
+
+            const selectedFilesBox =
+                document.getElementById(
+                    "selectedFiles"
+                );
+
+
+            selectedFilesBox.style.display =
+                "none";
+
+
+            selectedFilesBox.innerHTML =
+                "";
+
+
+            uploadButton.disabled =
+                false;
+
+
+            // =========================================
+            // REFRESH FILE LIST
+            // =========================================
+
+            await loadFiles();
 
         }
 
 
-
-        // Go to Dashboard
+        // ==================================================
+        // DASHBOARD
+        // ==================================================
 
         function goToDashboard() {
 
@@ -506,8 +3238,9 @@
         }
 
 
-
-        // Logout
+        // ==================================================
+        // LOGOUT
+        // ==================================================
 
         function logout() {
 
@@ -519,17 +3252,69 @@
         }
 
 
+        // ==================================================
+        // HTML ESCAPE
+        // ==================================================
 
-        // Start page
+        function escapeHtml(text) {
 
-        if (checkLogin()) {
+            const div =
+                document.createElement(
+                    "div"
+                );
+
+
+            div.innerText =
+                text == null
+                    ? ""
+                    : String(text);
+
+
+            return div.innerHTML;
+
+        }
+
+
+        // ==================================================
+        // ATTRIBUTE ESCAPE
+        // ==================================================
+
+        function escapeAttribute(text) {
+
+            return String(text)
+                .replace(
+                    /&/g,
+                    "&amp;"
+                )
+                .replace(
+                    /"/g,
+                    "&quot;"
+                )
+                .replace(
+                    /</g,
+                    "&lt;"
+                )
+                .replace(
+                    />/g,
+                    "&gt;"
+                );
+
+        }
+
+
+        // ==================================================
+        // START PAGE
+        // ==================================================
+
+        if (
+            checkLogin()
+        ) {
 
             loadFiles();
 
         }
 
     </script>
-
 
 </body>
 

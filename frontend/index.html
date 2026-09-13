@@ -1,88 +1,884 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TrustShare</title>
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>TrustShare - Secure Data Sharing</title>
+
 
     <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #f4f7fb;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
 
-        .container {
-            background: white;
-            width: 400px;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-            text-align: center;
-        }
-
-        h1 {
-            color: #1f4e79;
-            margin-bottom: 10px;
-        }
-
-        p {
-            color: #666;
-            margin-bottom: 30px;
-        }
-
-        .button {
-            display: block;
-            width: 100%;
-            padding: 14px;
-            margin-top: 15px;
-            border: none;
-            border-radius: 6px;
-            background: #1f4e79;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-            text-decoration: none;
+        * {
             box-sizing: border-box;
         }
 
-        .button:hover {
-            background: #163a5c;
+
+        html {
+            min-height: 100%;
         }
+
+
+        body {
+
+            margin: 0;
+
+            min-height: 100vh;
+
+            font-family: "Segoe UI", Arial, sans-serif;
+
+            display: flex;
+
+            justify-content: center;
+
+            align-items: center;
+
+            padding: 20px;
+
+            background:
+                radial-gradient(
+                    circle at 8% 10%,
+                    rgba(59, 130, 246, 0.25),
+                    transparent 25%
+                ),
+                radial-gradient(
+                    circle at 92% 90%,
+                    rgba(236, 72, 153, 0.25),
+                    transparent 28%
+                ),
+                linear-gradient(
+                    135deg,
+                    #eef2ff,
+                    #f5f3ff,
+                    #fdf2f8
+                );
+
+            position: relative;
+
+            overflow-x: hidden;
+
+            overflow-y: auto;
+        }
+
+
+        /* =====================================
+           BACKGROUND DECORATIONS
+           ===================================== */
+
+        body::before {
+
+            content: "";
+
+            position: fixed;
+
+            width: 280px;
+
+            height: 280px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(99, 102, 241, 0.12);
+
+            top: -100px;
+
+            left: -80px;
+
+            pointer-events: none;
+        }
+
+
+        body::after {
+
+            content: "";
+
+            position: fixed;
+
+            width: 300px;
+
+            height: 300px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(217, 70, 239, 0.10);
+
+            right: -100px;
+
+            bottom: -110px;
+
+            pointer-events: none;
+        }
+
+
+        /* =====================================
+           MAIN CARD
+           ===================================== */
+
+        .container {
+
+            width: 470px;
+
+            max-width: 100%;
+
+            padding: 28px 38px;
+
+            background:
+                rgba(255, 255, 255, 0.97);
+
+            border-radius: 24px;
+
+            text-align: center;
+
+            position: relative;
+
+            z-index: 2;
+
+            border:
+                1px solid
+                rgba(255, 255, 255, 0.9);
+
+            box-shadow:
+                0 20px 50px
+                rgba(79, 70, 229, 0.15),
+
+                0 8px 20px
+                rgba(0, 0, 0, 0.07);
+
+            animation:
+                cardAppear 0.7s ease;
+        }
+
+
+        @keyframes cardAppear {
+
+            from {
+
+                opacity: 0;
+
+                transform:
+                    translateY(20px)
+                    scale(0.98);
+            }
+
+            to {
+
+                opacity: 1;
+
+                transform:
+                    translateY(0)
+                    scale(1);
+            }
+
+        }
+
+
+        /* =====================================
+           LOGO
+           ===================================== */
+
+        .logo-box {
+
+            width: 68px;
+
+            height: 68px;
+
+            margin:
+                0 auto 10px;
+
+            display: flex;
+
+            justify-content: center;
+
+            align-items: center;
+
+            border-radius: 19px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #2563eb,
+                    #7c3aed,
+                    #db2777
+                );
+
+            font-size: 34px;
+
+            box-shadow:
+                0 10px 24px
+                rgba(99, 102, 241, 0.28);
+
+            animation:
+                floating 3s ease-in-out infinite;
+        }
+
+
+        @keyframes floating {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-5px);
+            }
+
+        }
+
+
+        /* =====================================
+           TITLE
+           ===================================== */
+
+        h1 {
+
+            margin: 0;
+
+            font-size: 34px;
+
+            font-weight: 800;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #2563eb,
+                    #7c3aed,
+                    #db2777
+                );
+
+            -webkit-background-clip: text;
+
+            -webkit-text-fill-color: transparent;
+        }
+
+
+        /* =====================================
+           SUBTITLE
+           ===================================== */
+
+        .subtitle {
+
+            margin:
+                5px 0 15px;
+
+            color: #64748b;
+
+            font-size: 14px;
+        }
+
+
+        /* =====================================
+           SECURITY BADGE
+           ===================================== */
+
+        .security-badge {
+
+            display: inline-flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            gap: 7px;
+
+            padding:
+                8px 16px;
+
+            margin-bottom: 15px;
+
+            border-radius: 30px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #eff6ff,
+                    #f5f3ff
+                );
+
+            border:
+                1px solid #dbe4ff;
+
+            color: #4f46e5;
+
+            font-size: 12px;
+
+            font-weight: 700;
+        }
+
+
+        /* =====================================
+           DESCRIPTION
+           ===================================== */
+
+        .description {
+
+            max-width: 390px;
+
+            margin:
+                0 auto 17px;
+
+            color: #64748b;
+
+            font-size: 13px;
+
+            line-height: 1.5;
+        }
+
+
+        /* =====================================
+           FEATURES
+           ===================================== */
+
+        .features {
+
+            display: grid;
+
+            grid-template-columns:
+                repeat(3, 1fr);
+
+            gap: 10px;
+
+            margin-bottom: 18px;
+        }
+
+
+        .feature {
+
+            min-height: 82px;
+
+            padding: 10px 6px;
+
+            display: flex;
+
+            flex-direction: column;
+
+            justify-content: center;
+
+            align-items: center;
+
+            border-radius: 13px;
+
+            background:
+                #f8fafc;
+
+            border:
+                1px solid #e2e8f0;
+
+            transition:
+                all 0.25s ease;
+        }
+
+
+        .feature:hover {
+
+            transform:
+                translateY(-3px);
+
+            border-color:
+                #c7d2fe;
+
+            box-shadow:
+                0 7px 15px
+                rgba(79, 70, 229, 0.10);
+        }
+
+
+        .feature-icon {
+
+            font-size: 22px;
+
+            margin-bottom: 5px;
+        }
+
+
+        .feature-title {
+
+            color: #334155;
+
+            font-size: 11px;
+
+            font-weight: 700;
+
+            line-height: 1.25;
+        }
+
+
+        /* =====================================
+           BUTTONS
+           ===================================== */
+
+        .button {
+
+            display: block;
+
+            width: 100%;
+
+            height: 47px;
+
+            padding: 13px;
+
+            margin-top: 10px;
+
+            border-radius: 11px;
+
+            font-size: 15px;
+
+            font-weight: 700;
+
+            text-decoration: none;
+
+            transition:
+                all 0.25s ease;
+        }
+
+
+        /* LOGIN BUTTON */
+
+        .login {
+
+            color: white;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #2563eb,
+                    #7c3aed,
+                    #db2777
+                );
+
+            box-shadow:
+                0 8px 18px
+                rgba(99, 102, 241, 0.25);
+        }
+
+
+        .login:hover {
+
+            transform:
+                translateY(-2px);
+
+            box-shadow:
+                0 12px 23px
+                rgba(99, 102, 241, 0.32);
+        }
+
+
+        /* REGISTER BUTTON */
 
         .register {
-            background: #28a745;
+
+            color: #4f46e5;
+
+            background: white;
+
+            border:
+                2px solid #6366f1;
         }
 
+
         .register:hover {
-            background: #218838;
+
+            color: white;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #6366f1,
+                    #8b5cf6
+                );
+
+            transform:
+                translateY(-2px);
         }
+
+
+        /* =====================================
+           SECURITY INFORMATION
+           ===================================== */
+
+        .secure-info {
+
+            margin-top: 15px;
+
+            padding: 9px 12px;
+
+            border-radius: 10px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #f0fdf4,
+                    #ecfeff
+                );
+
+            border:
+                1px solid #d1fae5;
+
+            color: #166534;
+
+            font-size: 11px;
+
+            line-height: 1.4;
+        }
+
+
+        /* =====================================
+           FOOTER
+           ===================================== */
+
+        .footer {
+
+            margin-top: 10px;
+
+            color: #94a3b8;
+
+            font-size: 10px;
+        }
+
+
+        /* =====================================
+           TABLET / SMALL SCREEN
+           ===================================== */
+
+        @media (max-width: 600px) {
+
+            body {
+
+                align-items: flex-start;
+
+                padding:
+                    20px 15px;
+            }
+
+
+            .container {
+
+                width: 100%;
+
+                padding:
+                    25px 20px;
+
+                margin:
+                    5px 0;
+            }
+
+
+            .logo-box {
+
+                width: 62px;
+
+                height: 62px;
+
+                font-size: 30px;
+            }
+
+
+            h1 {
+
+                font-size: 29px;
+            }
+
+
+            .features {
+
+                gap: 7px;
+            }
+
+
+            .feature {
+
+                min-height: 75px;
+            }
+
+
+            .feature-title {
+
+                font-size: 10px;
+            }
+
+        }
+
+
+        /* =====================================
+           VERY SMALL SCREEN
+           ===================================== */
+
+        @media (max-height: 700px) and (min-width: 601px) {
+
+            .container {
+
+                padding:
+                    20px 35px;
+            }
+
+
+            .logo-box {
+
+                width: 58px;
+
+                height: 58px;
+
+                font-size: 29px;
+
+                margin-bottom: 7px;
+            }
+
+
+            h1 {
+
+                font-size: 30px;
+            }
+
+
+            .subtitle {
+
+                margin-bottom: 10px;
+            }
+
+
+            .security-badge {
+
+                margin-bottom: 10px;
+            }
+
+
+            .description {
+
+                margin-bottom: 12px;
+            }
+
+
+            .features {
+
+                margin-bottom: 12px;
+            }
+
+
+            .feature {
+
+                min-height: 70px;
+            }
+
+
+            .button {
+
+                height: 43px;
+
+                padding: 11px;
+
+                margin-top: 8px;
+            }
+
+
+            .secure-info {
+
+                margin-top: 10px;
+            }
+
+        }
+
     </style>
+
 </head>
+
 
 <body>
 
-    <div class="container">
 
-        <h1>TrustShare</h1>
+<div class="container">
 
-        <p>
-            Secure Data Sharing Platform
-        </p>
 
-        <a href="login.html" class="button">
-            Login
-        </a>
+    <!-- =================================
+         LOGO
+         ================================= -->
 
-        <a href="register.html" class="button register">
-            Register
-        </a>
+    <div class="logo-box">
+
+        🔐
 
     </div>
 
+
+    <!-- =================================
+         TITLE
+         ================================= -->
+
+    <h1>
+
+        TrustShare
+
+    </h1>
+
+
+    <p class="subtitle">
+
+        Secure Data Sharing Platform
+
+    </p>
+
+
+    <!-- =================================
+         SECURITY BADGE
+         ================================= -->
+
+    <div class="security-badge">
+
+        🛡️
+
+        <span>
+
+            Secure • Private • Trusted
+
+        </span>
+
+    </div>
+
+
+    <!-- =================================
+         DESCRIPTION
+         ================================= -->
+
+    <p class="description">
+
+        Share your files securely with trusted
+        users using encrypted storage and
+        protected access.
+
+    </p>
+
+
+    <!-- =================================
+         FEATURES
+         ================================= -->
+
+    <div class="features">
+
+
+        <!-- Feature 1 -->
+
+        <div class="feature">
+
+            <div class="feature-icon">
+
+                🔐
+
+            </div>
+
+            <div class="feature-title">
+
+                AES-256<br>
+                Encryption
+
+            </div>
+
+        </div>
+
+
+        <!-- Feature 2 -->
+
+        <div class="feature">
+
+            <div class="feature-icon">
+
+                ☁️
+
+            </div>
+
+            <div class="feature-title">
+
+                Secure Cloud<br>
+                Storage
+
+            </div>
+
+        </div>
+
+
+        <!-- Feature 3 -->
+
+        <div class="feature">
+
+            <div class="feature-icon">
+
+                🛡️
+
+            </div>
+
+            <div class="feature-title">
+
+                JWT<br>
+                Authentication
+
+            </div>
+
+        </div>
+
+
+    </div>
+
+
+    <!-- =================================
+         LOGIN BUTTON
+         ================================= -->
+
+    <a
+        href="login.html"
+        class="button login"
+    >
+
+        🔐 Login
+
+    </a>
+
+
+    <!-- =================================
+         REGISTER BUTTON
+         ================================= -->
+
+    <a
+        href="register.html"
+        class="button register"
+    >
+
+        ✨ Create an Account
+
+    </a>
+
+
+    <!-- =================================
+         SECURITY INFO
+         ================================= -->
+
+    <div class="secure-info">
+
+        🔒 Your files are protected with
+        encryption, authentication and
+        controlled access.
+
+    </div>
+
+
+    <!-- =================================
+         FOOTER
+         ================================= -->
+
+    <div class="footer">
+
+        TrustShare © 2026 • Secure File Sharing System
+
+    </div>
+
+
+</div>
+
+
 </body>
+
 </html>

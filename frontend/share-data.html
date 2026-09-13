@@ -5,210 +5,1284 @@
 
     <meta charset="UTF-8">
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
     <title>TrustShare - Share Data</title>
-
 
     <style>
 
         * {
             box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
-
 
         body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #f4f7fb;
+
+            font-family: "Segoe UI", Arial, sans-serif;
+
+            min-height: 100vh;
+
+            background:
+                radial-gradient(
+                    circle at top left,
+                    rgba(99, 102, 241, 0.18),
+                    transparent 32%
+                ),
+
+                radial-gradient(
+                    circle at top right,
+                    rgba(168, 85, 247, 0.15),
+                    transparent 30%
+                ),
+
+                radial-gradient(
+                    circle at bottom right,
+                    rgba(236, 72, 153, 0.13),
+                    transparent 35%
+                ),
+
+                linear-gradient(
+                    135deg,
+                    #f5f7ff,
+                    #f8f5ff,
+                    #fff5fb
+                );
+
+            color: #1e293b;
+
+            overflow-x: hidden;
         }
 
+        body::before {
 
-        /* ==============================
+            content: "";
+
+            position: fixed;
+
+            width: 300px;
+            height: 300px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(99, 102, 241, 0.08);
+
+            top: -120px;
+            left: -100px;
+
+            pointer-events: none;
+        }
+
+        body::after {
+
+            content: "";
+
+            position: fixed;
+
+            width: 250px;
+            height: 250px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(236, 72, 153, 0.08);
+
+            right: -90px;
+            bottom: -90px;
+
+            pointer-events: none;
+        }
+
+        /* =========================================
            NAVBAR
-        ============================== */
+        ========================================= */
 
         .navbar {
-            background: #1f4e79;
-            color: white;
-            padding: 18px 40px;
+
+            height: 72px;
+
+            padding: 0 5%;
 
             display: flex;
-            justify-content: space-between;
+
             align-items: center;
+
+            justify-content: space-between;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #243b80,
+                    #4f46e5,
+                    #7c3aed
+                );
+
+            color: white;
+
+            box-shadow:
+                0 8px 25px
+                rgba(79, 70, 229, 0.25);
+
+            position: relative;
+
+            z-index: 10;
         }
 
+        .brand {
 
-        .navbar h2 {
-            margin: 0;
-        }
-
-
-        .buttons {
             display: flex;
+
+            align-items: center;
+
+            gap: 12px;
+        }
+
+        .brand-icon {
+
+            width: 44px;
+            height: 44px;
+
+            border-radius: 13px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            background:
+                rgba(255,255,255,0.16);
+
+            border:
+                1px solid
+                rgba(255,255,255,0.22);
+
+            font-size: 23px;
+
+            box-shadow:
+                0 5px 15px
+                rgba(0,0,0,0.12);
+        }
+
+        .brand-text h2 {
+
+            font-size: 22px;
+
+            letter-spacing: 0.3px;
+        }
+
+        .brand-text span {
+
+            display: block;
+
+            font-size: 10px;
+
+            color: #ddd6fe;
+
+            margin-top: 2px;
+
+            letter-spacing: 1px;
+        }
+
+        /* =========================================
+           NAV BUTTONS
+        ========================================= */
+
+        .nav-buttons {
+
+            display: flex;
+
+            align-items: center;
+
             gap: 10px;
         }
 
+        .nav-btn {
 
-        .dashboard-button {
-            background: #28a745;
-            color: white;
             border: none;
-            padding: 10px 18px;
-            border-radius: 6px;
-            cursor: pointer;
-        }
 
+            padding: 10px 16px;
 
-        .logout {
-            background: #dc3545;
+            border-radius: 10px;
+
             color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 6px;
+
+            background:
+                rgba(255,255,255,0.13);
+
+            border:
+                1px solid
+                rgba(255,255,255,0.18);
+
+            font-size: 13px;
+
+            font-weight: 600;
+
             cursor: pointer;
+
+            transition: 0.3s;
         }
 
+        .nav-btn:hover {
 
-        .dashboard-button:hover {
-            background: #218838;
+            transform:
+                translateY(-2px);
+
+            background:
+                rgba(255,255,255,0.23);
         }
 
+        .logout-btn {
 
-        .logout:hover {
-            background: #b02a37;
+            background:
+                linear-gradient(
+                    135deg,
+                    #ef4444,
+                    #dc2626
+                );
+
+            border: none;
         }
 
+        .logout-btn:hover {
 
-        /* ==============================
+            background:
+                linear-gradient(
+                    135deg,
+                    #dc2626,
+                    #b91c1c
+                );
+        }
+
+        /* =========================================
            MAIN CONTAINER
-        ============================== */
+        ========================================= */
 
         .container {
+
             width: 90%;
-            max-width: 800px;
-            margin: 50px auto;
+
+            max-width: 900px;
+
+            margin: 42px auto 70px;
+
+            position: relative;
+
+            z-index: 2;
         }
 
+        /* =========================================
+           HERO
+        ========================================= */
 
-        /* ==============================
-           HEADER AND SHARE BOX
-        ============================== */
+        .hero {
 
-        .header,
-        .share-box {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
+            position: relative;
+
+            overflow: hidden;
+
+            padding: 34px 38px;
+
+            border-radius: 23px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ffffff,
+                    #f8f7ff
+                );
+
+            border:
+                1px solid #e5e7ff;
 
             box-shadow:
-                0 5px 20px rgba(0, 0, 0, 0.08);
+                0 15px 40px
+                rgba(79,70,229,0.11);
+
+            margin-bottom: 24px;
+        }
+
+        .hero::before {
+
+            content: "";
+
+            position: absolute;
+
+            width: 190px;
+            height: 190px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(99,102,241,0.08);
+
+            right: -65px;
+            top: -75px;
+        }
+
+        .hero::after {
+
+            content: "";
+
+            position: absolute;
+
+            width: 110px;
+            height: 110px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(168,85,247,0.07);
+
+            right: 130px;
+            bottom: -65px;
+        }
+
+        .hero-content {
+
+            position: relative;
+
+            z-index: 2;
+        }
+
+        .hero-title {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 14px;
+
+            margin-bottom: 10px;
+        }
+
+        .hero-icon {
+
+            width: 58px;
+            height: 58px;
+
+            border-radius: 17px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            font-size: 28px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #3b82f6,
+                    #6366f1,
+                    #a855f7
+                );
+
+            box-shadow:
+                0 10px 22px
+                rgba(99,102,241,0.25);
+        }
+
+        .hero h1 {
+
+            font-size: 31px;
+
+            color: #243b80;
+        }
+
+        .hero p {
+
+            color: #64748b;
+
+            font-size: 14px;
+
+            line-height: 1.7;
+
+            margin-left: 72px;
+        }
+
+        .secure-badge {
+
+            display: inline-flex;
+
+            align-items: center;
+
+            gap: 7px;
+
+            margin-top: 16px;
+
+            margin-left: 72px;
+
+            padding: 7px 14px;
+
+            border-radius: 30px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #eef2ff,
+                    #f5f3ff
+                );
+
+            border:
+                1px solid #ddd6fe;
+
+            color: #5b21b6;
+
+            font-size: 12px;
+
+            font-weight: 700;
+        }
+
+        .secure-dot {
+
+            width: 8px;
+            height: 8px;
+
+            border-radius: 50%;
+
+            background: #22c55e;
+
+            box-shadow:
+                0 0 0 4px
+                rgba(34,197,94,0.12);
+        }
+
+        /* =========================================
+           SHARE CARD
+        ========================================= */
+
+        .share-card {
+
+            background:
+                rgba(255,255,255,0.96);
+
+            border:
+                1px solid #e5e7eb;
+
+            border-radius: 23px;
+
+            box-shadow:
+                0 12px 35px
+                rgba(15,23,42,0.09);
+
+            overflow: hidden;
+        }
+
+        .card-header {
+
+            padding: 23px 30px;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 12px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #eef2ff,
+                    #f5f3ff
+                );
+
+            border-bottom:
+                1px solid #e5e7eb;
+        }
+
+        .header-icon {
+
+            width: 43px;
+            height: 43px;
+
+            border-radius: 12px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #4f46e5,
+                    #9333ea
+                );
+
+            color: white;
+
+            font-size: 21px;
+
+            box-shadow:
+                0 6px 15px
+                rgba(99,102,241,0.22);
+        }
+
+        .card-header h2 {
+
+            color: #243b80;
+
+            font-size: 20px;
+        }
+
+        .form-content {
+
+            padding: 30px;
+        }
+
+        .field {
 
             margin-bottom: 25px;
         }
 
+        .field-label {
 
-        h1,
-        h2 {
-            color: #1f4e79;
-        }
+            display: flex;
 
+            align-items: center;
 
-        label {
-            display: block;
-            margin-top: 20px;
-            margin-bottom: 8px;
-            font-weight: bold;
-        }
+            gap: 8px;
 
+            color: #1e293b;
 
-        input,
-        select {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 15px;
-        }
-
-
-        /* ==============================
-           MULTIPLE FILE SELECT
-        ============================== */
-
-        #fileName {
-            width: 100%;
-            min-height: 150px;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 15px;
-            background: white;
-        }
-
-
-        #fileName option {
-            padding: 10px;
-        }
-
-
-        #fileName option:checked {
-            background: #1f4e79;
-            color: white;
-        }
-
-
-        .selection-hint {
-            margin-top: 7px;
-            margin-bottom: 0;
-            color: #666;
             font-size: 13px;
+
+            font-weight: 700;
+
+            margin-bottom: 9px;
         }
 
+        /* =========================================
+           FILE LIST
+        ========================================= */
 
-        /* ==============================
-           SHARE BUTTON
-        ============================== */
+        .file-box {
 
-        .share-button {
-            margin-top: 25px;
+            border:
+                1px solid #dbe3f0;
 
-            background: #1f4e79;
-            color: white;
+            border-radius: 15px;
 
-            border: none;
+            background:
+                linear-gradient(
+                    135deg,
+                    #f8fafc,
+                    #f8f7ff
+                );
 
-            padding: 12px 25px;
+            padding: 8px;
 
-            border-radius: 6px;
+            max-height: 280px;
+
+            overflow-y: auto;
+        }
+
+        .file-box::-webkit-scrollbar {
+
+            width: 7px;
+        }
+
+        .file-box::-webkit-scrollbar-track {
+
+            background: #eef2ff;
+
+            border-radius: 10px;
+        }
+
+        .file-box::-webkit-scrollbar-thumb {
+
+            background:
+                linear-gradient(
+                    #6366f1,
+                    #a855f7
+                );
+
+            border-radius: 10px;
+        }
+
+        .file-option {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 12px;
+
+            padding: 13px 14px;
+
+            border-radius: 11px;
+
+            margin-bottom: 5px;
 
             cursor: pointer;
 
-            font-size: 15px;
+            transition: 0.25s;
+
+            border:
+                1px solid transparent;
         }
 
+        .file-option:last-child {
+
+            margin-bottom: 0;
+        }
+
+        .file-option:hover {
+
+            background:
+                #eef2ff;
+
+            border-color:
+                #c7d2fe;
+        }
+
+        .file-option.selected {
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #eef2ff,
+                    #f5f3ff
+                );
+
+            border-color:
+                #a5b4fc;
+        }
+
+        .file-option input {
+
+            width: 18px;
+            height: 18px;
+
+            accent-color: #6366f1;
+
+            cursor: pointer;
+
+            flex-shrink: 0;
+        }
+
+        .file-icon {
+
+            width: 38px;
+            height: 38px;
+
+            border-radius: 10px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            background:
+                #e0e7ff;
+
+            font-size: 19px;
+
+            flex-shrink: 0;
+        }
+
+        .file-name {
+
+            color: #334155;
+
+            font-size: 13px;
+
+            font-weight: 600;
+
+            word-break: break-word;
+
+            flex: 1;
+        }
+
+        .file-id {
+
+            color: #94a3b8;
+
+            font-size: 11px;
+
+            margin-left: auto;
+        }
+
+        .no-files {
+
+            padding: 35px 15px;
+
+            text-align: center;
+
+            color: #64748b;
+
+            font-size: 14px;
+        }
+
+        .no-files-icon {
+
+            font-size: 35px;
+
+            margin-bottom: 8px;
+        }
+
+        .helper-text {
+
+            margin-top: 8px;
+
+            color: #94a3b8;
+
+            font-size: 11px;
+        }
+
+        /* =========================================
+           EMAIL
+        ========================================= */
+
+        .input-wrapper {
+
+            position: relative;
+        }
+
+        .input-icon {
+
+            position: absolute;
+
+            left: 14px;
+
+            top: 50%;
+
+            transform:
+                translateY(-50%);
+
+            font-size: 17px;
+
+            pointer-events: none;
+        }
+
+        .email-input {
+
+            width: 100%;
+
+            padding:
+                14px 15px 14px 45px;
+
+            border:
+                1px solid #dbe3f0;
+
+            border-radius: 12px;
+
+            background:
+                #f8fafc;
+
+            color: #1e293b;
+
+            font-size: 14px;
+
+            outline: none;
+
+            transition: 0.3s;
+        }
+
+        .email-input:focus {
+
+            background: white;
+
+            border-color:
+                #818cf8;
+
+            box-shadow:
+                0 0 0 4px
+                rgba(99,102,241,0.10);
+        }
+
+        .email-input::placeholder {
+
+            color: #94a3b8;
+        }
+
+        /* =========================================
+           PERMISSION
+        ========================================= */
+
+        .permission-box {
+
+            display: flex;
+
+            gap: 10px;
+
+            flex-wrap: wrap;
+        }
+
+        .permission-option {
+
+            flex: 1;
+
+            min-width: 120px;
+
+            padding: 12px;
+
+            border:
+                1px solid #dbe3f0;
+
+            border-radius: 11px;
+
+            background: #f8fafc;
+
+            cursor: pointer;
+
+            text-align: center;
+
+            transition: 0.25s;
+        }
+
+        .permission-option:hover {
+
+            border-color:
+                #a5b4fc;
+
+            background:
+                #eef2ff;
+        }
+
+        .permission-option.selected {
+
+            border-color:
+                #6366f1;
+
+            background:
+                #eef2ff;
+
+            box-shadow:
+                0 0 0 3px
+                rgba(99,102,241,0.08);
+        }
+
+        .permission-option input {
+
+            display: none;
+        }
+
+        .permission-title {
+
+            display: block;
+
+            color:
+                #4338ca;
+
+            font-weight:
+                700;
+
+            font-size:
+                13px;
+        }
+
+        .permission-description {
+
+            display: block;
+
+            color:
+                #94a3b8;
+
+            font-size:
+                10px;
+
+            margin-top:
+                3px;
+        }
+
+        /* =========================================
+           SHARE BUTTON
+        ========================================= */
+
+        .share-button {
+
+            width: 100%;
+
+            padding: 15px;
+
+            border: none;
+
+            border-radius: 12px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #2563eb,
+                    #6366f1,
+                    #9333ea
+                );
+
+            color: white;
+
+            font-size: 14px;
+
+            font-weight: 700;
+
+            cursor: pointer;
+
+            box-shadow:
+                0 9px 20px
+                rgba(79,70,229,0.23);
+
+            transition: 0.3s;
+        }
 
         .share-button:hover {
-            background: #163a5c;
-        }
 
+            transform:
+                translateY(-3px);
+
+            box-shadow:
+                0 13px 27px
+                rgba(79,70,229,0.30);
+        }
 
         .share-button:disabled {
-            background: #999;
-            cursor: not-allowed;
+
+            opacity:
+                0.6;
+
+            cursor:
+                not-allowed;
+
+            transform:
+                none;
+
+            box-shadow:
+                none;
         }
 
+        .selected-count {
 
-        /* ==============================
+            display: inline-flex;
+
+            align-items: center;
+
+            gap: 6px;
+
+            padding: 5px 10px;
+
+            border-radius: 20px;
+
+            background:
+                #ede9fe;
+
+            color:
+                #6d28d9;
+
+            font-size:
+                11px;
+
+            font-weight:
+                700;
+
+            margin-left:
+                auto;
+        }
+
+        /* =========================================
            MESSAGE
-        ============================== */
+        ========================================= */
 
         #message {
-            margin-top: 20px;
-            font-weight: bold;
-            text-align: center;
+
+            display:
+                none;
+
+            margin-top:
+                20px;
+
+            padding:
+                13px 16px;
+
+            border-radius:
+                11px;
+
+            text-align:
+                center;
+
+            font-size:
+                13px;
+
+            font-weight:
+                600;
         }
 
+        #message.success {
+
+            display:
+                block;
+
+            background:
+                #ecfdf5;
+
+            color:
+                #166534;
+
+            border:
+                1px solid #bbf7d0;
+        }
+
+        #message.error {
+
+            display:
+                block;
+
+            background:
+                #fef2f2;
+
+            color:
+                #b91c1c;
+
+            border:
+                1px solid #fecaca;
+        }
+
+        /* =========================================
+           SECURITY
+        ========================================= */
+
+        .security-banner {
+
+            margin-top:
+                25px;
+
+            padding:
+                19px 22px;
+
+            border-radius:
+                16px;
+
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            gap:
+                13px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ecfeff,
+                    #eff6ff
+                );
+
+            border:
+                1px solid #bae6fd;
+        }
+
+        .security-icon {
+
+            width:
+                42px;
+
+            height:
+                42px;
+
+            border-radius:
+                12px;
+
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            justify-content:
+                center;
+
+            background:
+                #dbeafe;
+
+            font-size:
+                20px;
+
+            flex-shrink:
+                0;
+        }
+
+        .security-text h3 {
+
+            color:
+                #1e40af;
+
+            font-size:
+                14px;
+
+            margin-bottom:
+                3px;
+        }
+
+        .security-text p {
+
+            color:
+                #64748b;
+
+            font-size:
+                11px;
+
+            line-height:
+                1.5;
+        }
+
+        /* =========================================
+           FOOTER
+        ========================================= */
+
+        .footer {
+
+            text-align:
+                center;
+
+            margin-top:
+                25px;
+
+            color:
+                #94a3b8;
+
+            font-size:
+                11px;
+        }
+
+        /* =========================================
+           RESPONSIVE
+        ========================================= */
+
+        @media (max-width: 700px) {
+
+            .navbar {
+
+                padding:
+                    0 20px;
+            }
+
+            .brand-text span {
+
+                display:
+                    none;
+            }
+
+            .container {
+
+                width:
+                    92%;
+
+                margin-top:
+                    25px;
+            }
+
+            .hero {
+
+                padding:
+                    27px 22px;
+            }
+
+            .hero h1 {
+
+                font-size:
+                    25px;
+            }
+
+            .hero p {
+
+                margin-left:
+                    0;
+
+                margin-top:
+                    12px;
+            }
+
+            .secure-badge {
+
+                margin-left:
+                    0;
+            }
+
+            .card-header {
+
+                padding:
+                    20px;
+            }
+
+            .form-content {
+
+                padding:
+                    22px;
+            }
+
+            .file-id {
+
+                display:
+                    none;
+            }
+
+            .security-banner {
+
+                align-items:
+                    flex-start;
+            }
+
+        }
+
+        @media (max-width: 480px) {
+
+            .brand-text h2 {
+
+                font-size:
+                    18px;
+            }
+
+            .nav-btn {
+
+                padding:
+                    8px 11px;
+
+                font-size:
+                    11px;
+            }
+
+            .logout-btn {
+
+                display:
+                    none;
+            }
+
+            .hero-title {
+
+                gap:
+                    10px;
+            }
+
+            .hero-icon {
+
+                width:
+                    48px;
+
+                height:
+                    48px;
+
+                font-size:
+                    23px;
+            }
+
+            .hero h1 {
+
+                font-size:
+                    23px;
+            }
+
+            .card-header h2 {
+
+                font-size:
+                    17px;
+            }
+
+        }
 
     </style>
 
@@ -218,32 +1292,48 @@
 <body>
 
 
-    <!-- ==============================
-         NAVIGATION
-    ============================== -->
+    <!-- =========================================
+         NAVBAR
+    ========================================= -->
 
     <div class="navbar">
 
-        <h2>TrustShare</h2>
+        <div class="brand">
+
+            <div class="brand-icon">
+                🔐
+            </div>
+
+            <div class="brand-text">
+
+                <h2>
+                    TrustShare
+                </h2>
+
+                <span>
+                    SECURE FILE SHARING
+                </span>
+
+            </div>
+
+        </div>
 
 
-        <div class="buttons">
+        <div class="nav-buttons">
 
             <button
-                class="dashboard-button"
-                onclick="goToDashboard()">
-
-                Dashboard
-
+                class="nav-btn"
+                onclick="goDashboard()"
+            >
+                🏠 Dashboard
             </button>
 
 
             <button
-                class="logout"
-                onclick="logout()">
-
-                Logout
-
+                class="nav-btn logout-btn"
+                onclick="logout()"
+            >
+                ⇥ Logout
             </button>
 
         </div>
@@ -252,103 +1342,302 @@
 
 
 
-    <!-- ==============================
-         MAIN CONTAINER
-    ============================== -->
+    <!-- =========================================
+         MAIN
+    ========================================= -->
 
     <div class="container">
 
 
-        <!-- ==============================
-             HEADER
-        ============================== -->
+        <!-- =====================================
+             HERO
+        ====================================== -->
 
-        <div class="header">
+        <div class="hero">
 
-            <h1>🔐 Share Data</h1>
+            <div class="hero-content">
 
-            <p>
-                Securely share your uploaded files
-                with another TrustShare user.
-            </p>
+                <div class="hero-title">
+
+                    <div class="hero-icon">
+                        🔐
+                    </div>
+
+                    <h1>
+                        Share Data
+                    </h1>
+
+                </div>
+
+
+                <p>
+                    Securely share your uploaded files
+                    with another TrustShare user using
+                    protected access control.
+                </p>
+
+
+                <div class="secure-badge">
+
+                    <span class="secure-dot"></span>
+
+                    🛡️ Secure • Private • Trusted
+
+                </div>
+
+            </div>
 
         </div>
 
 
 
-        <!-- ==============================
-             SHARE FORM
-        ============================== -->
+        <!-- =====================================
+             SHARE CARD
+        ====================================== -->
 
-        <div class="share-box">
-
-            <h2>Share Multiple Files</h2>
+        <div class="share-card">
 
 
-            <!-- ==============================
-                 FILE SELECTION
-            ============================== -->
+            <div class="card-header">
 
-            <label for="fileName">
-                Select Files
-            </label>
+                <div class="header-icon">
+                    📤
+                </div>
 
 
-            <select
-                id="fileName"
-                multiple
-                size="6">
-
-                <option value="">
-                    Loading files...
-                </option>
-
-            </select>
+                <h2>
+                    Share Multiple Files
+                </h2>
 
 
-            <p class="selection-hint">
-                Hold Ctrl and click to select multiple files.
-            </p>
+                <span
+                    class="selected-count"
+                    id="selectedCount"
+                >
+                    0 Selected
+                </span>
+
+            </div>
 
 
 
-            <!-- ==============================
-                 RECIPIENT
-            ============================== -->
-
-            <label for="recipientEmail">
-                Recipient Email
-            </label>
+            <div class="form-content">
 
 
-            <input
-                type="email"
-                id="recipientEmail"
-                placeholder="Enter recipient email"
-            >
+                <!-- =================================
+                     FILE SELECTION
+                ================================== -->
+
+                <div class="field">
+
+                    <div class="field-label">
+                        📁 Select Files
+                    </div>
+
+
+                    <div
+                        class="file-box"
+                        id="fileList"
+                    >
+
+                        <div class="no-files">
+
+                            <div class="no-files-icon">
+                                📂
+                            </div>
+
+                            Loading your files...
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="helper-text">
+
+                        💡 Select one or multiple files
+                        that you want to share.
+
+                    </div>
+
+                </div>
 
 
 
-            <!-- ==============================
-                 SHARE BUTTON
-            ============================== -->
+                <!-- =================================
+                     RECIPIENT
+                ================================== -->
 
-            <button
-                class="share-button"
-                id="shareButton"
-                onclick="shareFiles()">
+                <div class="field">
 
-                Share Selected Files
-
-            </button>
+                    <div class="field-label">
+                        📧 Recipient Email
+                    </div>
 
 
-            <!-- ==============================
-                 MESSAGE
-            ============================== -->
+                    <div class="input-wrapper">
 
-            <div id="message"></div>
+                        <span class="input-icon">
+                            ✉️
+                        </span>
 
+
+                        <input
+                            type="email"
+                            id="recipientEmail"
+                            class="email-input"
+                            placeholder="Enter recipient email"
+                            autocomplete="off"
+                            required
+                        >
+
+                    </div>
+
+
+                    <div class="helper-text">
+
+                        🔒 Files can only be shared with
+                        a registered TrustShare user.
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- =================================
+                     PERMISSION
+                ================================== -->
+
+                <div class="field">
+
+                    <div class="field-label">
+                        🔒 Permission
+                    </div>
+
+
+                    <div class="permission-box">
+
+
+                        <label
+                            class="permission-option selected"
+                        >
+
+                            <input
+                                type="radio"
+                                name="permission"
+                                value="read"
+                                checked
+                                onchange="updatePermissionStyle()"
+                            >
+
+
+                            <span class="permission-title">
+                                👁 Read
+                            </span>
+
+
+                            <span class="permission-description">
+                                View / Download
+                            </span>
+
+                        </label>
+
+
+
+                        <label
+                            class="permission-option"
+                        >
+
+                            <input
+                                type="radio"
+                                name="permission"
+                                value="download"
+                                onchange="updatePermissionStyle()"
+                            >
+
+
+                            <span class="permission-title">
+                                ⬇ Download
+                            </span>
+
+
+                            <span class="permission-description">
+                                Download access
+                            </span>
+
+                        </label>
+
+
+                    </div>
+
+
+                    <div class="helper-text">
+
+                        🔐 Choose the access permission
+                        for the selected files.
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- =================================
+                     SHARE
+                ================================== -->
+
+                <button
+                    class="share-button"
+                    id="shareButton"
+                    onclick="shareSelectedFiles()"
+                >
+                    📤 Share Selected Files
+                </button>
+
+
+
+                <div id="message"></div>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- =====================================
+             SECURITY BANNER
+        ====================================== -->
+
+        <div class="security-banner">
+
+            <div class="security-icon">
+                🛡️
+            </div>
+
+
+            <div class="security-text">
+
+                <h3>
+                    Secure File Sharing
+                </h3>
+
+
+                <p>
+                    Your files are protected using
+                    authentication and access-control
+                    mechanisms before being shared.
+                </p>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="footer">
+
+            🔐 TrustShare • Secure Data Sharing Platform
 
         </div>
 
@@ -360,14 +1649,16 @@
     <script>
 
 
-        // ==========================================
+        // =========================================
         // CHECK LOGIN
-        // ==========================================
+        // =========================================
 
         function checkLogin() {
 
             const token =
-                localStorage.getItem("access_token");
+                localStorage.getItem(
+                    "access_token"
+                );
 
 
             if (!token) {
@@ -376,26 +1667,39 @@
                     "login.html";
 
                 return false;
+
             }
 
 
             return true;
+
         }
 
 
 
-        // ==========================================
-        // LOAD USER'S FILES
-        // ==========================================
+        // =========================================
+        // LOAD FILES
+        // =========================================
 
         async function loadFiles() {
 
+            if (!checkLogin()) {
+
+                return;
+
+            }
+
+
             const token =
-                localStorage.getItem("access_token");
+                localStorage.getItem(
+                    "access_token"
+                );
 
 
-            const fileSelect =
-                document.getElementById("fileName");
+            const fileList =
+                document.getElementById(
+                    "fileList"
+                );
 
 
             try {
@@ -407,22 +1711,22 @@
                             method: "GET",
 
                             headers: {
+
                                 "Authorization":
-                                    "Bearer " + token
+                                    "Bearer " + token,
+
+                                "Accept":
+                                    "application/json"
+
                             }
+
                         }
                     );
 
 
-                const data =
-                    await response.json();
-
-
-                // ==========================================
-                // TOKEN EXPIRED / INVALID
-                // ==========================================
-
-                if (response.status === 401) {
+                if (
+                    response.status === 401
+                ) {
 
                     localStorage.clear();
 
@@ -430,87 +1734,179 @@
                         "login.html";
 
                     return;
+
                 }
 
 
+                const data =
+                    await response.json();
 
-                // ==========================================
-                // SERVER ERROR
-                // ==========================================
+
+                console.log(
+                    "Files response:",
+                    data
+                );
+
 
                 if (!response.ok) {
 
-                    fileSelect.innerHTML =
-                        '<option value="">Unable to load files</option>';
+                    throw new Error(
+                        data.detail ||
+                        "Unable to load files."
+                    );
 
-                    return;
                 }
 
 
+                // =====================================
+                // BACKEND RETURNS:
+                //
+                // {
+                //     "files": [...]
+                // }
+                //
+                // This also supports an array just
+                // in case your backend changes later.
+                // =====================================
 
-                // ==========================================
-                // NO FILES
-                // ==========================================
+                const files =
+                    Array.isArray(data)
+                        ? data
+                        : (
+                            Array.isArray(data.files)
+                                ? data.files
+                                : []
+                        );
+
 
                 if (
-                    !data.files ||
-                    data.files.length === 0
+                    files.length === 0
                 ) {
 
-                    fileSelect.innerHTML =
-                        '<option value="">No uploaded files</option>';
+                    fileList.innerHTML = `
+
+                        <div class="no-files">
+
+                            <div class="no-files-icon">
+                                📂
+                            </div>
+
+                            No uploaded files
+
+                        </div>
+
+                    `;
+
+                    updateSelectedCount();
 
                     return;
+
                 }
 
 
-
-                // ==========================================
-                // CLEAR LOADING MESSAGE
-                // ==========================================
-
-                fileSelect.innerHTML = "";
+                fileList.innerHTML =
+                    "";
 
 
+                files.forEach(
+                    function(file) {
 
-                // ==========================================
-                // ADD ALL FILES
-                // ==========================================
 
-                data.files.forEach(
-                    function(filename) {
-
-                        const option =
+                        const label =
                             document.createElement(
-                                "option"
+                                "label"
                             );
 
 
-                        option.value =
-                            filename;
+                        label.className =
+                            "file-option";
 
 
-                        option.textContent =
-                            filename;
+                        // =================================
+                        // STORE ACTUAL FILE ID
+                        // =================================
+
+                        const fileId =
+                            file.file_id ||
+                            file.id;
 
 
-                        fileSelect.appendChild(
-                            option
+                        // =================================
+                        // FILE NAME
+                        // =================================
+
+                        const fileName =
+                            file.filename ||
+                            "Unnamed file";
+
+
+                        label.innerHTML = `
+
+                            <input
+                                type="checkbox"
+                                class="file-checkbox"
+                                value="${escapeAttribute(
+                                    fileId
+                                )}"
+                                data-filename="${escapeAttribute(
+                                    fileName
+                                )}"
+                                onchange="updateSelectedCount()"
+                            >
+
+                            <div class="file-icon">
+                                📄
+                            </div>
+
+                            <div class="file-name">
+                                ${escapeHtml(
+                                    fileName
+                                )}
+                            </div>
+
+                            <div class="file-id">
+                                ID: ${escapeHtml(
+                                    fileId
+                                )}
+                            </div>
+
+                        `;
+
+
+                        fileList.appendChild(
+                            label
                         );
 
                     }
                 );
+
+
+                updateSelectedCount();
 
             }
 
 
             catch (error) {
 
-                console.error(error);
+                console.error(
+                    "Load files error:",
+                    error
+                );
 
 
-                fileSelect.innerHTML =
-                    '<option value="">Cannot connect to server</option>';
+                fileList.innerHTML = `
+
+                    <div class="no-files">
+
+                        <div class="no-files-icon">
+                            ⚠️
+                        </div>
+
+                        Unable to load your files.
+
+                    </div>
+
+                `;
 
             }
 
@@ -518,102 +1914,128 @@
 
 
 
-        // ==========================================
-        // SHARE MULTIPLE FILES
-        // ==========================================
+        // =========================================
+        // UPDATE SELECTED COUNT
+        // =========================================
 
-        async function shareFiles() {
+        function updateSelectedCount() {
 
-
-            // ==========================================
-            // GET SELECTED FILES
-            // ==========================================
-
-            const fileSelect =
-                document.getElementById("fileName");
+            const checkboxes =
+                document.querySelectorAll(
+                    ".file-checkbox:checked"
+                );
 
 
-            const selectedFiles =
-                Array.from(
-                    fileSelect.selectedOptions
+            const count =
+                checkboxes.length;
+
+
+            const selectedCount =
+                document.getElementById(
+                    "selectedCount"
+                );
+
+
+            selectedCount.innerText =
+                count + " Selected";
+
+
+            document
+                .querySelectorAll(
+                    ".file-option"
                 )
-                .map(
+                .forEach(
+                    function(label) {
+
+
+                        const checkbox =
+                            label.querySelector(
+                                ".file-checkbox"
+                            );
+
+
+                        if (
+                            checkbox.checked
+                        ) {
+
+                            label.classList.add(
+                                "selected"
+                            );
+
+                        }
+
+                        else {
+
+                            label.classList.remove(
+                                "selected"
+                            );
+
+                        }
+
+                    }
+                );
+
+        }
+
+
+
+        // =========================================
+        // PERMISSION STYLE
+        // =========================================
+
+        function updatePermissionStyle() {
+
+            document
+                .querySelectorAll(
+                    ".permission-option"
+                )
+                .forEach(
                     function(option) {
-                        return option.value;
+
+
+                        const radio =
+                            option.querySelector(
+                                "input"
+                            );
+
+
+                        if (
+                            radio.checked
+                        ) {
+
+                            option.classList.add(
+                                "selected"
+                            );
+
+                        }
+
+                        else {
+
+                            option.classList.remove(
+                                "selected"
+                            );
+
+                        }
+
                     }
-                )
-                .filter(
-                    function(value) {
-                        return value !== "";
-                    }
                 );
 
-
-
-            // ==========================================
-            // GET RECIPIENT EMAIL
-            // ==========================================
-
-            const recipientEmail =
-                document.getElementById(
-                    "recipientEmail"
-                ).value.trim();
+        }
 
 
 
-            // ==========================================
-            // MESSAGE ELEMENT
-            // ==========================================
+        // =========================================
+        // SHARE SELECTED FILES
+        // =========================================
 
-            const message =
-                document.getElementById(
-                    "message"
-                );
+        async function shareSelectedFiles() {
 
-
-
-            // ==========================================
-            // SHARE BUTTON
-            // ==========================================
-
-            const shareButton =
-                document.getElementById(
-                    "shareButton"
-                );
-
-
-
-            // ==========================================
-            // CHECK FILE SELECTION
-            // ==========================================
-
-            if (selectedFiles.length === 0) {
-
-                message.innerText =
-                    "Please select at least one file.";
+            if (!checkLogin()) {
 
                 return;
+
             }
 
-
-
-            // ==========================================
-            // CHECK EMAIL
-            // ==========================================
-
-            if (!recipientEmail) {
-
-                message.innerText =
-                    "Please enter recipient email.";
-
-                return;
-            }
-
-
-
-            // ==========================================
-            // GET JWT TOKEN
-            // ==========================================
 
             const token =
                 localStorage.getItem(
@@ -621,73 +2043,217 @@
                 );
 
 
-            if (!token) {
+            const recipientEmail =
+                document
+                    .getElementById(
+                        "recipientEmail"
+                    )
+                    .value
+                    .trim();
 
-                message.innerText =
-                    "Please login again.";
 
-                window.location.href =
-                    "login.html";
+            const selectedFiles =
+                Array.from(
+                    document.querySelectorAll(
+                        ".file-checkbox:checked"
+                    )
+                );
+
+
+            const message =
+                document.getElementById(
+                    "message"
+                );
+
+
+            const shareButton =
+                document.getElementById(
+                    "shareButton"
+                );
+
+
+            // =====================================
+            // VALIDATE FILES
+            // =====================================
+
+            if (
+                selectedFiles.length === 0
+            ) {
+
+                showMessage(
+                    "❌ Please select at least one file.",
+                    "error"
+                );
 
                 return;
+
             }
 
 
+            // =====================================
+            // VALIDATE EMAIL
+            // =====================================
 
-            // ==========================================
-            // DISABLE BUTTON
-            // ==========================================
+            if (!recipientEmail) {
 
-            shareButton.disabled = true;
+                showMessage(
+                    "❌ Please enter the recipient email.",
+                    "error"
+                );
 
-            shareButton.innerText =
-                "Sharing...";
+                return;
 
-
-
-            message.innerText =
-                "Sharing "
-                + selectedFiles.length
-                + " file(s)...";
+            }
 
 
+            // =====================================
+            // VALIDATE EMAIL FORMAT
+            // =====================================
 
-            // ==========================================
-            // COUNTERS
-            // ==========================================
-
-            let successCount = 0;
-
-            let failedCount = 0;
+            const emailPattern =
+                /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 
-
-            // ==========================================
-            // SHARE EACH SELECTED FILE
-            // ==========================================
-
-            for (
-                const fileName
-                of selectedFiles
+            if (
+                !emailPattern.test(
+                    recipientEmail
+                )
             ) {
 
+                showMessage(
+                    "❌ Please enter a valid email address.",
+                    "error"
+                );
 
-                try {
+                return;
+
+            }
 
 
-                    // ==========================================
-                    // CALL EXISTING FASTAPI SHARE API
-                    // ==========================================
+            // =====================================
+            // GET PERMISSION
+            // =====================================
+
+            const permissionElement =
+                document.querySelector(
+                    'input[name="permission"]:checked'
+                );
+
+
+            const permission =
+                permissionElement
+                    ? permissionElement.value
+                    : "read";
+
+
+            // =====================================
+            // DISABLE BUTTON
+            // =====================================
+
+            shareButton.disabled =
+                true;
+
+
+            shareButton.innerText =
+                "⏳ Sharing files...";
+
+
+            showMessage(
+                "⏳ Sharing selected files...",
+                "success"
+            );
+
+
+            let successCount =
+                0;
+
+
+            let failedCount =
+                0;
+
+
+            let failureDetails =
+                [];
+
+
+            try {
+
+
+                // =================================
+                // SHARE EACH FILE
+                // =================================
+
+                for (
+                    let i = 0;
+                    i < selectedFiles.length;
+                    i++
+                ) {
+
+
+                    const checkbox =
+                        selectedFiles[i];
+
+
+                    const fileId =
+                        checkbox.value;
+
+
+                    const filename =
+                        checkbox.dataset.filename;
+
+
+                    console.log(
+                        "Sharing file:",
+                        {
+                            fileId:
+                                fileId,
+
+                            filename:
+                                filename,
+
+                            recipient:
+                                recipientEmail,
+
+                            permission:
+                                permission
+                        }
+                    );
+
+
+                    // =================================
+                    // IMPORTANT FIX
+                    //
+                    // Backend expects:
+                    //
+                    // filename
+                    // recipient_email
+                    // permission
+                    //
+                    // NOT file_id
+                    // =================================
+
+                    const url =
+                        "http://127.0.0.1:8000/share"
+                        + "?filename="
+                        + encodeURIComponent(
+                            filename
+                        )
+                        + "&recipient_email="
+                        + encodeURIComponent(
+                            recipientEmail
+                        )
+                        + "&permission="
+                        + encodeURIComponent(
+                            permission
+                        );
+
 
                     const response =
                         await fetch(
-                            "http://127.0.0.1:8000/share?filename="
-                            + encodeURIComponent(fileName)
-                            + "&recipient_email="
-                            + encodeURIComponent(recipientEmail),
-
+                            url,
                             {
-                                method: "POST",
+                                method:
+                                    "POST",
 
                                 headers: {
 
@@ -698,156 +2264,305 @@
                                         "application/json"
 
                                 }
+
                             }
                         );
 
 
+                    // =================================
+                    // TOKEN EXPIRED
+                    // =================================
 
-                    // ==========================================
-                    // READ RESPONSE
-                    // ==========================================
-
-                    const data =
-                        await response.json();
-
-
-
-                    // ==========================================
-                    // TOKEN ERROR
-                    // ==========================================
-
-                    if (response.status === 401) {
-
-                        message.innerText =
-                            "Session expired. Please login again.";
+                    if (
+                        response.status === 401
+                    ) {
 
                         localStorage.clear();
 
-
-                        setTimeout(
-                            function() {
-
-                                window.location.href =
-                                    "login.html";
-
-                            },
-                            1500
-                        );
-
+                        window.location.href =
+                            "login.html";
 
                         return;
+
                     }
 
 
+                    // =================================
+                    // READ RESPONSE
+                    // =================================
 
-                    // ==========================================
+                    let responseData =
+                        null;
+
+
+                    try {
+
+                        responseData =
+                            await response.json();
+
+                    }
+
+                    catch (e) {
+
+                        responseData =
+                            {};
+
+                    }
+
+
+                    console.log(
+                        "Share response for",
+                        filename,
+                        response.status,
+                        responseData
+                    );
+
+
+                    // =================================
                     // SUCCESS
-                    // ==========================================
+                    // =================================
 
-                    if (response.ok) {
+                    if (
+                        response.ok
+                    ) {
 
                         successCount++;
 
                     }
 
-
-                    // ==========================================
-                    // FAILED
-                    // ==========================================
-
                     else {
 
-                        console.error(
-                            "Failed to share file:",
-                            fileName,
-                            data
-                        );
-
                         failedCount++;
+
+
+                        failureDetails.push(
+                            filename
+                            + ": "
+                            + (
+                                responseData.detail ||
+                                "Share failed"
+                            )
+                        );
 
                     }
 
                 }
 
 
-                catch (error) {
+                // =====================================
+                // FINAL RESULT
+                // =====================================
 
-                    console.error(
-                        "Error sharing file:",
-                        fileName,
-                        error
+                if (
+                    successCount > 0 &&
+                    failedCount === 0
+                ) {
+
+                    showMessage(
+                        "✅ " +
+                        successCount +
+                        " file(s) shared successfully with "
+                        +
+                        recipientEmail +
+                        ".",
+                        "success"
                     );
 
-                    failedCount++;
+
+                    // Clear selected files
+
+                    document
+                        .querySelectorAll(
+                            ".file-checkbox:checked"
+                        )
+                        .forEach(
+                            function(checkbox) {
+
+                                checkbox.checked =
+                                    false;
+
+                            }
+                        );
+
+
+                    updateSelectedCount();
+
+
+                    document
+                        .getElementById(
+                            "recipientEmail"
+                        )
+                        .value =
+                            "";
+
+
+                }
+
+
+                else if (
+                    successCount > 0 &&
+                    failedCount > 0
+                ) {
+
+                    showMessage(
+                        "⚠️ " +
+                        successCount +
+                        " file(s) shared successfully, but "
+                        +
+                        failedCount +
+                        " file(s) failed.",
+                        "error"
+                    );
+
+
+                    console.error(
+                        "Share failures:",
+                        failureDetails
+                    );
+
+                }
+
+
+                else {
+
+                    showMessage(
+                        "❌ Unable to share the selected files.",
+                        "error"
+                    );
+
+
+                    console.error(
+                        "Share failures:",
+                        failureDetails
+                    );
 
                 }
 
             }
 
 
+            catch (error) {
 
-            // ==========================================
-            // FINAL RESULT
-            // ==========================================
-
-            if (failedCount === 0) {
-
-                message.innerText =
-                    successCount
-                    + " file(s) shared successfully with "
-                    + recipientEmail;
-
-            }
+                console.error(
+                    "Share error:",
+                    error
+                );
 
 
-            else {
-
-                message.innerText =
-                    successCount
-                    + " file(s) shared successfully. "
-                    + failedCount
-                    + " file(s) failed.";
+                showMessage(
+                    "❌ Cannot connect to TrustShare server.",
+                    "error"
+                );
 
             }
 
 
+            finally {
 
-            // ==========================================
-            // CLEAR EMAIL
-            // ==========================================
-
-            document.getElementById(
-                "recipientEmail"
-            ).value = "";
+                shareButton.disabled =
+                    false;
 
 
+                shareButton.innerText =
+                    "📤 Share Selected Files";
 
-            // ==========================================
-            // CLEAR FILE SELECTION
-            // ==========================================
-
-            fileSelect.selectedIndex = -1;
-
-
-
-            // ==========================================
-            // ENABLE BUTTON
-            // ==========================================
-
-            shareButton.disabled = false;
-
-            shareButton.innerText =
-                "Share Selected Files";
+            }
 
         }
 
 
 
-        // ==========================================
-        // DASHBOARD
-        // ==========================================
+        // =========================================
+        // SHOW MESSAGE
+        // =========================================
 
-        function goToDashboard() {
+        function showMessage(
+            text,
+            type
+        ) {
+
+            const message =
+                document.getElementById(
+                    "message"
+                );
+
+
+            message.innerText =
+                text;
+
+
+            message.className =
+                type;
+
+        }
+
+
+
+        // =========================================
+        // ESCAPE HTML
+        // =========================================
+
+        function escapeHtml(value) {
+
+            const div =
+                document.createElement(
+                    "div"
+                );
+
+
+            div.textContent =
+                value == null
+                    ? ""
+                    : String(value);
+
+
+            return div.innerHTML;
+
+        }
+
+
+
+        // =========================================
+        // ESCAPE ATTRIBUTE
+        // =========================================
+
+        function escapeAttribute(value) {
+
+            return String(
+                value == null
+                    ? ""
+                    : value
+            )
+                .replace(
+                    /&/g,
+                    "&amp;"
+                )
+                .replace(
+                    /"/g,
+                    "&quot;"
+                )
+                .replace(
+                    /'/g,
+                    "&#39;"
+                )
+                .replace(
+                    /</g,
+                    "&lt;"
+                )
+                .replace(
+                    />/g,
+                    "&gt;"
+                );
+
+        }
+
+
+
+        // =========================================
+        // DASHBOARD
+        // =========================================
+
+        function goDashboard() {
 
             window.location.href =
                 "dashboard.html";
@@ -856,9 +2571,9 @@
 
 
 
-        // ==========================================
+        // =========================================
         // LOGOUT
-        // ==========================================
+        // =========================================
 
         function logout() {
 
@@ -871,16 +2586,11 @@
 
 
 
-        // ==========================================
+        // =========================================
         // START PAGE
-        // ==========================================
+        // =========================================
 
-        if (checkLogin()) {
-
-            loadFiles();
-
-        }
-
+        loadFiles();
 
     </script>
 
