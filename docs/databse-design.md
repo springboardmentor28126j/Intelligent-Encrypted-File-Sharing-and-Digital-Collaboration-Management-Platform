@@ -183,34 +183,29 @@ Users
                  ├──────────< Share Links
                  │
                  └──────────< Downloads
+
 11. Main Relationships
 Users → Files
-
 One user can own many files.
 
 Users → Folders
-
 One user can own many folders.
 
 Folders → Files
-
 One folder can contain many files.
 
 Files → File Versions
-
 One file can have multiple versions.
 
 Files → File Permissions
-
 One file can have permissions for multiple users.
 
 Files → Share Links
-
 One file can have multiple temporary share links.
 
 Files → Downloads
-
 One file can have multiple download records.
+
 
 12. Security Considerations
 
