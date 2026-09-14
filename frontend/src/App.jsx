@@ -50,6 +50,30 @@ function App() {
   });
 
   // =====================================================
+  // SECURE SHARING / PERMISSIONS / TEMPORARY ACCESS
+  // =====================================================
+
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareFile, setShareFile] = useState(null);
+  const [sharePermission, setSharePermission] = useState("view");
+  const [shareExpiry, setShareExpiry] = useState(24);
+  const [maxDownloads, setMaxDownloads] = useState("");
+  const [shareLink, setShareLink] = useState("");
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareMessage, setShareMessage] = useState("");
+  const [existingShares, setExistingShares] = useState([]);
+  const [sharesLoading, setSharesLoading] = useState(false);
+
+  // =====================================================
+  // SEND FILE PAGE
+  // =====================================================
+
+  const [sendShareLink, setSendShareLink] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
+  const [sendMessage, setSendMessage] = useState("");
+
+  // =====================================================
   // THEME
   // =====================================================
 
@@ -564,6 +588,214 @@ function App() {
   }
 
   // =====================================================
+  // SECURE SHARE LINK
+  // =====================================================
+
+  function openShareModal(file) {
+    setShareFile(file);
+    setSharePermission("view");
+    setShareExpiry(24);
+    setMaxDownloads("");
+    setShareLink("");
+    setShareMessage("");
+    setShareModalOpen(true);
+    loadShares(file.id);
+  }
+
+  async function loadShares(fileId) {
+    setSharesLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/files/${fileId}/shares`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        setExistingShares([]);
+        return;
+      }
+
+      const data = await response.json();
+      setExistingShares(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to load share links:", error);
+      setExistingShares([]);
+    } finally {
+      setSharesLoading(false);
+    }
+  }
+
+  async function revokeShareLink(shareId) {
+    try {
+      const response = await fetch(`${API_URL}/shares/${shareId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        // Refresh from the server rather than filtering locally, since
+        // the backend is the source of truth for revoked/expired state.
+        loadShares(shareFile.id);
+      } else {
+        const data = await response.json();
+        setShareMessage(data.detail || "Unable to revoke this link.");
+      }
+    } catch (error) {
+      console.error("Revoke error:", error);
+      setShareMessage("Unable to connect to the server.");
+    }
+  }
+
+  function closeShareModal() {
+    setShareModalOpen(false);
+    setShareFile(null);
+    setShareLink("");
+    setShareMessage("");
+  }
+
+  async function createShareLink() {
+    if (!shareFile) return;
+
+    if (!shareExpiry || Number(shareExpiry) <= 0) {
+      setShareMessage("Please enter a valid expiry time.");
+      return;
+    }
+
+    if (
+      maxDownloads !== "" &&
+      (Number(maxDownloads) <= 0 ||
+        !Number.isInteger(Number(maxDownloads)))
+    ) {
+      setShareMessage("Maximum downloads must be a positive whole number.");
+      return;
+    }
+
+    setShareLoading(true);
+    setShareMessage("");
+    setShareLink("");
+
+    try {
+      const formData = new FormData();
+      formData.append("permission", sharePermission);
+      formData.append("expires_in_hours", shareExpiry);
+
+      if (maxDownloads !== "") {
+        formData.append("max_downloads", maxDownloads);
+      }
+
+      const response = await fetch(
+        `${API_URL}/files/${shareFile.id}/share`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "Unable to create secure share link."
+        );
+      }
+
+      const fullShareLink = `${API_URL}${data.share_url}`;
+      setShareLink(fullShareLink);
+      setShareMessage("Secure share link created successfully.");
+      loadShares(shareFile.id);
+    } catch (error) {
+      setShareMessage(error.message || "Unable to create share link.");
+    } finally {
+      setShareLoading(false);
+    }
+  }
+
+  async function copyShareLink() {
+    if (!shareLink) return;
+
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setShareMessage("Share link copied to clipboard.");
+    } catch (error) {
+      setShareMessage("Unable to copy the link.");
+    }
+  }
+
+  // =====================================================
+  // SEND FILE / EMAIL PAGE
+  // =====================================================
+
+  function openSendFilePage(link = "") {
+    setSendShareLink(link || "");
+    setRecipientEmail("");
+    setEmailMessage("");
+    setSendMessage("");
+    setShareModalOpen(false);
+    setShareFile(null);
+    setShareLink("");
+    setPage("send");
+    setProfileOpen(false);
+  }
+
+  async function copySendLink() {
+    if (!sendShareLink) return;
+
+    try {
+      await navigator.clipboard.writeText(sendShareLink);
+      setSendMessage("Secure link copied to clipboard.");
+    } catch (error) {
+      setSendMessage("Unable to copy the link.");
+    }
+  }
+
+  function sendFileByEmail(e) {
+    e.preventDefault();
+    setSendMessage("");
+
+    const link = sendShareLink.trim();
+    const email = recipientEmail.trim();
+
+    if (!link) {
+      setSendMessage("Please paste a TrustShare share link.");
+      return;
+    }
+
+    if (!link.startsWith(`${API_URL}/share/`)) {
+      setSendMessage("Please enter a valid TrustShare secure share link.");
+      return;
+    }
+
+    if (!email) {
+      setSendMessage("Please enter the recipient's email address.");
+      return;
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+      setSendMessage("Please enter a valid email address.");
+      return;
+    }
+
+    const subject = "A secure file has been shared with you - TrustShare";
+    const body = `Hello,\n\n${user?.username || "Someone"} has securely shared a file with you through TrustShare.\n\nOpen the secure file link:\n${link}\n\n${emailMessage.trim() || "Please open the link before it expires."}\n\nThis link is protected by the sharing permissions configured by the sender.\n\nRegards,\nTrustShare`;
+
+    const mailtoUrl =
+      `mailto:${encodeURIComponent(email)}` +
+      `?subject=${encodeURIComponent(subject)}` +
+      `&body=${encodeURIComponent(body)}`;
+
+    window.location.href = mailtoUrl;
+    setSendMessage("Your email application is opening with the secure link.");
+  }
+
+  // =====================================================
   // LOGOUT
   // =====================================================
 
@@ -1045,6 +1277,16 @@ function App() {
                 <button
                   onClick={() =>
                     navigateTo(
+                      "send"
+                    )
+                  }
+                >
+                  📧 Send File
+                </button>
+
+                <button
+                  onClick={() =>
+                    navigateTo(
                       "profile"
                     )
                   }
@@ -1395,6 +1637,15 @@ function App() {
                     <div className="file-actions">
 
                       <button
+                        className="share-button"
+                        onClick={() =>
+                          openShareModal(file)
+                        }
+                      >
+                        🔗 Share
+                      </button>
+
+                      <button
                         className="download-button"
                         onClick={() =>
                           downloadFile(
@@ -1432,6 +1683,119 @@ function App() {
 
         </main>
 
+      )}
+
+      {/* =================================================
+          SEND FILE
+      ================================================= */}
+
+      {page === "send" && (
+        <main className="dashboard-container">
+          <section className="page-heading">
+            <div className="welcome-small">
+              SECURE SHARING
+            </div>
+            <h2>Send File</h2>
+            <p>Send a TrustShare secure link to another person by email.</p>
+          </section>
+
+          <section className="send-file-card">
+            <div className="send-file-header">
+              <div className="send-file-icon">📧</div>
+              <div>
+                <h3>Send a Secure File Link</h3>
+                <p>Paste your generated TrustShare link and enter the recipient's email address.</p>
+              </div>
+            </div>
+
+            <form className="send-file-form" onSubmit={sendFileByEmail}>
+              <div className="send-form-group">
+                <label htmlFor="sendShareLink">TrustShare File Link</label>
+                <div className="send-link-row">
+                  <input
+                    id="sendShareLink"
+                    type="url"
+                    placeholder="Paste your TrustShare secure link"
+                    value={sendShareLink}
+                    onChange={(e) => {
+                      setSendShareLink(e.target.value);
+                      setSendMessage("");
+                    }}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="copy-link-button"
+                    onClick={copySendLink}
+                    disabled={!sendShareLink}
+                  >
+                    📋 Copy
+                  </button>
+                </div>
+              </div>
+
+              <div className="send-form-group">
+                <label htmlFor="recipientEmail">Recipient Email</label>
+                <input
+                  id="recipientEmail"
+                  type="email"
+                  placeholder="example@gmail.com"
+                  value={recipientEmail}
+                  onChange={(e) => {
+                    setRecipientEmail(e.target.value);
+                    setSendMessage("");
+                  }}
+                  required
+                />
+              </div>
+
+              <div className="send-form-group">
+                <label htmlFor="emailMessage">Message <span>(Optional)</span></label>
+                <textarea
+                  id="emailMessage"
+                  placeholder="Write a short message to the recipient..."
+                  value={emailMessage}
+                  onChange={(e) => setEmailMessage(e.target.value)}
+                  rows="5"
+                />
+              </div>
+
+              <div className="send-security-note">
+                <span>🛡️</span>
+                <div>
+                  <strong>Secure temporary access</strong>
+                  <p>The recipient will receive the TrustShare link. Access is controlled by the permission, expiry time, and download limit configured for that link.</p>
+                </div>
+              </div>
+
+              {sendMessage && (
+                <div
+                  className={`send-message ${
+                    sendMessage.toLowerCase().includes("opening") ||
+                    sendMessage.toLowerCase().includes("copied")
+                      ? "success-message"
+                      : "error-message"
+                  }`}
+                >
+                  {sendMessage}
+                </div>
+              )}
+
+              <div className="send-file-actions">
+                <button
+                  type="button"
+                  className="cancel-delete-button"
+                  onClick={() => navigateTo("files")}
+                >
+                  ← Back to My Files
+                </button>
+                <button type="submit" className="generate-share-button">
+                  📧 Send Secure Link
+                </button>
+              </div>
+            </form>
+          </section>
+        </main>
       )}
 
       {/* =================================================
@@ -1755,6 +2119,254 @@ function App() {
       {/* =================================================
           DELETE CONFIRMATION POPUP
       ================================================= */}
+
+      {/* =================================================
+          SECURE SHARING MODAL
+      ================================================= */}
+
+      {shareModalOpen && (
+
+        <div
+          className="modal-overlay"
+          onClick={closeShareModal}
+        >
+
+          <div
+            className="share-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+
+            <div className="share-modal-icon">
+              🔗
+            </div>
+
+            <h2>
+              Secure File Sharing
+            </h2>
+
+            <p className="share-file-title">
+              {shareFile?.filename}
+            </p>
+
+            {sharesLoading ? (
+              <p className="existing-shares-loading">Loading existing links...</p>
+            ) : existingShares.length > 0 ? (
+              <div className="existing-shares-list">
+                <p className="existing-shares-title">Active share links</p>
+
+                {existingShares.map((share) => (
+                  <div className="existing-share-item" key={share.id}>
+                    <div className="existing-share-info">
+                      <span className={`share-permission-badge ${share.permission}`}>
+                        {share.permission === "view" ? "👁️ View" : "⬇ Download"}
+                      </span>
+
+                      <span className="existing-share-meta">
+                        Expires {new Date(share.expires_at).toLocaleString()}
+                        {share.max_downloads
+                          ? ` · ${share.download_count}/${share.max_downloads} downloads`
+                          : ""}
+                        {share.revoked ? " · Revoked" : ""}
+                      </span>
+                    </div>
+
+                    {!share.revoked && (
+                      <button
+                        className="revoke-share-button"
+                        onClick={() => revokeShareLink(share.id)}
+                      >
+                        Revoke
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {!shareLink ? (
+
+              <>
+
+                <div className="share-form-group">
+                  <label>
+                    Permission
+                  </label>
+
+                  <div className="permission-options">
+
+                    <label className={`permission-option ${sharePermission === "view" ? "selected" : ""}`}>
+                      <input
+                        type="radio"
+                        name="sharePermission"
+                        value="view"
+                        checked={sharePermission === "view"}
+                        onChange={(e) => setSharePermission(e.target.value)}
+                      />
+                      <span>👁️ View Only</span>
+                    </label>
+
+                    <label className={`permission-option ${sharePermission === "download" ? "selected" : ""}`}>
+                      <input
+                        type="radio"
+                        name="sharePermission"
+                        value="download"
+                        checked={sharePermission === "download"}
+                        onChange={(e) => setSharePermission(e.target.value)}
+                      />
+                      <span>⬇ Download</span>
+                    </label>
+
+                  </div>
+                </div>
+
+                <div className="share-form-row">
+
+                  <div className="share-form-group">
+                    <label htmlFor="shareExpiry">
+                      Temporary Access (Hours)
+                    </label>
+                    <input
+                      id="shareExpiry"
+                      type="number"
+                      min="1"
+                      value={shareExpiry}
+                      onChange={(e) => setShareExpiry(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="share-form-group">
+                    <label htmlFor="maxDownloads">
+                      Max Downloads (Optional)
+                    </label>
+                    <input
+                      id="maxDownloads"
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="Unlimited"
+                      value={maxDownloads}
+                      onChange={(e) => setMaxDownloads(e.target.value)}
+                    />
+                  </div>
+
+                </div>
+
+                <div className="temporary-access-note">
+                  <span>🛡️</span>
+                  <div>
+                    <strong>Temporary and controlled access</strong>
+                    <p>
+                      The link will expire automatically after the selected time.
+                      You can also limit the number of downloads.
+                    </p>
+                  </div>
+                </div>
+
+                {shareMessage && (
+                  <div className="share-message error-message">
+                    {shareMessage}
+                  </div>
+                )}
+
+                <div className="modal-actions share-modal-actions">
+                  <button
+                    className="cancel-delete-button"
+                    onClick={closeShareModal}
+                    disabled={shareLoading}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    className="generate-share-button"
+                    onClick={createShareLink}
+                    disabled={shareLoading}
+                  >
+                    {shareLoading ? "Creating..." : "🔐 Generate Secure Link"}
+                  </button>
+                </div>
+
+              </>
+
+            ) : (
+
+              <>
+
+                <div className="share-success-box">
+                  <div className="share-success-icon">
+                    ✓
+                  </div>
+                  <h3>
+                    Secure Link Ready
+                  </h3>
+                  <p>
+                    Your file has been configured for secure temporary access.
+                  </p>
+                </div>
+
+                <div className="share-link-box">
+                  <input
+                    type="text"
+                    value={shareLink}
+                    readOnly
+                    onFocus={(e) => e.target.select()}
+                  />
+
+                  <button
+                    className="copy-share-button"
+                    onClick={copyShareLink}
+                  >
+                    📋 Copy
+                  </button>
+                </div>
+
+                <div className="share-details">
+                  <div>
+                    <span>Permission</span>
+                    <strong>
+                      {sharePermission === "view" ? "View Only" : "Download"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Expires In</span>
+                    <strong>{shareExpiry} hour(s)</strong>
+                  </div>
+                  <div>
+                    <span>Maximum Downloads</span>
+                    <strong>{maxDownloads || "Unlimited"}</strong>
+                  </div>
+                </div>
+
+                {shareMessage && (
+                  <div className="share-message success-message">
+                    {shareMessage}
+                  </div>
+                )}
+
+                <div className="modal-actions share-modal-actions">
+                  <button
+                    className="cancel-delete-button"
+                    onClick={() => openSendFilePage(shareLink)}
+                  >
+                    📧 Open Email
+                  </button>
+                  <button
+                    className="generate-share-button"
+                    onClick={closeShareModal}
+                  >
+                    Done
+                  </button>
+                </div>
+
+              </>
+
+            )}
+
+          </div>
+
+        </div>
+
+      )}
 
       {deletePopup.open && (
 
