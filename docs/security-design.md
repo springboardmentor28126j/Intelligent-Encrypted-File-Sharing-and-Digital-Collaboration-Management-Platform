@@ -24,7 +24,7 @@ TrustShare uses **role-based access control (RBAC)** to control user access.
 ## 4. File Encryption
 
 Files are protected using **AES-256-GCM encryption** before being stored.
-
+```
 Original File
      ↓
 AES-256-GCM Encryption
@@ -32,6 +32,7 @@ AES-256-GCM Encryption
 Encrypted File
      ↓
 Backblaze B2
+```
 
 ## 5. Key Management
 
@@ -56,7 +57,7 @@ TrustShare allows users to securely share files with other registered users.
 - Download permission
 - Permission expiration
 - Access verification
-  
+```  
 Sender
    ↓
 Select File
@@ -66,7 +67,7 @@ Select User
 Set Permission
    ↓
 Shared File
-
+```
 ## 7. Temporary Share Links
 
 TrustShare provides temporary share links for controlled file access.
@@ -76,7 +77,7 @@ TrustShare provides temporary share links for controlled file access.
 - Download count tracking
 - Link revocation
 - Hashed share tokens
-  
+ ``` 
 Create Share Link
        ↓
 Set Expiration
@@ -86,7 +87,7 @@ Set Download Limit
 Share Link
        ↓
 Access File
-
+```
 ## 8. Secure File Storage
 
 Encrypted files are stored in Backblaze B2.
@@ -96,6 +97,7 @@ Encrypted files are stored in Backblaze B2.
 - PostgreSQL stores file metadata
 - Storage keys identify stored files
 - Encryption key references are stored in PostgreSQL
+```
  Original File
      ↓
 AES-256-GCM Encryption
@@ -103,7 +105,7 @@ AES-256-GCM Encryption
 Encrypted File
      ↓
 Backblaze B2
-
+```
 ## 9. File Decryption
 
 Files are decrypted only after successful authentication and permission verification.
@@ -114,6 +116,7 @@ Files are decrypted only after successful authentication and permission verifica
 - Protected encryption key is recovered
 - File is decrypted using AES-256-GCM
 - Decrypted file is provided to the authorized user
+```
 User Request
      ↓
 Authentication
@@ -127,7 +130,7 @@ Key Recovery
 AES-256-GCM Decryption
      ↓
 Authorized User
-
+```
 ## 10. Download Tracking
 
 TrustShare records file download activities for tracking and auditing.
@@ -138,4 +141,3 @@ TrustShare records file download activities for tracking and auditing.
 - IP address
 - User agent
 - Download time
-
