@@ -1,5 +1,10 @@
 import os
 import uuid
+import mimetypes
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import (
     FastAPI,
@@ -12,18 +17,37 @@ from fastapi import (
 )
 
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 
 from sqlalchemy.orm import Session
 
+from cryptography.exceptions import InvalidTag
+
 from database import Base, engine, get_db
-from models import User, File as DBFile
+from models import User, File as DBFile, Share
 
 from auth import (
     hash_password,
     verify_password,
     create_access_token,
     verify_token
+)
+
+from encryption import (
+    generate_data_key,
+    wrap_key,
+    unwrap_key,
+    encrypt_file_bytes,
+    decrypt_file_bytes
+)
+
+from storage import storage
+
+from sharing import (
+    create_share as sharing_create_share,
+    get_valid_share,
+    check_and_register_access,
+    revoke_share as sharing_revoke_share
 )
 
 
@@ -34,7 +58,7 @@ from auth import (
 app = FastAPI(
     title="TrustShare API",
     description="Secure File Sharing and Collaboration Platform",
-    version="1.0"
+    version="2.0"
 )
 
 
@@ -44,7 +68,6 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -53,11 +76,8 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000"
     ],
-
     allow_credentials=True,
-
     allow_methods=["*"],
-
     allow_headers=["*"]
 )
 
@@ -70,15 +90,36 @@ Base.metadata.create_all(bind=engine)
 
 
 # =========================================================
-# UPLOAD DIRECTORY
+# SHARED AUTH HELPER
 # =========================================================
 
-UPLOAD_DIR = "uploads"
+def get_authenticated_user(
+    authorization: str = Header(None)
+) -> dict:
 
-os.makedirs(
-    UPLOAD_DIR,
-    exist_ok=True
-)
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required."
+        )
+
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authorization format."
+        )
+
+    token = authorization.split(" ", 1)[1]
+
+    user_data = verify_token(token)
+
+    if not user_data:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token."
+        )
+
+    return user_data
 
 
 # =========================================================
@@ -120,11 +161,23 @@ def register(
     db: Session = Depends(get_db)
 ):
 
-    # Clean input
     username = username.strip()
     email = email.strip().lower()
 
-    # Check username
+    if not username:
+        return {
+            "success": False,
+            "message": "Username is required."
+        }
+
+    if not email:
+        return {
+            "success": False,
+            "message": "Email is required."
+        }
+
+    # Check existing username.
+    # Python username maps to the existing DB column "name".
     existing_username = (
         db.query(User)
         .filter(User.username == username)
@@ -132,13 +185,12 @@ def register(
     )
 
     if existing_username:
-
         return {
             "success": False,
             "message": "Username already exists."
         }
 
-    # Check email
+    # Check existing email.
     existing_email = (
         db.query(User)
         .filter(User.email == email)
@@ -146,35 +198,29 @@ def register(
     )
 
     if existing_email:
-
         return {
             "success": False,
             "message": "Email already registered."
         }
 
-    # Basic password validation
     if len(password) < 6:
-
         return {
             "success": False,
             "message": "Password must contain at least 6 characters."
         }
 
-    # Hash password
     hashed_password = hash_password(password)
 
-    # Create user
     new_user = User(
         username=username,
         email=email,
         password=hashed_password,
-        role="user"
+        role="USER",
+        is_active=True
     )
 
     db.add(new_user)
-
     db.commit()
-
     db.refresh(new_user)
 
     return {
@@ -206,24 +252,23 @@ def login(
     )
 
     if not user:
-
         return {
             "success": False,
             "message": "Invalid email or password."
         }
 
-    # Verify password
-    if not verify_password(
-        password,
-        user.password
-    ):
+    if not user.is_active:
+        return {
+            "success": False,
+            "message": "This account is inactive."
+        }
 
+    if not verify_password(password, user.password):
         return {
             "success": False,
             "message": "Invalid email or password."
         }
 
-    # Create JWT token
     token = create_access_token(
         user.id,
         user.username,
@@ -243,19 +288,7 @@ def login(
 
 
 # =========================================================
-# SIMPLE RESET PASSWORD
-# =========================================================
-#
-# NOTE:
-# This is a simple version for the current milestone.
-# It does NOT use email verification or OTP.
-#
-# The user provides:
-#   email
-#   new_password
-#
-# The password is directly updated.
-#
+# RESET PASSWORD
 # =========================================================
 
 @app.post("/reset-password")
@@ -267,33 +300,26 @@ def reset_password(
 
     email = email.strip().lower()
 
-    # Find user
     user = (
         db.query(User)
         .filter(User.email == email)
         .first()
     )
 
-    # User does not exist
     if not user:
-
         return {
             "success": False,
             "message": "No account found with this email address."
         }
 
-    # Password validation
     if len(new_password) < 6:
-
         return {
             "success": False,
             "message": "Password must contain at least 6 characters."
         }
 
-    # Hash new password
     user.password = hash_password(new_password)
 
-    # Save changes
     db.commit()
 
     return {
@@ -308,37 +334,9 @@ def reset_password(
 
 @app.get("/me")
 def get_current_user(
-    authorization: str = Header(None),
+    user_data: dict = Depends(get_authenticated_user),
     db: Session = Depends(get_db)
 ):
-
-    if not authorization:
-
-        raise HTTPException(
-            status_code=401,
-            detail="Authorization token required."
-        )
-
-    if not authorization.startswith("Bearer "):
-
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization format."
-        )
-
-    token = authorization.split(
-        " ",
-        1
-    )[1]
-
-    user_data = verify_token(token)
-
-    if not user_data:
-
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired token."
-        )
 
     user = (
         db.query(User)
@@ -347,7 +345,6 @@ def get_current_user(
     )
 
     if not user:
-
         raise HTTPException(
             status_code=404,
             detail="User not found."
@@ -369,41 +366,11 @@ def get_current_user(
 @app.get("/files/{user_id}")
 def get_files(
     user_id: int,
-    authorization: str = Header(None),
+    user_data: dict = Depends(get_authenticated_user),
     db: Session = Depends(get_db)
 ):
 
-    if not authorization:
-
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required."
-        )
-
-    if not authorization.startswith("Bearer "):
-
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization format."
-        )
-
-    token = authorization.split(
-        " ",
-        1
-    )[1]
-
-    user_data = verify_token(token)
-
-    if not user_data:
-
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired token."
-        )
-
-    # User can access only their own files
     if user_data["user_id"] != user_id:
-
         raise HTTPException(
             status_code=403,
             detail="Access denied."
@@ -411,14 +378,26 @@ def get_files(
 
     files = (
         db.query(DBFile)
-        .filter(DBFile.user_id == user_id)
+        .filter(
+            DBFile.user_id == user_id,
+            DBFile.is_deleted == False
+        )
         .all()
     )
 
     return [
         {
             "id": file.id,
-            "filename": file.filename
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "size": file.size,
+            "category": file.category,
+            "is_encrypted": file.is_encrypted,
+            "created_at": (
+                file.created_at.isoformat()
+                if file.created_at
+                else None
+            )
         }
         for file in files
     ]
@@ -426,187 +405,174 @@ def get_files(
 
 # =========================================================
 # UPLOAD FILE
+# Milestone 2: Secure File Encryption
 # =========================================================
 
 @app.post("/upload")
 async def upload_file(
     user_id: int = Form(...),
     file: UploadFile = FastAPIFile(...),
-    authorization: str = Header(None),
+    user_data: dict = Depends(get_authenticated_user),
     db: Session = Depends(get_db)
 ):
 
-    if not authorization:
-
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required."
-        )
-
-    if not authorization.startswith("Bearer "):
-
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization format."
-        )
-
-    token = authorization.split(
-        " ",
-        1
-    )[1]
-
-    user_data = verify_token(token)
-
-    if not user_data:
-
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired token."
-        )
-
-    # Check user
     if user_data["user_id"] != user_id:
-
         raise HTTPException(
             status_code=403,
             detail="Access denied."
         )
 
-    # Check filename
     if not file.filename:
-
         raise HTTPException(
             status_code=400,
             detail="Please select a file."
         )
 
-    # Get extension
+    content = await file.read()
+
+    if not content:
+        raise HTTPException(
+            status_code=400,
+            detail="The selected file is empty."
+        )
+
+    # =====================================================
+    # FILE METADATA
+    # =====================================================
+
     extension = ""
 
     if "." in file.filename:
+        extension = "." + file.filename.rsplit(".", 1)[-1]
 
-        extension = "." + file.filename.split(".")[-1]
-
-    # Generate unique filename
-    stored_filename = (
-        str(uuid.uuid4())
-        + extension
+    category = (
+        file.filename.rsplit(".", 1)[-1].lower()
+        if "." in file.filename
+        else "other"
     )
 
-    # File path
-    file_path = os.path.join(
-        UPLOAD_DIR,
-        stored_filename
+    stored_key = str(uuid.uuid4()) + extension
+
+    file_size = len(content)
+
+    # =====================================================
+    # ENCRYPTION
+    # =====================================================
+
+    # Generate a unique 256-bit key for this file.
+    data_key = generate_data_key()
+
+    # Encrypt file using AES-256-GCM.
+    ciphertext, nonce_b64 = encrypt_file_bytes(
+        content,
+        data_key
     )
 
-    # Save file
-    with open(
-        file_path,
-        "wb"
-    ) as buffer:
+    # Encrypt/wrap the file key using the master key.
+    wrapped_key = wrap_key(data_key)
 
-        content = await file.read()
+    # =====================================================
+    # STORAGE
+    # =====================================================
 
-        buffer.write(content)
+    location = storage.save(
+        stored_key,
+        ciphertext
+    )
 
-    # Save file information in database
+    # =====================================================
+    # CONTENT TYPE
+    # =====================================================
+
+    content_type = file.content_type
+
+    if (
+        not content_type
+        or content_type == "application/octet-stream"
+    ):
+        guessed_type, _ = mimetypes.guess_type(
+            file.filename
+        )
+
+        content_type = (
+            guessed_type
+            or "application/octet-stream"
+        )
+
+    # =====================================================
+    # DATABASE RECORD
+    # =====================================================
+
     new_file = DBFile(
         filename=file.filename,
-        stored_filename=stored_filename,
-        user_id=user_id
+        stored_filename=location,
+        content_type=content_type,
+        user_id=user_id,
+        size=file_size,
+        category=category,
+        is_deleted=False,
+        is_encrypted=True,
+        encryption_key=wrapped_key,
+        encryption_nonce=nonce_b64
     )
 
     db.add(new_file)
-
     db.commit()
-
     db.refresh(new_file)
 
     return {
         "success": True,
-        "message": "File uploaded successfully.",
+        "message": "File uploaded and encrypted successfully.",
         "file_id": new_file.id,
-        "filename": new_file.filename
+        "filename": new_file.filename,
+        "size": new_file.size,
+        "category": new_file.category,
+        "is_encrypted": new_file.is_encrypted
     }
 
 
 # =========================================================
 # DOWNLOAD FILE
+# Milestone 2: Decrypt Before Serving
 # =========================================================
 
 @app.get("/download/{file_id}")
 def download_file(
     file_id: int,
-    authorization: str = Header(None),
+    user_data: dict = Depends(get_authenticated_user),
     db: Session = Depends(get_db)
 ):
 
-    if not authorization:
-
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required."
-        )
-
-    if not authorization.startswith("Bearer "):
-
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization format."
-        )
-
-    token = authorization.split(
-        " ",
-        1
-    )[1]
-
-    user_data = verify_token(token)
-
-    if not user_data:
-
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired token."
-        )
-
-    # Find file
     file = (
         db.query(DBFile)
-        .filter(DBFile.id == file_id)
+        .filter(
+            DBFile.id == file_id,
+            DBFile.is_deleted == False
+        )
         .first()
     )
 
     if not file:
-
         raise HTTPException(
             status_code=404,
             detail="File not found."
         )
 
-    # Check ownership
     if file.user_id != user_data["user_id"]:
-
         raise HTTPException(
             status_code=403,
             detail="Access denied."
         )
 
-    # File path
-    file_path = os.path.join(
-        UPLOAD_DIR,
-        file.stored_filename
-    )
+    plaintext = _load_and_decrypt(file)
 
-    if not os.path.exists(file_path):
-
-        raise HTTPException(
-            status_code=404,
-            detail="Stored file not found."
-        )
-
-    return FileResponse(
-        path=file_path,
-        filename=file.filename
+    return Response(
+        content=plaintext,
+        media_type=_resolve_content_type(file),
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="{file.filename}"'
+        }
     )
 
 
@@ -617,77 +583,325 @@ def download_file(
 @app.delete("/files/{file_id}")
 def delete_file(
     file_id: int,
-    authorization: str = Header(None),
+    user_data: dict = Depends(get_authenticated_user),
     db: Session = Depends(get_db)
 ):
 
-    if not authorization:
-
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required."
-        )
-
-    if not authorization.startswith("Bearer "):
-
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization format."
-        )
-
-    token = authorization.split(
-        " ",
-        1
-    )[1]
-
-    user_data = verify_token(token)
-
-    if not user_data:
-
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired token."
-        )
-
-    # Find file
     file = (
         db.query(DBFile)
-        .filter(DBFile.id == file_id)
+        .filter(
+            DBFile.id == file_id,
+            DBFile.is_deleted == False
+        )
         .first()
     )
 
     if not file:
-
         raise HTTPException(
             status_code=404,
             detail="File not found."
         )
 
-    # Check ownership
     if file.user_id != user_data["user_id"]:
-
         raise HTTPException(
             status_code=403,
             detail="Access denied."
         )
 
-    # Physical file path
-    file_path = os.path.join(
-        UPLOAD_DIR,
-        file.stored_filename
-    )
+    # Delete encrypted file from storage.
+    storage.delete(file.stored_filename)
 
-    # Delete physical file
-    if os.path.exists(file_path):
-
-        os.remove(file_path)
-
-    # Delete database record
+    # Delete database record.
     db.delete(file)
-
     db.commit()
 
     return {
         "success": True,
         "message": "File deleted successfully."
     }
+
+
+# =========================================================
+# CREATE SHARE LINK
+# Milestone 2:
+# Secure Sharing + Permission Management
+# =========================================================
+
+@app.post("/files/{file_id}/share")
+def create_share(
+    file_id: int,
+    permission: str = Form("download"),
+    expires_in_hours: int = Form(24),
+    max_downloads: int = Form(None),
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+
+    file = (
+        db.query(DBFile)
+        .filter(
+            DBFile.id == file_id,
+            DBFile.is_deleted == False
+        )
+        .first()
+    )
+
+    if not file:
+        raise HTTPException(
+            status_code=404,
+            detail="File not found."
+        )
+
+    if file.user_id != user_data["user_id"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied."
+        )
+
+    share, raw_token = sharing_create_share(
+        db=db,
+        file=file,
+        user_id=user_data["user_id"],
+        permission=permission,
+        expires_in_hours=expires_in_hours,
+        max_downloads=max_downloads
+    )
+
+    return {
+        "success": True,
+        "message": "Share link created. Save this token now -- it will not be shown again.",
+        "share_id": share.id,
+        "share_token": raw_token,
+        "share_url": f"/share/{raw_token}",
+        "permission": share.permission,
+        "expires_at": share.expires_at.isoformat()
+    }
+
+
+# =========================================================
+# LIST SHARE LINKS
+# Milestone 2: Permission Management
+# =========================================================
+
+@app.get("/files/{file_id}/shares")
+def list_shares(
+    file_id: int,
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+
+    file = (
+        db.query(DBFile)
+        .filter(
+            DBFile.id == file_id,
+            DBFile.is_deleted == False
+        )
+        .first()
+    )
+
+    if not file:
+        raise HTTPException(
+            status_code=404,
+            detail="File not found."
+        )
+
+    if file.user_id != user_data["user_id"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied."
+        )
+
+    shares = (
+        db.query(Share)
+        .filter(Share.file_id == file_id)
+        .all()
+    )
+
+    return [
+        {
+            "id": share.id,
+            "permission": share.permission,
+            "expires_at": share.expires_at.isoformat(),
+            "revoked": share.revoked,
+            "download_count": share.download_count,
+            "max_downloads": share.max_downloads
+        }
+        for share in shares
+    ]
+
+
+# =========================================================
+# REVOKE SHARE LINK
+# Milestone 2: Permission Management
+# =========================================================
+
+@app.delete("/shares/{share_id}")
+def revoke_share(
+    share_id: int,
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+
+    share = (
+        db.query(Share)
+        .filter(Share.id == share_id)
+        .first()
+    )
+
+    if not share:
+        raise HTTPException(
+            status_code=404,
+            detail="Share link not found."
+        )
+
+    sharing_revoke_share(
+        db=db,
+        share=share,
+        user_id=user_data["user_id"]
+    )
+
+    return {
+        "success": True,
+        "message": "Share link revoked."
+    }
+
+
+# =========================================================
+# ACCESS SHARED FILE
+# Milestone 2: Temporary Access
+#
+# This endpoint does NOT require login.
+# The share token acts as the access credential.
+# =========================================================
+
+@app.get("/share/{token}")
+def access_shared_file(
+    token: str,
+    db: Session = Depends(get_db)
+):
+
+    # Validate:
+    # - token
+    # - expiration
+    # - revocation
+    share = get_valid_share(
+        db,
+        token
+    )
+
+    file = (
+        db.query(DBFile)
+        .filter(
+            DBFile.id == share.file_id,
+            DBFile.is_deleted == False
+        )
+        .first()
+    )
+
+    if not file:
+        raise HTTPException(
+            status_code=404,
+            detail="The shared file no longer exists."
+        )
+
+    # Check maximum download limit.
+    check_and_register_access(
+        db,
+        share
+    )
+
+    # Decrypt before serving.
+    plaintext = _load_and_decrypt(file)
+
+    disposition = (
+        "attachment"
+        if share.permission == "download"
+        else "inline"
+    )
+
+    return Response(
+        content=plaintext,
+        media_type=_resolve_content_type(file),
+        headers={
+            "Content-Disposition":
+                f'{disposition}; filename="{file.filename}"'
+        }
+    )
+
+
+# =========================================================
+# LOAD + DECRYPT FILE
+# =========================================================
+
+def _load_and_decrypt(
+    file: DBFile
+) -> bytes:
+
+    try:
+        ciphertext = storage.load(
+            file.stored_filename
+        )
+
+    except Exception:
+        raise HTTPException(
+            status_code=404,
+            detail="Stored file could not be found."
+        )
+
+    # Backward compatibility for files uploaded before
+    # Milestone 2 encryption was enabled.
+    if not file.is_encrypted:
+        return ciphertext
+
+    if (
+        not file.encryption_key
+        or not file.encryption_nonce
+    ):
+        raise HTTPException(
+            status_code=500,
+            detail="Encryption metadata is missing."
+        )
+
+    try:
+
+        data_key = unwrap_key(
+            file.encryption_key
+        )
+
+        return decrypt_file_bytes(
+            ciphertext,
+            data_key,
+            file.encryption_nonce
+        )
+
+    except InvalidTag:
+
+        raise HTTPException(
+            status_code=500,
+            detail="File integrity check failed. The stored file may have been corrupted or tampered with."
+        )
+
+    except Exception:
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to decrypt the file."
+        )
+
+
+# =========================================================
+# RESOLVE FILE CONTENT TYPE
+# =========================================================
+
+def _resolve_content_type(
+    file: DBFile
+) -> str:
+
+    if file.content_type:
+        return file.content_type
+
+    guessed_type, _ = mimetypes.guess_type(
+        file.filename
+    )
+
+    return guessed_type or "application/octet-stream"
