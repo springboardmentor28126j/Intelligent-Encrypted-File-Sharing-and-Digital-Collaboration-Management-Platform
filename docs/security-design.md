@@ -25,7 +25,6 @@ TrustShare uses **role-based access control (RBAC)** to control user access.
 
 Files are protected using **AES-256-GCM encryption** before being stored.
 
-```text
 Original File
      ↓
 AES-256-GCM Encryption
@@ -34,24 +33,30 @@ Encrypted File
      ↓
 Backblaze B2
 
+## 5. Key Management
 
-5. Key Management
+TrustShare uses secure encryption key management to protect file encryption keys.
 
-TrustShare uses secure encryption key management.
-Unique encryption key for each file
-Master encryption key protects file keys
-Encryption key reference stored in PostgreSQL
-Actual encryption keys are protected separately
+- Unique encryption key for each file
+- Master encryption key protects file keys
+- Encryption key reference stored in PostgreSQL
+- Actual encryption keys are protected separately
 
+File Encryption Key
+        ↓
+Master Encryption Key
+        ↓
+Encrypted Key Store
 
-6. Secure File Sharing
+## 6. Secure File Sharing
 
 TrustShare allows users to securely share files with other registered users.
 
-View permission
-Download permission
-Permission expiration
-Access verification
+- View permission
+- Download permission
+- Permission expiration
+- Access verification
+  
 Sender
    ↓
 Select File
@@ -62,14 +67,16 @@ Set Permission
    ↓
 Shared File
 
-
-7. Temporary Share Links
+## 7. Temporary Share Links
 
 TrustShare provides temporary share links for controlled file access.
-Expiration time
-Maximum download limit
-Link revocation
-Hashed share tokens
+
+- Expiration time
+- Maximum download limit
+- Download count tracking
+- Link revocation
+- Hashed share tokens
+  
 Create Share Link
        ↓
 Set Expiration
@@ -80,25 +87,33 @@ Share Link
        ↓
 Access File
 
-
-8. Secure File Storage
+## 8. Secure File Storage
 
 Encrypted files are stored in Backblaze B2.
 
-File
- ↓
+- Files are encrypted before storage
+- Encrypted files are stored in Backblaze B2
+- PostgreSQL stores file metadata
+- Storage keys identify stored files
+- Encryption key references are stored in PostgreSQL
+ Original File
+     ↓
 AES-256-GCM Encryption
- ↓
+     ↓
 Encrypted File
- ↓
+     ↓
 Backblaze B2
 
-PostgreSQL stores file metadata and encryption key references.
-
-9. File Decryption
+## 9. File Decryption
 
 Files are decrypted only after successful authentication and permission verification.
 
+- JWT authentication verifies the user
+- Permission check verifies file access
+- Encrypted file is retrieved from Backblaze B2
+- Protected encryption key is recovered
+- File is decrypted using AES-256-GCM
+- Decrypted file is provided to the authorized user
 User Request
      ↓
 Authentication
@@ -113,13 +128,14 @@ AES-256-GCM Decryption
      ↓
 Authorized User
 
-
-10. Download Tracking
+## 10. Download Tracking
 
 TrustShare records file download activities for tracking and auditing.
 
-File information
-User information
-IP address
-User agent
-Download time
+- File information
+- User information
+- Share Link ID
+- IP address
+- User agent
+- Download time
+
