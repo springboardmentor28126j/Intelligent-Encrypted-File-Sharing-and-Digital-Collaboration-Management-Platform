@@ -2,135 +2,152 @@
 
 ## 1. Overview
 
-TrustShare is a secure file-sharing and digital collaboration platform. Users can upload, organize, manage, and share files through controlled permissions and temporary share links.
+TrustShare is a secure file-sharing and digital collaboration platform. Users can upload, manage, organize, and share files using controlled permissions and temporary share links.
 
-For Milestone 2, the system adds **AES-256-GCM file encryption, secure cloud storage using Backblaze B2, encryption key management, secure file sharing, access permissions, temporary link expiration, and secure file decryption**.
-
-The system uses HTML, CSS, and JavaScript for the frontend, FastAPI for backend APIs, PostgreSQL for core data, AES-256-GCM for file encryption, Backblaze B2 for encrypted file storage, JWT for authentication, and an encrypted key store for protecting file encryption keys.
+The system uses HTML, CSS, and JavaScript for the frontend, FastAPI for backend APIs, PostgreSQL for application data, AES-256-GCM for file encryption, Backblaze B2 for encrypted file storage, JWT for authentication, and an encrypted key store for key management.
 
 ## 2. Technology Stack
 
 | Layer | Technology | Purpose |
 |---|---|---|
 | Frontend | HTML + CSS + JavaScript | User interface |
-| Backend | Python + FastAPI | REST APIs, business logic, security controls |
-| Primary Database | PostgreSQL | Users, folders, files, permissions, share links and downloads |
-| Authentication | JWT | Secure user authentication |
-| Password Security | bcrypt | Secure password hashing |
-| File Encryption | AES-256-GCM | Encrypt and decrypt files |
-| Key Management | Encrypted Key Store | Protect file encryption keys |
-| File Storage | Backblaze B2 | Store encrypted file data |
+| Backend | Python + FastAPI | APIs and business logic |
+| Database | PostgreSQL | Users, files, permissions and sharing data |
+| Authentication | JWT | User authentication |
+| Password Security | bcrypt | Password hashing |
+| Encryption | AES-256-GCM | File encryption and decryption |
+| File Storage | Backblaze B2 | Encrypted file storage |
+| Key Management | Encrypted Key Store | Protect encryption keys |
 
 ## 3. High-Level Request Flow
 
-1. A user accesses the TrustShare web application.
-2. The frontend sends requests to the FastAPI backend.
-3. FastAPI authenticates the user using JWT.
-4. The backend checks user roles, file ownership, and permissions.
-5. During upload, the file is encrypted using AES-256-GCM.
-6. The encryption key is protected using the master encryption key.
-7. The encrypted file is stored in Backblaze B2.
-8. File metadata and encryption key references are stored in PostgreSQL.
-9. Files can be securely shared using permissions or temporary share links.
-10. During retrieval, the backend verifies access, recovers the encryption key, decrypts the file, and provides it to the authorized user.
+1. User accesses the TrustShare web application.
+2. Frontend sends requests to the FastAPI backend.
+3. JWT authentication verifies the user.
+4. Backend checks roles, ownership, and permissions.
+5. Files are encrypted using AES-256-GCM.
+6. Encrypted files are stored in Backblaze B2.
+7. File metadata is stored in PostgreSQL.
+8. Authorized users can securely retrieve and download files.
 
 ## 4. High-Level Architecture Diagram
 
 ```mermaid
 flowchart LR
-
-    U[User / Admin] --> F[HTML / CSS / JavaScript Frontend]
+    U[User / Admin] --> F[HTML / CSS / JavaScript]
     F -->|HTTPS + JWT| B[FastAPI Backend]
 
     B --> A[Authentication & RBAC]
-    B --> M[File Management]
+    B --> FM[File Management]
     B --> S[Secure Sharing]
     B --> E[AES-256-GCM Encryption]
-    B --> K[Key Management]
     B --> T[Temporary Share Links]
+    B --> M[Download Tracking]
 
-    A --> P[(PostgreSQL)]
-    M --> P
-    S --> P
-    T --> P
+    A --> DB[(PostgreSQL)]
+    FM --> DB
+    S --> DB
+    T --> DB
+    M --> DB
 
-    E --> O[(Encrypted File Storage)]
-    O --> B2[Backblaze B2]
+    E --> B2[(Backblaze B2)]
+    E --> K[Encrypted Key Store]
 
-    K --> KS[Encrypted Key Store]
-
-    E --> K
-    S --> X{Permission Check}
-    T --> X
-
-    X -->|Authorized| R[Encrypted File Retrieval]
-    R --> O
-    R --> K
-    K --> D[AES-256-GCM Decryption]
-    O --> D
-    D --> DL[Authorized File Download]
+    B2 --> R[Encrypted File Retrieval]
+    K --> R
+    R --> D[AES-256-GCM Decryption]
+    D --> DL[Authorized Download]
 ```
 ## 5. Component Responsibilities
-**HTML / CSS / JavaScript Frontend**
-- Registration and login
-- File upload and management
-- File and folder browsing
+**Frontend**
+- User registration and login
+- File management
 - File sharing
-- Permission selection
-- Temporary share-link creation
-- File download
-- Admin user management
+- Permission management
+- Temporary share links
+- File downloads
+- Admin dashboard
 **FastAPI Backend**
-- Validates API requests
-- Authenticates users using JWT
-- Enforces roles and file permissions
-- Handles file upload and retrieval
-- Encrypts and decrypts files
-- Manages encryption keys
-- Manages secure file sharing
-- Handles temporary share links and expiration
-- Controls authorized downloads
+- Authentication and authorization
+- File upload and management
+- Encryption and decryption
+- Secure file sharing
+- Permission checking
+- Temporary link management
+- Download tracking
 **PostgreSQL**
 
-Stores:
+Stores users, folders, files, file versions, permissions, share links, and download records.
 
-- User information
-- Folder information
-- File metadata
-- File versions
-- File permissions
-- Share links
-- Download records
-- Encryption key references
-
-Actual file content is not stored directly in PostgreSQL.
-
-**AES-256-GCM Encryption**
-
-Protects uploaded files before they are stored in cloud storage.
-```
-Original File
-     ↓
-AES-256-GCM Encryption
-     ↓
-Encrypted File
-     ↓
-Backblaze B2
-```
 **Backblaze B2**
 
-Stores the encrypted file data.
-
-Only encrypted files are uploaded to Backblaze B2. The database stores the storage key and other file metadata.
+Stores encrypted file data. Original unencrypted files are not stored in cloud storage.
 
 **Key Management**
 
-Each file uses its own encryption key.
+Generates and protects file encryption keys using a master encryption key.
+
+## 6. Secure File Sharing
+
+Users can share files with registered users using View or Download permissions.
 ```
-File Encryption Key
-        ↓
-Master Encryption Key
-        ↓
-Encrypted Key Store
+Sender
+  ↓
+Select File
+  ↓
+Select User
+  ↓
+Set Permission
+  ↓
+Shared File
 ```
-The database stores only an encryption key reference, while the protected key is maintained separately.
+## 7. Temporary Share Links
+
+Temporary links provide controlled file access using expiration time, download limits, and link revocation.
+```
+Create Link
+    ↓
+Set Expiration
+    ↓
+Set Download Limit
+    ↓
+Secure Share Link
+    ↓
+Access File
+```
+## 8. File Retrieval and Decryption
+
+Files are decrypted only after authentication and permission verification.
+```
+User Request
+     ↓
+JWT Authentication
+     ↓
+Permission Check
+     ↓
+Retrieve Encrypted File
+     ↓
+Recover Encryption Key
+     ↓
+AES-256-GCM Decryption
+     ↓
+Authorized Download
+```
+## 9. Security Architecture
+- JWT authentication
+- bcrypt password hashing
+- Role-based access control
+- AES-256-GCM encryption
+- Protected encryption keys
+- Permission-based access
+- Temporary link expiration
+- Download limits
+- Secure file decryption
+## 10. Production Design Principles
+- Use HTTPS for communication
+- Store secrets in environment variables
+- Encrypt files before cloud storage
+- Protect encryption keys separately
+- Verify authorization for protected requests
+- Keep sensitive credentials out of GitHub
+- Use secure cloud storage and database management
