@@ -37,7 +37,6 @@ def create_file(file_doc: Dict[str, Any], db: Optional[Session] = None) -> Dict[
     """
     Persist a new file metadata record in PostgreSQL and MongoDB.
     """
-    # 1. Save in PostgreSQL
     own_session = False
     if db is None:
         db = SessionLocal()
@@ -45,25 +44,28 @@ def create_file(file_doc: Dict[str, Any], db: Optional[Session] = None) -> Dict[
 
     try:
         sql_file = SQLFile(
-            id=file_doc["id"],
             owner_id=file_doc["owner_id"],
-            original_name=file_doc["original_name"],
-            storage_key=file_doc.get("storage_key") or file_doc.get("stored_name"),
+            filename=file_doc.get("original_name") or file_doc.get("filename"),
+            storage_path=file_doc.get("storage_key") or file_doc.get("stored_name") or file_doc.get("storage_path"),
             storage_backend=file_doc.get("storage_backend", "local"),
-            file_size=file_doc["file_size"],
+            size=file_doc.get("file_size") or file_doc.get("size", 0),
             content_type=file_doc.get("content_type", "application/octet-stream"),
-            extension=file_doc["extension"],
+            extension=file_doc.get("extension", ""),
             category=file_doc.get("category", "other"),
-            sha256_hash=file_doc["sha256_hash"],
+            sha256_hash=file_doc.get("sha256_hash", ""),
             encryption_algorithm=file_doc.get("encryption_algorithm", "AES-256-GCM"),
-            encrypted_dek=file_doc.get("encrypted_dek", ""),
-            nonce=file_doc.get("nonce", ""),
+            encryption_key=file_doc.get("encrypted_dek") or file_doc.get("encryption_key", ""),
+            encryption_nonce=file_doc.get("nonce") or file_doc.get("encryption_nonce", ""),
             description=file_doc.get("description"),
             download_count=file_doc.get("download_count", 0),
             is_public=file_doc.get("is_public", False),
+            is_encrypted=True,
         )
         db.add(sql_file)
         db.commit()
+        db.refresh(sql_file)
+        file_doc["id"] = str(sql_file.id)
+        file_doc["file_id"] = str(sql_file.id)
     except Exception as exc:
         db.rollback()
         logger.warning(f"SQL file persist note: {exc}")
@@ -93,15 +95,20 @@ def get_file_by_id(file_id: str, db: Optional[Session] = None) -> Optional[Dict[
         own_session = True
 
     try:
-        sql_file = db.query(SQLFile).filter(SQLFile.id == file_id).first()
+        query = db.query(SQLFile)
+        if str(file_id).isdigit():
+            sql_file = query.filter(SQLFile.id == int(file_id)).first()
+        else:
+            sql_file = query.filter(SQLFile.storage_path.contains(str(file_id))).first()
+
         if sql_file:
             shares = []
             for s in sql_file.shares:
                 shares.append({
                     "id": s.id,
-                    "share_token": s.share_token,
-                    "share_url": f"/share/{s.share_token}",
-                    "permission": s.permission.value if hasattr(s.permission, "value") else str(s.permission),
+                    "share_token": s.share_token or "",
+                    "share_url": f"/share/{s.share_token}" if s.share_token else "",
+                    "permission": s.permission,
                     "recipient_email": s.recipient_email,
                     "expires_at": s.expires_at.isoformat() if s.expires_at else None,
                     "max_downloads": s.max_downloads,
@@ -112,13 +119,13 @@ def get_file_by_id(file_id: str, db: Optional[Session] = None) -> Optional[Dict[
 
             owner_email = sql_file.owner.email if sql_file.owner else ""
             return {
-                "id": sql_file.id,
-                "original_name": sql_file.original_name,
-                "stored_name": sql_file.storage_key,
-                "storage_key": sql_file.storage_key,
+                "id": str(sql_file.id),
+                "original_name": sql_file.filename,
+                "stored_name": sql_file.storage_path,
+                "storage_key": sql_file.storage_path,
                 "storage_backend": sql_file.storage_backend,
-                "file_size": sql_file.file_size,
-                "content_type": sql_file.content_type,
+                "file_size": sql_file.size,
+                "content_type": sql_file.content_type or "application/octet-stream",
                 "extension": sql_file.extension,
                 "category": sql_file.category,
                 "sha256_hash": sql_file.sha256_hash,
@@ -130,8 +137,8 @@ def get_file_by_id(file_id: str, db: Optional[Session] = None) -> Optional[Dict[
                 "shares": shares,
                 "is_public": sql_file.is_public,
                 "encryption_algorithm": sql_file.encryption_algorithm,
-                "encrypted_dek": sql_file.encrypted_dek,
-                "nonce": sql_file.nonce,
+                "encrypted_dek": sql_file.encryption_key,
+                "nonce": sql_file.encryption_nonce,
             }
     except Exception as exc:
         logger.warning(f"SQL get_file error: {exc}")
@@ -141,7 +148,7 @@ def get_file_by_id(file_id: str, db: Optional[Session] = None) -> Optional[Dict[
 
     # Fallback to MongoDB
     col = get_files_collection()
-    doc = col.find_one({"id": file_id})
+    doc = col.find_one({"id": str(file_id)}) or col.find_one({"_id": str(file_id)})
     return clean_doc(doc)
 
 
@@ -170,7 +177,7 @@ def list_files(
             term = f"%{search.strip()}%"
             query = query.filter(
                 or_(
-                    SQLFile.original_name.ilike(term),
+                    SQLFile.filename.ilike(term),
                     SQLFile.description.ilike(term),
                     SQLFile.extension.ilike(term),
                 )
@@ -182,9 +189,9 @@ def list_files(
                 shares = [
                     {
                         "id": s.id,
-                        "share_token": s.share_token,
-                        "share_url": f"/share/{s.share_token}",
-                        "permission": s.permission.value if hasattr(s.permission, "value") else str(s.permission),
+                        "share_token": s.share_token or "",
+                        "share_url": f"/share/{s.share_token}" if s.share_token else "",
+                        "permission": s.permission,
                         "recipient_email": s.recipient_email,
                         "expires_at": s.expires_at.isoformat() if s.expires_at else None,
                         "max_downloads": s.max_downloads,
@@ -195,13 +202,13 @@ def list_files(
                     for s in f.shares if not s.is_revoked
                 ]
                 results.append({
-                    "id": f.id,
-                    "original_name": f.original_name,
-                    "stored_name": f.storage_key,
-                    "storage_key": f.storage_key,
+                    "id": str(f.id),
+                    "original_name": f.filename,
+                    "stored_name": f.storage_path,
+                    "storage_key": f.storage_path,
                     "storage_backend": f.storage_backend,
-                    "file_size": f.file_size,
-                    "content_type": f.content_type,
+                    "file_size": f.size,
+                    "content_type": f.content_type or "application/octet-stream",
                     "extension": f.extension,
                     "category": f.category,
                     "sha256_hash": f.sha256_hash,
@@ -213,8 +220,8 @@ def list_files(
                     "shares": shares,
                     "is_public": f.is_public,
                     "encryption_algorithm": f.encryption_algorithm,
-                    "encrypted_dek": f.encrypted_dek,
-                    "nonce": f.nonce,
+                    "encrypted_dek": f.encryption_key,
+                    "nonce": f.encryption_nonce,
                 })
             return results
     except Exception as exc:
@@ -234,6 +241,7 @@ def list_files(
         search_term = search.strip()
         mongo_query["$or"] = [
             {"original_name": {"$regex": search_term, "$options": "i"}},
+            {"filename": {"$regex": search_term, "$options": "i"}},
             {"description": {"$regex": search_term, "$options": "i"}},
             {"extension": {"$regex": search_term, "$options": "i"}},
         ]
@@ -251,7 +259,11 @@ def delete_file(file_id: str, db: Optional[Session] = None) -> bool:
         own_session = True
 
     try:
-        sql_file = db.query(SQLFile).filter(SQLFile.id == file_id).first()
+        query = db.query(SQLFile)
+        if str(file_id).isdigit():
+            sql_file = query.filter(SQLFile.id == int(file_id)).first()
+        else:
+            sql_file = query.filter(SQLFile.storage_path.contains(str(file_id))).first()
         if sql_file:
             db.delete(sql_file)
             db.commit()
@@ -263,7 +275,8 @@ def delete_file(file_id: str, db: Optional[Session] = None) -> bool:
             db.close()
 
     col = get_files_collection()
-    res = col.delete_one({"id": file_id})
+    col.delete_one({"id": str(file_id)})
+    col.delete_one({"_id": str(file_id)})
     return True
 
 
@@ -276,13 +289,13 @@ def add_share_link(file_id: str, share_doc: Dict[str, Any], db: Optional[Session
 
     try:
         perm_val = share_doc.get("permission", "can_download")
-        perm_enum = SharePermission(perm_val) if isinstance(perm_val, str) else perm_val
+        perm_str = perm_val.value if hasattr(perm_val, "value") else str(perm_val)
 
         exp_at = share_doc.get("expires_at")
         if isinstance(exp_at, str):
             exp_at = datetime.fromisoformat(exp_at)
 
-        recipient_id = share_doc.get("recipient_id")
+        recipient_id = share_doc.get("recipient_id") or share_doc.get("shared_with_id")
         recipient_email = share_doc.get("recipient_email")
 
         # If recipient_email provided without ID, look up user
@@ -291,13 +304,19 @@ def add_share_link(file_id: str, share_doc: Dict[str, Any], db: Optional[Session
             if rec_user:
                 recipient_id = rec_user.id
 
+        int_file_id = int(file_id) if str(file_id).isdigit() else None
+        if int_file_id is None:
+            f = db.query(SQLFile).filter(SQLFile.storage_path.contains(str(file_id))).first()
+            if f:
+                int_file_id = f.id
+
         new_share = SQLFileShare(
-            file_id=file_id,
+            file_id=int_file_id,
             owner_id=share_doc.get("created_by") or share_doc.get("owner_id"),
-            recipient_id=recipient_id,
+            shared_with_id=recipient_id,
             recipient_email=recipient_email,
             share_token=share_doc["share_token"],
-            permission=perm_enum,
+            permission=perm_str,
             expires_at=exp_at,
             max_downloads=share_doc.get("max_downloads"),
             download_count=0,
@@ -305,6 +324,7 @@ def add_share_link(file_id: str, share_doc: Dict[str, Any], db: Optional[Session
         )
         db.add(new_share)
         db.commit()
+        db.refresh(new_share)
         share_doc["id"] = new_share.id
     except Exception as exc:
         db.rollback()
@@ -315,7 +335,8 @@ def add_share_link(file_id: str, share_doc: Dict[str, Any], db: Optional[Session
 
     # Update MongoDB
     col = get_files_collection()
-    col.update_one({"id": file_id}, {"$push": {"shares": share_doc}})
+    col.update_one({"id": str(file_id)}, {"$push": {"shares": share_doc}})
+    col.update_one({"_id": str(file_id)}, {"$push": {"shares": share_doc}})
     return True
 
 
@@ -327,10 +348,12 @@ def revoke_share_link(file_id: str, share_token: str, db: Optional[Session] = No
         own_session = True
 
     try:
-        share = db.query(SQLFileShare).filter(
-            SQLFileShare.file_id == file_id,
+        query = db.query(SQLFileShare).filter(
             SQLFileShare.share_token == share_token,
-        ).first()
+        )
+        if str(file_id).isdigit():
+            query = query.filter(SQLFileShare.file_id == int(file_id))
+        share = query.first()
         if share:
             share.is_revoked = True
             db.commit()
@@ -343,7 +366,11 @@ def revoke_share_link(file_id: str, share_token: str, db: Optional[Session] = No
 
     col = get_files_collection()
     col.update_one(
-        {"id": file_id},
+        {"id": str(file_id)},
+        {"$pull": {"shares": {"share_token": share_token}}}
+    )
+    col.update_one(
+        {"_id": str(file_id)},
         {"$pull": {"shares": {"share_token": share_token}}}
     )
     return True
@@ -364,13 +391,13 @@ def find_share_by_token(share_token: str, db: Optional[Session] = None) -> Optio
         if share and share.file:
             f = share.file
             file_doc = {
-                "id": f.id,
-                "original_name": f.original_name,
-                "stored_name": f.storage_key,
-                "storage_key": f.storage_key,
+                "id": str(f.id),
+                "original_name": f.filename,
+                "stored_name": f.storage_path,
+                "storage_key": f.storage_path,
                 "storage_backend": f.storage_backend,
-                "file_size": f.file_size,
-                "content_type": f.content_type,
+                "file_size": f.size,
+                "content_type": f.content_type or "application/octet-stream",
                 "extension": f.extension,
                 "category": f.category,
                 "sha256_hash": f.sha256_hash,
@@ -380,19 +407,19 @@ def find_share_by_token(share_token: str, db: Optional[Session] = None) -> Optio
                 "upload_date": f.created_at.isoformat() if f.created_at else datetime.now(timezone.utc).isoformat(),
                 "download_count": f.download_count,
                 "encryption_algorithm": f.encryption_algorithm,
-                "encrypted_dek": f.encrypted_dek,
-                "nonce": f.nonce,
+                "encrypted_dek": f.encryption_key,
+                "nonce": f.encryption_nonce,
             }
             share_doc = {
                 "id": share.id,
                 "share_token": share.share_token,
-                "permission": share.permission.value if hasattr(share.permission, "value") else str(share.permission),
+                "permission": share.permission,
                 "expires_at": share.expires_at.isoformat() if share.expires_at else None,
                 "max_downloads": share.max_downloads,
                 "download_count": share.download_count,
                 "created_at": share.created_at.isoformat() if share.created_at else datetime.now(timezone.utc).isoformat(),
                 "recipient_email": share.recipient_email,
-                "recipient_id": share.recipient_id,
+                "recipient_id": share.shared_with_id,
                 "is_revoked": share.is_revoked,
             }
             return file_doc, share_doc
@@ -429,7 +456,7 @@ def list_shared_with_user(user_email: str, user_id: int, db: Optional[Session] =
         shares = db.query(SQLFileShare).filter(
             or_(
                 SQLFileShare.recipient_email == user_email.lower().strip(),
-                SQLFileShare.recipient_id == user_id,
+                SQLFileShare.shared_with_id == user_id,
             ),
             SQLFileShare.is_revoked == False,
         ).order_by(SQLFileShare.created_at.desc()).all()
@@ -438,17 +465,19 @@ def list_shared_with_user(user_email: str, user_id: int, db: Optional[Session] =
             if not s.file:
                 continue
             f = s.file
+            perm = s.permission.lower() if isinstance(s.permission, str) else str(s.permission).lower()
+            can_download = perm in ("can_download", "download", "write")
             results.append({
                 "share_id": s.id,
-                "file_id": f.id,
-                "original_name": f.original_name,
-                "file_size": f.file_size,
-                "content_type": f.content_type,
+                "file_id": str(f.id),
+                "original_name": f.filename,
+                "file_size": f.size,
+                "content_type": f.content_type or "application/octet-stream",
                 "extension": f.extension,
                 "category": f.category,
                 "owner_email": f.owner.email if f.owner else "",
-                "permission": s.permission.value if hasattr(s.permission, "value") else str(s.permission),
-                "can_download": s.permission == SharePermission.can_download,
+                "permission": SharePermission.can_download if can_download else SharePermission.view_only,
+                "can_download": can_download,
                 "expires_at": s.expires_at.isoformat() if s.expires_at else None,
                 "created_at": s.created_at.isoformat() if s.created_at else datetime.now(timezone.utc).isoformat(),
                 "is_expired": s.expires_at is not None and (
@@ -472,12 +501,15 @@ def increment_download_count(file_id: str, share_token: Optional[str] = None, db
         own_session = True
 
     try:
-        sql_file = db.query(SQLFile).filter(SQLFile.id == file_id).first()
+        query = db.query(SQLFile)
+        if str(file_id).isdigit():
+            sql_file = query.filter(SQLFile.id == int(file_id)).first()
+        else:
+            sql_file = query.filter(SQLFile.storage_path.contains(str(file_id))).first()
         if sql_file:
             sql_file.download_count += 1
             if share_token:
                 share = db.query(SQLFileShare).filter(
-                    SQLFileShare.file_id == file_id,
                     SQLFileShare.share_token == share_token,
                 ).first()
                 if share:
@@ -491,16 +523,18 @@ def increment_download_count(file_id: str, share_token: Optional[str] = None, db
             db.close()
 
     col = get_files_collection()
-    col.update_one({"id": file_id}, {"$inc": {"download_count": 1}})
+    col.update_one({"id": str(file_id)}, {"$inc": {"download_count": 1}})
+    col.update_one({"_id": str(file_id)}, {"$inc": {"download_count": 1}})
     if share_token:
-        file_doc = col.find_one({"id": file_id})
+        file_doc = col.find_one({"id": str(file_id)}) or col.find_one({"_id": str(file_id)})
         if file_doc and "shares" in file_doc:
             updated_shares = []
             for s in file_doc["shares"]:
                 if s.get("share_token") == share_token:
                     s["download_count"] = s.get("download_count", 0) + 1
                 updated_shares.append(s)
-            col.update_one({"id": file_id}, {"$set": {"shares": updated_shares}})
+            col.update_one({"id": str(file_id)}, {"$set": {"shares": updated_shares}})
+            col.update_one({"_id": str(file_id)}, {"$set": {"shares": updated_shares}})
 
 
 def get_storage_stats(owner_id: int, is_admin: bool = False, db: Optional[Session] = None) -> Dict[str, Any]:

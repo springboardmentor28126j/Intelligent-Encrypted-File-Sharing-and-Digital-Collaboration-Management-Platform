@@ -13,7 +13,7 @@ from app.config import settings
 # ─── Engine ───────────────────────────────────────────────────────────────────
 # For SQLite, check_same_thread=False is needed so FastAPI worker threads can share connections.
 is_sqlite = settings.DATABASE_URL.startswith("sqlite")
-connect_args = {"check_same_thread": False} if is_sqlite else {}
+connect_args = {"check_same_thread": False} if is_sqlite else {"sslmode": "require"}
 
 engine = create_engine(
     settings.DATABASE_URL,

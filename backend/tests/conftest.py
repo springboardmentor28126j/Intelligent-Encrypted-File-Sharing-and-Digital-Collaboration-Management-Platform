@@ -7,12 +7,17 @@ Sets up:
   - A TestClient with DB session override so routes use the test DB
 """
 
+import os
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+import app.database as app_database
+import app.main as app_main
 from app.database import Base, get_db
 from app.main import app
 from app.mongodb import clear_mongo_fallback
@@ -28,6 +33,8 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
+app_database.engine = engine
+app_main.engine = engine
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
