@@ -1,7 +1,7 @@
 import "./App.css";
 import { useEffect, useState } from "react";
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = "http://127.0.0.1:8001";
 
 function App() {
   const [token, setToken] = useState(
@@ -23,16 +23,13 @@ function App() {
   const [sharedByMe, setSharedByMe] = useState([]);
 
   const [selectedFile, setSelectedFile] = useState(null);
-  const [shareUserId, setShareUserId] = useState("");
-  const [expiry, setExpiry] = useState("");
+  const [shareEmail, setShareEmail] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-
-  const [activeSection, setActiveSection] = useState("overview");
 
   useEffect(() => {
     if (token) {
@@ -112,15 +109,33 @@ function App() {
 
   const loadDashboard = async () => {
     try {
-      const [filesData, receivedData, sentData] = await Promise.all([
-        apiRequest("/files/"),
-        apiRequest("/files/shared-with-me"),
-        apiRequest("/files/shared-by-me"),
-      ]);
+      const [filesData, receivedData, sentData] =
+        await Promise.all([
+          apiRequest("/files/"),
+          apiRequest("/files/shared-with-me"),
+          apiRequest("/files/shared-by-me"),
+        ]);
 
-      setFiles(filesData?.files || []);
-      setSharedWithMe(receivedData || []);
-      setSharedByMe(sentData || []);
+      /*
+       * GET /files/ returns an array directly.
+       * Example:
+       * [
+       *   {
+       *     "id": "...",
+       *     "filename": "test.txt",
+       *     "size_bytes": 40
+       *   }
+       * ]
+       */
+      setFiles(Array.isArray(filesData) ? filesData : []);
+
+      setSharedWithMe(
+        Array.isArray(receivedData) ? receivedData : []
+      );
+
+      setSharedByMe(
+        Array.isArray(sentData) ? sentData : []
+      );
     } catch (err) {
       showError(err.message);
     }
@@ -154,7 +169,7 @@ function App() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email: authForm.email,
+          email: authForm.email.trim(),
           password: authForm.password,
         }),
       });
@@ -179,6 +194,8 @@ function App() {
         email: "",
         password: "",
       });
+
+      showSuccess("Login successful.");
     } catch (err) {
       showError(err.message);
     } finally {
@@ -279,6 +296,7 @@ function App() {
       showError(
         "File is too large. Maximum allowed size is 10 MB."
       );
+
       event.target.value = "";
       return;
     }
@@ -290,6 +308,10 @@ function App() {
 
       formData.append("uploaded_file", file);
 
+      /*
+       * Do NOT set Content-Type manually here.
+       * Browser automatically adds multipart/form-data boundary.
+       */
       const response = await fetch(
         `${API_URL}/files/upload`,
         {
@@ -301,7 +323,13 @@ function App() {
         }
       );
 
-      const data = await response.json();
+      let data = null;
+
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -342,7 +370,7 @@ function App() {
           const data = await response.json();
           message = data?.detail || message;
         } catch {
-          // Ignore JSON parsing failure.
+          // Ignore parsing error.
         }
 
         throw new Error(message);
@@ -405,41 +433,24 @@ function App() {
       return;
     }
 
-    if (!shareUserId) {
-      showError("Please enter the recipient User ID.");
+    const recipientEmail = shareEmail.trim().toLowerCase();
+
+    if (!recipientEmail) {
+      showError("Please enter the recipient email.");
       return;
     }
 
-    const recipientId = Number(shareUserId);
-
-    if (!Number.isInteger(recipientId) || recipientId <= 0) {
-      showError("User ID must be a valid positive number.");
+    if (!recipientEmail.includes("@")) {
+      showError("Please enter a valid email address.");
       return;
     }
 
-    if (user && recipientId === user.id) {
+    if (
+      user &&
+      recipientEmail === user.email.toLowerCase()
+    ) {
       showError("You cannot share a file with yourself.");
       return;
-    }
-
-    let expiresAt = null;
-
-    if (expiry) {
-      const expiryDate = new Date(expiry);
-
-      if (Number.isNaN(expiryDate.getTime())) {
-        showError("Please select a valid expiration time.");
-        return;
-      }
-
-      if (expiryDate <= new Date()) {
-        showError(
-          "Expiration time must be in the future."
-        );
-        return;
-      }
-
-      expiresAt = expiryDate.toISOString();
     }
 
     try {
@@ -452,9 +463,8 @@ function App() {
         },
         body: JSON.stringify({
           file_id: selectedFile.id,
-          shared_with_user_id: recipientId,
+          shared_with_email: recipientEmail,
           permission: "view",
-          expires_at: expiresAt,
         }),
       });
 
@@ -463,8 +473,7 @@ function App() {
       );
 
       setSelectedFile(null);
-      setShareUserId("");
-      setExpiry("");
+      setShareEmail("");
 
       await loadDashboard();
     } catch (err) {
@@ -521,8 +530,7 @@ function App() {
     );
 
     return `${(
-      bytes /
-      Math.pow(1024, index)
+      bytes / Math.pow(1024, index)
     ).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
   };
 
@@ -532,14 +540,6 @@ function App() {
     }
 
     return new Date(dateValue).toLocaleString();
-  };
-
-  const isExpired = (dateValue) => {
-    if (!dateValue) {
-      return false;
-    }
-
-    return new Date(dateValue) <= new Date();
   };
 
   const getInitials = () => {
@@ -571,6 +571,7 @@ function App() {
           stroke="white"
           strokeWidth="1.5"
         />
+
         <path
           d="M9.2 12.1L11.2 14.1L15.2 10"
           stroke="white"
@@ -600,6 +601,7 @@ function App() {
             stroke="currentColor"
             strokeWidth="1.7"
           />
+
           <path
             d="M8 10V7a4 4 0 0 1 8 0v3"
             stroke="currentColor"
@@ -625,6 +627,7 @@ function App() {
             stroke="currentColor"
             strokeWidth="1.6"
           />
+
           <circle
             cx="6"
             cy="12"
@@ -632,6 +635,7 @@ function App() {
             stroke="currentColor"
             strokeWidth="1.6"
           />
+
           <circle
             cx="18"
             cy="19"
@@ -639,6 +643,7 @@ function App() {
             stroke="currentColor"
             strokeWidth="1.6"
           />
+
           <path
             d="M8.2 10.8L15.7 6.5M8.2 13.2L15.7 17.5"
             stroke="currentColor"
@@ -661,6 +666,7 @@ function App() {
             stroke="currentColor"
             strokeWidth="1.7"
           />
+
           <path
             d="M9.2 12.1L11.2 14.1L15.2 10"
             stroke="currentColor"
@@ -686,6 +692,7 @@ function App() {
           stroke="currentColor"
           strokeWidth="1.7"
         />
+
         <path
           d="M12 7V12L15 14"
           stroke="currentColor"
@@ -740,6 +747,7 @@ function App() {
                       "0 0 10px rgba(129,140,248,0.8)",
                   }}
                 />
+
                 SECURE COLLABORATION PLATFORM
               </div>
 
@@ -760,6 +768,7 @@ function App() {
                   <span className="security-icon">
                     {renderSecurityIcon("lock")}
                   </span>
+
                   <span>
                     Encrypted file storage
                   </span>
@@ -769,6 +778,7 @@ function App() {
                   <span className="security-icon">
                     {renderSecurityIcon("share")}
                   </span>
+
                   <span>
                     Controlled file sharing
                   </span>
@@ -778,6 +788,7 @@ function App() {
                   <span className="security-icon">
                     {renderSecurityIcon("shield")}
                   </span>
+
                   <span>
                     JWT-secured access
                   </span>
@@ -787,8 +798,9 @@ function App() {
                   <span className="security-icon">
                     {renderSecurityIcon("clock")}
                   </span>
+
                   <span>
-                    Time-limited permissions
+                    Controlled permissions
                   </span>
                 </div>
               </div>
@@ -987,6 +999,7 @@ function App() {
                 <span>
                   {renderSecurityIcon("shield")}
                 </span>
+
                 Protected by secure authentication
               </div>
             </div>
@@ -998,9 +1011,6 @@ function App() {
 
   const totalShared = sharedByMe.length;
   const receivedCount = sharedWithMe.length;
-  const expiredCount = sharedWithMe.filter((share) =>
-    isExpired(share.expires_at)
-  ).length;
 
   return (
     <div className="app">
@@ -1019,6 +1029,7 @@ function App() {
                   stroke="white"
                   strokeWidth="1.7"
                 />
+
                 <path
                   d="M9.2 12.1L11.2 14.1L15.2 10"
                   stroke="white"
@@ -1068,7 +1079,8 @@ function App() {
             </div>
 
             <h1>
-              Good to see you, {user.name.split(" ")[0]}.
+              Good to see you,{" "}
+              {user.name.split(" ")[0]}.
             </h1>
 
             <p>
@@ -1125,6 +1137,7 @@ function App() {
             <div className="section-header">
               <div>
                 <h2>Upload a file</h2>
+
                 <p>
                   Your uploaded file is encrypted before
                   being stored.
@@ -1147,6 +1160,7 @@ function App() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
+
                   <path
                     d="M5 20H19"
                     stroke="white"
@@ -1177,6 +1191,7 @@ function App() {
             <div className="section-header">
               <div>
                 <h2>My Files</h2>
+
                 <p>
                   Files owned and managed by you.
                 </p>
@@ -1201,14 +1216,9 @@ function App() {
                       </div>
 
                       <div className="file-meta">
-                        {formatSize(file.file_size)}
+                        {formatSize(file.size_bytes)}
                         {" • "}
-                        {file.content_type ||
-                          "Unknown type"}
-                        {" • "}
-                        {formatDate(
-                          file.uploaded_at
-                        )}
+                        {formatDate(file.uploaded_at)}
                       </div>
                     </div>
 
@@ -1257,6 +1267,7 @@ function App() {
               <div className="section-header">
                 <div>
                   <h2>Share File</h2>
+
                   <p>
                     Sharing:{" "}
                     <strong>
@@ -1269,8 +1280,7 @@ function App() {
                   className="action-button"
                   onClick={() => {
                     setSelectedFile(null);
-                    setShareUserId("");
-                    setExpiry("");
+                    setShareEmail("");
                   }}
                 >
                   Cancel
@@ -1283,34 +1293,29 @@ function App() {
               >
                 <div className="form-group">
                   <label>
-                    RECIPIENT USER ID
+                    RECIPIENT EMAIL
                   </label>
 
                   <input
-                    type="number"
-                    min="1"
-                    placeholder="e.g. 3"
-                    value={shareUserId}
+                    type="email"
+                    placeholder="recipient@example.com"
+                    value={shareEmail}
                     onChange={(event) =>
-                      setShareUserId(
+                      setShareEmail(
                         event.target.value
                       )
                     }
                   />
                 </div>
 
-                <div className="form-group">
-                  <label>
-                    EXPIRATION (OPTIONAL)
-                  </label>
-
-                  <input
-                    type="datetime-local"
-                    value={expiry}
-                    onChange={(event) =>
-                      setExpiry(event.target.value)
-                    }
-                  />
+                <div
+                  style={{
+                    marginBottom: "18px",
+                    color: "#64748b",
+                    fontSize: "12px",
+                  }}
+                >
+                  Permission: <strong>View</strong>
                 </div>
 
                 <button
@@ -1334,6 +1339,7 @@ function App() {
             <div className="section-header">
               <div>
                 <h2>Shared By Me</h2>
+
                 <p>
                   Manage files you have shared with
                   other users.
@@ -1348,57 +1354,46 @@ function App() {
               </div>
             ) : (
               <div className="file-list">
-                {sharedByMe.map((share) => {
-                  const expired = isExpired(
-                    share.expires_at
-                  );
+                {sharedByMe.map((share) => (
+                  <div
+                    className="file-row"
+                    key={share.id}
+                  >
+                    <div className="file-info">
+                      <div className="file-name">
+                        🔗 File #{share.file_id}
+                      </div>
 
-                  return (
-                    <div
-                      className="file-row"
-                      key={share.id}
-                    >
-                      <div className="file-info">
-                        <div className="file-name">
-                          🔗 File #{share.file_id}
-                        </div>
+                      <div className="file-meta">
+                        Shared with:{" "}
+                        {share.shared_with_email}
+                        {" • "}
+                        Permission:{" "}
+                        {share.permission}
+                      </div>
 
-                        <div className="file-meta">
-                          User ID:{" "}
-                          {share.shared_with_user_id}
-                          {" • "}
-                          Permission:{" "}
-                          {share.permission}
-                          {" • "}
-                          {share.expires_at
-                            ? `Expires: ${formatDate(
-                                share.expires_at
-                              )}`
-                            : "No expiration"}
-                        </div>
-
-                        {expired && (
-                          <div className="file-meta expired">
-                            Access expired
-                          </div>
+                      <div className="file-meta">
+                        Shared on:{" "}
+                        {formatDate(
+                          share.created_at
                         )}
                       </div>
-
-                      <div className="file-actions">
-                        <button
-                          className="action-button danger"
-                          onClick={() =>
-                            handleRevoke(
-                              share.id
-                            )
-                          }
-                        >
-                          Revoke
-                        </button>
-                      </div>
                     </div>
-                  );
-                })}
+
+                    <div className="file-actions">
+                      <button
+                        className="action-button danger"
+                        onClick={() =>
+                          handleRevoke(
+                            share.id
+                          )
+                        }
+                      >
+                        Revoke
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -1407,6 +1402,7 @@ function App() {
             <div className="section-header">
               <div>
                 <h2>Shared With Me</h2>
+
                 <p>
                   Files other users have shared with
                   you.
@@ -1421,73 +1417,54 @@ function App() {
               </div>
             ) : (
               <div className="file-list">
-                {sharedWithMe.map((share) => {
-                  const expired = isExpired(
-                    share.expires_at
-                  );
-
-                  return (
-                    <div
-                      className="file-row"
-                      key={share.id}
-                    >
-                      <div className="file-info">
-                        <div className="file-name">
-                          {expired ? "⛔" : "📥"}{" "}
-                          {share.filename}
-                        </div>
-
-                        <div className="file-meta">
-                          Shared by{" "}
-                          <strong>
-                            {share.owner_name}
-                          </strong>
-                          {" • "}
-                          Permission:{" "}
-                          {share.permission}
-                        </div>
-
-                        <div className="file-meta">
-                          {share.expires_at
-                            ? expired
-                              ? "Access expired"
-                              : `Expires: ${formatDate(
-                                  share.expires_at
-                                )}`
-                            : "No expiration"}
-                        </div>
+                {sharedWithMe.map((share) => (
+                  <div
+                    className="file-row"
+                    key={share.id}
+                  >
+                    <div className="file-info">
+                      <div className="file-name">
+                        📥 {share.filename}
                       </div>
 
-                      <div className="file-actions">
-                        {expired ? (
-                          <button
-                            className="action-button"
-                            disabled
-                            style={{
-                              opacity: 0.45,
-                              cursor:
-                                "not-allowed",
-                            }}
-                          >
-                            Expired
-                          </button>
-                        ) : (
-                          <button
-                            className="action-button primary"
-                            onClick={() =>
-                              handleDownload(
-                                share.file_id,
-                                share.filename
-                              )
-                            }
-                          >
-                            Download
-                          </button>
+                      <div className="file-meta">
+                        Shared by{" "}
+                        <strong>
+                          {share.owner_name}
+                        </strong>
+                      </div>
+
+                      <div className="file-meta">
+                        Owner email:{" "}
+                        {share.owner_email}
+                        {" • "}
+                        Permission:{" "}
+                        {share.permission}
+                      </div>
+
+                      <div className="file-meta">
+                        Shared on:{" "}
+                        {formatDate(
+                          share.created_at
                         )}
                       </div>
                     </div>
-                  );
-                })}
+
+                    <div className="file-actions">
+                      <button
+                        className="action-button primary"
+                        onClick={() =>
+                          handleDownload(
+                            share.file_id,
+                            share.filename
+                          )
+                        }
+                      >
+                        Download
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

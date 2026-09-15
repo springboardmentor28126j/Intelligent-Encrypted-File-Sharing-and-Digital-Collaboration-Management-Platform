@@ -1,44 +1,47 @@
+import uuid
 from datetime import datetime
 
 from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
-    Integer,
-    String
+    String,
+    BigInteger
 )
+from sqlalchemy.dialects.postgresql import UUID
 
 from database import Base
 
-
-# ============================================================
-# USER MODEL
-# ============================================================
 
 class User(Base):
     __tablename__ = "users"
 
     id = Column(
-        Integer,
+        UUID(as_uuid=True),
         primary_key=True,
+        default=uuid.uuid4
+    )
+
+    email = Column(
+        String,
+        unique=True,
+        nullable=False,
         index=True
     )
 
     name = Column(
-        String(100),
-        nullable=False
-    )
-
-    email = Column(
-        String(255),
-        unique=True,
-        index=True,
-        nullable=False
+        String,
+        nullable=True
     )
 
     password_hash = Column(
-        String(255),
+        String,
         nullable=False
+    )
+
+    role = Column(
+        String,
+        default="user"
     )
 
     created_at = Column(
@@ -47,49 +50,35 @@ class User(Base):
     )
 
 
-# ============================================================
-# FILE MODEL
-# ============================================================
-
 class File(Base):
     __tablename__ = "files"
 
     id = Column(
-        Integer,
+        UUID(as_uuid=True),
         primary_key=True,
+        default=uuid.uuid4
+    )
+
+    owner_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False,
         index=True
     )
 
     filename = Column(
-        String(255),
+        String,
         nullable=False
     )
 
-    stored_filename = Column(
-        String(255),
+    storage_path = Column(
+        String,
         nullable=False
     )
 
-    file_path = Column(
-        String(500),
+    size_bytes = Column(
+        BigInteger,
         nullable=False
-    )
-
-    file_size = Column(
-        Integer,
-        nullable=False
-    )
-
-    content_type = Column(
-        String(100),
-        nullable=True
-    )
-
-    owner_id = Column(
-        Integer,
-        ForeignKey("users.id"),
-        nullable=False,
-        index=True
     )
 
     uploaded_at = Column(
@@ -97,46 +86,50 @@ class File(Base):
         default=datetime.utcnow
     )
 
+    encrypted_key = Column(
+        String,
+        nullable=False
+    )
 
-# ============================================================
-# FILE SHARE MODEL
-# ============================================================
+    key_nonce = Column(
+        String,
+        nullable=False
+    )
+
+    file_nonce = Column(
+        String,
+        nullable=False
+    )
+
 
 class FileShare(Base):
     __tablename__ = "file_shares"
 
     id = Column(
-        Integer,
+        UUID(as_uuid=True),
         primary_key=True,
-        index=True
+        default=uuid.uuid4
     )
 
     file_id = Column(
-        Integer,
+        UUID(as_uuid=True),
         ForeignKey("files.id"),
         nullable=False,
         index=True
     )
 
-    shared_with_user_id = Column(
-        Integer,
-        ForeignKey("users.id"),
+    shared_with_email = Column(
+        String,
         nullable=False,
         index=True
     )
 
     permission = Column(
-        String(20),
-        default="view",
-        nullable=False
+        String,
+        nullable=True
     )
 
     created_at = Column(
         DateTime,
         default=datetime.utcnow
-    )
-
-    expires_at = Column(
-        DateTime,
-        nullable=True
     )

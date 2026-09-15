@@ -1,4 +1,5 @@
 import os
+from uuid import UUID
 
 from dotenv import load_dotenv
 from fastapi import (
@@ -162,6 +163,11 @@ def get_current_user(
                 detail="Invalid authentication token"
             )
 
+        user_uuid = UUID(str(user_id))
+
+    except HTTPException:
+        raise
+
     except Exception:
         raise HTTPException(
             status_code=401,
@@ -170,7 +176,7 @@ def get_current_user(
 
     user = (
         db.query(User)
-        .filter(User.id == int(user_id))
+        .filter(User.id == user_uuid)
         .first()
     )
 
