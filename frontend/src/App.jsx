@@ -1,200 +1,227 @@
-import { useEffect, useState } from "react";
 import "./App.css";
+import { useEffect, useState } from "react";
 
 const API_URL = "http://127.0.0.1:8000";
 
 function App() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [token, setToken] = useState(
+    localStorage.getItem("trustshare_token")
+  );
 
   const [user, setUser] = useState(null);
+
+  const [authMode, setAuthMode] = useState("login");
+
+  const [authForm, setAuthForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
+
   const [files, setFiles] = useState([]);
-  const [sharedFiles, setSharedFiles] = useState([]);
-  const [receivedFiles, setReceivedFiles] = useState([]);
+  const [sharedWithMe, setSharedWithMe] = useState([]);
+  const [sharedByMe, setSharedByMe] = useState([]);
+
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [shareUserId, setShareUserId] = useState("");
+  const [expiry, setExpiry] = useState("");
 
   const [loading, setLoading] = useState(false);
-  const [filesLoading, setFilesLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [sharing, setSharing] = useState(false);
-  const [receivedLoading, setReceivedLoading] = useState(false);
 
-  const [shareUserId, setShareUserId] = useState("");
-  const [shareExpiry, setShareExpiry] = useState("");
-  const [selectedFileId, setSelectedFileId] = useState(null);
-
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const [activeSection, setActiveSection] = useState("overview");
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
+    if (token) {
+      loadUser();
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (token && user) {
+      loadDashboard();
+    }
+  }, [token, user]);
+
+  const clearMessages = () => {
+    setError("");
+    setSuccess("");
+  };
+
+  const showSuccess = (message) => {
+    setError("");
+    setSuccess(message);
+
+    setTimeout(() => {
+      setSuccess("");
+    }, 4000);
+  };
+
+  const showError = (message) => {
+    setSuccess("");
+    setError(message);
+  };
+
+  const apiRequest = async (endpoint, options = {}) => {
+    const headers = {
+      ...(options.headers || {}),
+    };
 
     if (token) {
-      getCurrentUser(token);
+      headers.Authorization = `Bearer ${token}`;
     }
-  }, []);
 
-  const getCurrentUser = async (token) => {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+
+    let data = null;
+
     try {
-      const response = await fetch(`${API_URL}/auth/me`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      data = await response.json();
+    } catch {
+      data = null;
+    }
 
-      if (!response.ok) {
-        localStorage.removeItem("access_token");
-        setUser(null);
-        return;
-      }
+    if (!response.ok) {
+      const message =
+        data?.detail ||
+        data?.message ||
+        `Request failed with status ${response.status}`;
 
-      const data = await response.json();
+      throw new Error(message);
+    }
 
+    return data;
+  };
+
+  const loadUser = async () => {
+    try {
+      const data = await apiRequest("/auth/me");
       setUser(data);
-
-      await getMyFiles(token);
-      await getMyShares(token);
-      await getReceivedShares(token);
-    } catch (error) {
-      console.error("Failed to get user:", error);
-      setError("Unable to connect to TrustShare server.");
+    } catch {
+      localStorage.removeItem("trustshare_token");
+      setToken(null);
+      setUser(null);
     }
   };
 
-  const getMyFiles = async (
-    token = localStorage.getItem("access_token")
-  ) => {
-    if (!token) {
-      return;
-    }
-
-    setFilesLoading(true);
-
+  const loadDashboard = async () => {
     try {
-      const response = await fetch(`${API_URL}/files/`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const [filesData, receivedData, sentData] = await Promise.all([
+        apiRequest("/files/"),
+        apiRequest("/files/shared-with-me"),
+        apiRequest("/files/shared-by-me"),
+      ]);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.detail || "Unable to load files.");
-        return;
-      }
-
-      setFiles(data.files || []);
-    } catch (error) {
-      console.error("Failed to load files:", error);
-      setError("Unable to connect to TrustShare server.");
-    } finally {
-      setFilesLoading(false);
+      setFiles(filesData?.files || []);
+      setSharedWithMe(receivedData || []);
+      setSharedByMe(sentData || []);
+    } catch (err) {
+      showError(err.message);
     }
   };
 
-  const getMyShares = async (
-    token = localStorage.getItem("access_token")
-  ) => {
-    if (!token) {
-      return;
-    }
+  const handleAuthChange = (event) => {
+    const { name, value } = event.target;
 
-    try {
-      const response = await fetch(
-        `${API_URL}/files/shared-by-me`,
-        {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error(
-          "Unable to load shares:",
-          data.detail
-        );
-        return;
-      }
-
-      setSharedFiles(data || []);
-    } catch (error) {
-      console.error(
-        "Failed to load shared files:",
-        error
-      );
-    }
-  };
-
-  const getReceivedShares = async (
-    token = localStorage.getItem("access_token")
-  ) => {
-    if (!token) {
-      return;
-    }
-
-    setReceivedLoading(true);
-
-    try {
-      const response = await fetch(
-        `${API_URL}/files/shared-with-me`,
-        {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error(
-          "Unable to load received shares:",
-          data.detail
-        );
-        return;
-      }
-
-      setReceivedFiles(data || []);
-    } catch (error) {
-      console.error(
-        "Failed to load received shares:",
-        error
-      );
-    } finally {
-      setReceivedLoading(false);
-    }
+    setAuthForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
   };
 
   const handleLogin = async (event) => {
     event.preventDefault();
 
-    setLoading(true);
-    setMessage("");
-    setError("");
+    clearMessages();
+
+    if (!authForm.email || !authForm.password) {
+      showError("Please enter your email and password.");
+      return;
+    }
 
     try {
+      setLoading(true);
+
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: authForm.email,
+          password: authForm.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail || "Invalid email or password."
+        );
+      }
+
+      localStorage.setItem(
+        "trustshare_token",
+        data.access_token
+      );
+
+      setToken(data.access_token);
+
+      setAuthForm({
+        name: "",
+        email: "",
+        password: "",
+      });
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (event) => {
+    event.preventDefault();
+
+    clearMessages();
+
+    if (!authForm.name.trim()) {
+      showError("Please enter your name.");
+      return;
+    }
+
+    if (!authForm.email.trim()) {
+      showError("Please enter your email.");
+      return;
+    }
+
+    if (authForm.password.length < 6) {
+      showError(
+        "Password must contain at least 6 characters."
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+
       const response = await fetch(
-        `${API_URL}/auth/login`,
+        `${API_URL}/auth/register`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Accept: "application/json",
           },
           body: JSON.stringify({
-            email: email,
-            password: password,
+            name: authForm.name.trim(),
+            email: authForm.email.trim(),
+            password: authForm.password,
           }),
         }
       );
@@ -202,77 +229,66 @@ function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.detail || "Login failed.");
-        return;
+        throw new Error(
+          data?.detail || "Registration failed."
+        );
       }
 
-      localStorage.setItem(
-        "access_token",
-        data.access_token
-      );
+      setAuthMode("login");
 
-      setMessage("Login successful.");
+      setAuthForm({
+        name: "",
+        email: authForm.email,
+        password: "",
+      });
 
-      await getCurrentUser(
-        data.access_token
+      showSuccess(
+        "Account created successfully. You can now sign in."
       );
-
-      setPassword("");
-    } catch (error) {
-      console.error(
-        "Login error:",
-        error
-      );
-
-      setError(
-        "Unable to connect to TrustShare server."
-      );
+    } catch (err) {
+      showError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("access_token");
+  const logout = () => {
+    localStorage.removeItem("trustshare_token");
 
+    setToken(null);
     setUser(null);
     setFiles([]);
-    setSharedFiles([]);
-    setReceivedFiles([]);
+    setSharedWithMe([]);
+    setSharedByMe([]);
 
-    setEmail("");
-    setPassword("");
-
-    setMessage("");
-    setError("");
+    clearMessages();
   };
 
-  const handleUpload = async (event) => {
-    const selectedFile = event.target.files[0];
+  const handleFileUpload = async (event) => {
+    const file = event.target.files?.[0];
 
-    if (!selectedFile) {
+    if (!file) {
       return;
     }
 
-    const token =
-      localStorage.getItem("access_token");
+    clearMessages();
 
-    if (!token) {
-      setError("You are not logged in.");
+    const MAX_SIZE = 10 * 1024 * 1024;
+
+    if (file.size > MAX_SIZE) {
+      showError(
+        "File is too large. Maximum allowed size is 10 MB."
+      );
+      event.target.value = "";
       return;
     }
-
-    setUploading(true);
-    setMessage("");
-    setError("");
 
     try {
+      setUploading(true);
+
       const formData = new FormData();
 
-      formData.append(
-        "uploaded_file",
-        selectedFile
-      );
+      formData.append("uploaded_file", file);
 
       const response = await fetch(
         `${API_URL}/files/upload`,
@@ -288,49 +304,31 @@ function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(
-          data.detail || "File upload failed."
+        throw new Error(
+          data?.detail || "File upload failed."
         );
-        return;
       }
 
-      setMessage(
-        "File uploaded and encrypted successfully."
+      showSuccess(
+        `${file.name} uploaded and encrypted successfully.`
       );
 
-      await getMyFiles(token);
-    } catch (error) {
-      console.error(
-        "Upload error:",
-        error
-      );
-
-      setError(
-        "Unable to upload file."
-      );
+      await loadDashboard();
+    } catch (err) {
+      showError(err.message);
     } finally {
       setUploading(false);
       event.target.value = "";
     }
   };
 
-  const handleDownload = async (file) => {
-    const token =
-      localStorage.getItem("access_token");
-
-    if (!token) {
-      setError("You are not logged in.");
-      return;
-    }
-
-    setMessage("");
-    setError("");
+  const handleDownload = async (fileId, filename) => {
+    clearMessages();
 
     try {
       const response = await fetch(
-        `${API_URL}/files/${file.id}/download`,
+        `${API_URL}/files/${fileId}/download`,
         {
-          method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -338,129 +336,25 @@ function App() {
       );
 
       if (!response.ok) {
-        let data = {};
+        let message = "Unable to download file.";
 
         try {
-          data = await response.json();
+          const data = await response.json();
+          message = data?.detail || message;
         } catch {
-          data = {};
+          // Ignore JSON parsing failure.
         }
 
-        setError(
-          data.detail || "Download failed."
-        );
-
-        return;
+        throw new Error(message);
       }
 
       const blob = await response.blob();
 
-      const downloadUrl =
-        window.URL.createObjectURL(blob);
+      const downloadUrl = window.URL.createObjectURL(blob);
 
-      const link =
-        document.createElement("a");
+      const link = document.createElement("a");
 
       link.href = downloadUrl;
-      link.download = file.filename;
-
-      document.body.appendChild(link);
-
-      link.click();
-
-      link.remove();
-
-      window.URL.revokeObjectURL(
-        downloadUrl
-      );
-
-      setMessage(
-        "File downloaded successfully."
-      );
-    } catch (error) {
-      console.error(
-        "Download error:",
-        error
-      );
-
-      setError(
-        "Unable to download file."
-      );
-    }
-  };
-
-  const handleDownloadSharedFile = async (
-    share
-  ) => {
-    const token =
-      localStorage.getItem("access_token");
-
-    if (!token) {
-      setError("You are not logged in.");
-      return;
-    }
-
-    setMessage("");
-    setError("");
-
-    try {
-      const response = await fetch(
-        `${API_URL}/files/${share.file_id}/download`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        let data = {};
-
-        try {
-          data = await response.json();
-        } catch {
-          data = {};
-        }
-
-        setError(
-          data.detail ||
-            "Unable to download shared file."
-        );
-
-        return;
-      }
-
-      const blob = await response.blob();
-
-      const downloadUrl =
-        window.URL.createObjectURL(blob);
-
-      const link =
-        document.createElement("a");
-
-      link.href = downloadUrl;
-
-      const contentDisposition =
-        response.headers.get(
-          "Content-Disposition"
-        );
-
-      let filename =
-        share.filename ||
-        `shared-file-${share.file_id}`;
-
-      if (contentDisposition) {
-        const match =
-          contentDisposition.match(
-            /filename="([^"]+)"/
-          );
-
-        if (match) {
-          filename = match[1];
-        }
-      }
-
       link.download = filename;
 
       document.body.appendChild(link);
@@ -469,998 +363,1155 @@ function App() {
 
       link.remove();
 
-      window.URL.revokeObjectURL(
-        downloadUrl
-      );
+      window.URL.revokeObjectURL(downloadUrl);
 
-      setMessage(
-        "Shared file downloaded successfully."
-      );
-    } catch (error) {
-      console.error(
-        "Shared download error:",
-        error
-      );
-
-      setError(
-        "Unable to download shared file."
-      );
+      showSuccess("File downloaded successfully.");
+    } catch (err) {
+      showError(err.message);
     }
   };
 
-  const handleDelete = async (fileId) => {
-    const token =
-      localStorage.getItem("access_token");
-
-    if (!token) {
-      setError("You are not logged in.");
-      return;
-    }
-
+  const handleDelete = async (fileId, filename) => {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this file?"
+      `Delete "${filename}" permanently?`
     );
 
     if (!confirmed) {
       return;
     }
 
-    setMessage("");
-    setError("");
+    clearMessages();
 
     try {
-      const response = await fetch(
-        `${API_URL}/files/${fileId}`,
-        {
-          method: "DELETE",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      await apiRequest(`/files/${fileId}`, {
+        method: "DELETE",
+      });
 
-      const data = await response.json();
+      showSuccess("File deleted successfully.");
 
-      if (!response.ok) {
-        setError(
-          data.detail || "Delete failed."
-        );
-        return;
-      }
-
-      setMessage(
-        "File deleted successfully."
-      );
-
-      await getMyFiles(token);
-      await getMyShares(token);
-    } catch (error) {
-      console.error(
-        "Delete error:",
-        error
-      );
-
-      setError(
-        "Unable to delete file."
-      );
+      await loadDashboard();
+    } catch (err) {
+      showError(err.message);
     }
   };
 
-  const handleShare = async (fileId) => {
-    const token =
-      localStorage.getItem("access_token");
+  const handleShare = async (event) => {
+    event.preventDefault();
 
-    if (!token) {
-      setError("You are not logged in.");
+    clearMessages();
+
+    if (!selectedFile) {
+      showError("Please select a file to share.");
       return;
     }
 
     if (!shareUserId) {
-      setError(
-        "Please enter the User ID to share with."
-      );
+      showError("Please enter the recipient User ID.");
       return;
     }
 
-    const targetUserId =
-      Number(shareUserId);
+    const recipientId = Number(shareUserId);
 
-    if (!Number.isInteger(targetUserId)) {
-      setError(
-        "User ID must be a valid number."
-      );
+    if (!Number.isInteger(recipientId) || recipientId <= 0) {
+      showError("User ID must be a valid positive number.");
       return;
     }
 
-    setSharing(true);
-    setMessage("");
-    setError("");
+    if (user && recipientId === user.id) {
+      showError("You cannot share a file with yourself.");
+      return;
+    }
 
-    try {
-      const requestBody = {
-        file_id: fileId,
-        shared_with_user_id: targetUserId,
-        permission: "view",
-      };
+    let expiresAt = null;
 
-      if (shareExpiry) {
-        requestBody.expires_at = shareExpiry;
+    if (expiry) {
+      const expiryDate = new Date(expiry);
+
+      if (Number.isNaN(expiryDate.getTime())) {
+        showError("Please select a valid expiration time.");
+        return;
       }
 
-      const response = await fetch(
-        `${API_URL}/files/share`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(requestBody),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(
-          data.detail ||
-            "File sharing failed."
+      if (expiryDate <= new Date()) {
+        showError(
+          "Expiration time must be in the future."
         );
         return;
       }
 
-      setMessage(
-        `File shared successfully with User #${targetUserId}.`
+      expiresAt = expiryDate.toISOString();
+    }
+
+    try {
+      setLoading(true);
+
+      await apiRequest("/files/share", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          file_id: selectedFile.id,
+          shared_with_user_id: recipientId,
+          permission: "view",
+          expires_at: expiresAt,
+        }),
+      });
+
+      showSuccess(
+        `${selectedFile.filename} shared successfully.`
       );
 
+      setSelectedFile(null);
       setShareUserId("");
-      setShareExpiry("");
-      setSelectedFileId(null);
+      setExpiry("");
 
-      await getMyShares(token);
-    } catch (error) {
-      console.error(
-        "Share error:",
-        error
-      );
-
-      setError(
-        "Unable to share file."
-      );
+      await loadDashboard();
+    } catch (err) {
+      showError(err.message);
     } finally {
-      setSharing(false);
+      setLoading(false);
     }
   };
 
-  const handleRevokeShare = async (
-    shareId
-  ) => {
-    const token =
-      localStorage.getItem("access_token");
-
-    if (!token) {
-      setError("You are not logged in.");
-      return;
-    }
-
+  const handleRevoke = async (shareId) => {
     const confirmed = window.confirm(
-      "Are you sure you want to revoke this file share?"
+      "Revoke access to this file?"
     );
 
     if (!confirmed) {
       return;
     }
 
-    setMessage("");
-    setError("");
+    clearMessages();
 
     try {
-      const response = await fetch(
-        `${API_URL}/files/share/${shareId}`,
-        {
-          method: "DELETE",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      await apiRequest(`/files/share/${shareId}`, {
+        method: "DELETE",
+      });
+
+      showSuccess(
+        "File sharing access revoked successfully."
       );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(
-          data.detail ||
-            "Unable to revoke sharing."
-        );
-        return;
-      }
-
-      setMessage(
-        "File sharing revoked successfully."
-      );
-
-      await getMyShares(token);
-      await getReceivedShares(token);
-    } catch (error) {
-      console.error(
-        "Revoke share error:",
-        error
-      );
-
-      setError(
-        "Unable to revoke file sharing."
-      );
+      await loadDashboard();
+    } catch (err) {
+      showError(err.message);
     }
   };
 
-  const formatExpiry = (expiresAt) => {
-    if (!expiresAt) {
-      return "No expiration";
+  const formatSize = (bytes) => {
+    if (bytes === 0) {
+      return "0 Bytes";
     }
 
-    const expiryDate =
-      new Date(expiresAt);
-
-    if (Number.isNaN(expiryDate.getTime())) {
-      return "Invalid expiration";
+    if (!bytes) {
+      return "Unknown size";
     }
 
-    return expiryDate.toLocaleString();
+    const units = [
+      "Bytes",
+      "KB",
+      "MB",
+      "GB",
+    ];
+
+    const index = Math.floor(
+      Math.log(bytes) / Math.log(1024)
+    );
+
+    return `${(
+      bytes /
+      Math.pow(1024, index)
+    ).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
   };
 
-  const isExpired = (expiresAt) => {
-    if (!expiresAt) {
+  const formatDate = (dateValue) => {
+    if (!dateValue) {
+      return "—";
+    }
+
+    return new Date(dateValue).toLocaleString();
+  };
+
+  const isExpired = (dateValue) => {
+    if (!dateValue) {
       return false;
     }
 
-    const expiryDate =
-      new Date(expiresAt);
+    return new Date(dateValue) <= new Date();
+  };
+
+  const getInitials = () => {
+    if (!user?.name) {
+      return "U";
+    }
+
+    return user.name
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+  };
+
+  const renderLogo = () => (
+    <div className="logo-mark">
+      <svg
+        width="25"
+        height="25"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M12 3L19 6V11.5C19 16.3 16.1 19.7 12 21C7.9 19.7 5 16.3 5 11.5V6L12 3Z"
+          fill="white"
+          fillOpacity="0.18"
+          stroke="white"
+          strokeWidth="1.5"
+        />
+        <path
+          d="M9.2 12.1L11.2 14.1L15.2 10"
+          stroke="white"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  );
+
+  const renderSecurityIcon = (type) => {
+    if (type === "lock") {
+      return (
+        <svg
+          width="17"
+          height="17"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <rect
+            x="5"
+            y="10"
+            width="14"
+            height="10"
+            rx="2"
+            stroke="currentColor"
+            strokeWidth="1.7"
+          />
+          <path
+            d="M8 10V7a4 4 0 0 1 8 0v3"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+    }
+
+    if (type === "share") {
+      return (
+        <svg
+          width="17"
+          height="17"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle
+            cx="18"
+            cy="5"
+            r="2.5"
+            stroke="currentColor"
+            strokeWidth="1.6"
+          />
+          <circle
+            cx="6"
+            cy="12"
+            r="2.5"
+            stroke="currentColor"
+            strokeWidth="1.6"
+          />
+          <circle
+            cx="18"
+            cy="19"
+            r="2.5"
+            stroke="currentColor"
+            strokeWidth="1.6"
+          />
+          <path
+            d="M8.2 10.8L15.7 6.5M8.2 13.2L15.7 17.5"
+            stroke="currentColor"
+            strokeWidth="1.6"
+          />
+        </svg>
+      );
+    }
+
+    if (type === "shield") {
+      return (
+        <svg
+          width="17"
+          height="17"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <path
+            d="M12 3L19 6V11.5C19 16.3 16.1 19.7 12 21C7.9 19.7 5 16.3 5 11.5V6L12 3Z"
+            stroke="currentColor"
+            strokeWidth="1.7"
+          />
+          <path
+            d="M9.2 12.1L11.2 14.1L15.2 10"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    }
 
     return (
-      !Number.isNaN(expiryDate.getTime()) &&
-      expiryDate.getTime() <= Date.now()
+      <svg
+        width="17"
+        height="17"
+        viewBox="0 0 24 24"
+        fill="none"
+      >
+        <circle
+          cx="12"
+          cy="12"
+          r="8.5"
+          stroke="currentColor"
+          strokeWidth="1.7"
+        />
+        <path
+          d="M12 7V12L15 14"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+        />
+      </svg>
     );
   };
 
-  if (user) {
-    return (
-      <div className="dashboard">
+  if (!token || !user) {
+    const isLogin = authMode === "login";
 
-        <header className="dashboard-header">
-          <div>
-            <h1>TrustShare</h1>
+    return (
+      <div className="app">
+        <div className="auth-page">
+          <section className="auth-brand">
+            <div className="brand-content">
+              <div className="brand-logo">
+                {renderLogo()}
+
+                <div className="brand-name">
+                  TrustShare
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 12px",
+                  marginBottom: "20px",
+                  borderRadius: "999px",
+                  border:
+                    "1px solid rgba(129,140,248,0.2)",
+                  background:
+                    "rgba(99,102,241,0.08)",
+                  color: "#c7d2fe",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  letterSpacing: "0.3px",
+                }}
+              >
+                <span
+                  style={{
+                    width: "7px",
+                    height: "7px",
+                    borderRadius: "50%",
+                    background: "#818cf8",
+                    boxShadow:
+                      "0 0 10px rgba(129,140,248,0.8)",
+                  }}
+                />
+                SECURE COLLABORATION PLATFORM
+              </div>
+
+              <h1 className="brand-tagline">
+                Your files.
+                <br />
+                <span>Your control.</span>
+              </h1>
+
+              <p className="brand-description">
+                Securely store, encrypt, share and
+                collaborate on your files with complete
+                control over who can access them.
+              </p>
+
+              <div className="security-points">
+                <div className="security-point">
+                  <span className="security-icon">
+                    {renderSecurityIcon("lock")}
+                  </span>
+                  <span>
+                    Encrypted file storage
+                  </span>
+                </div>
+
+                <div className="security-point">
+                  <span className="security-icon">
+                    {renderSecurityIcon("share")}
+                  </span>
+                  <span>
+                    Controlled file sharing
+                  </span>
+                </div>
+
+                <div className="security-point">
+                  <span className="security-icon">
+                    {renderSecurityIcon("shield")}
+                  </span>
+                  <span>
+                    JWT-secured access
+                  </span>
+                </div>
+
+                <div className="security-point">
+                  <span className="security-icon">
+                    {renderSecurityIcon("clock")}
+                  </span>
+                  <span>
+                    Time-limited permissions
+                  </span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="auth-panel">
+            <div className="auth-card">
+              <div className="auth-card-header">
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "22px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "42px",
+                      height: "42px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: "12px",
+                      background:
+                        "rgba(99,102,241,0.12)",
+                      color: "#a5b4fc",
+                    }}
+                  >
+                    {renderSecurityIcon(
+                      isLogin ? "lock" : "shield"
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      color: "#475569",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    TRUSTSHARE
+                  </div>
+                </div>
+
+                <h1>
+                  {isLogin
+                    ? "Welcome back"
+                    : "Create your account"}
+                </h1>
+
+                <p>
+                  {isLogin
+                    ? "Sign in to securely manage and share your files."
+                    : "Join TrustShare and take control of your secure collaboration."}
+                </p>
+              </div>
+
+              {error && (
+                <div className="alert alert-error">
+                  {error}
+                </div>
+              )}
+
+              {success && (
+                <div className="alert alert-success">
+                  {success}
+                </div>
+              )}
+
+              <form
+                className="auth-form"
+                onSubmit={
+                  isLogin
+                    ? handleLogin
+                    : handleRegister
+                }
+              >
+                {!isLogin && (
+                  <div className="form-group">
+                    <label htmlFor="name">
+                      FULL NAME
+                    </label>
+
+                    <input
+                      id="name"
+                      name="name"
+                      type="text"
+                      placeholder="Enter your full name"
+                      value={authForm.name}
+                      onChange={handleAuthChange}
+                      autoComplete="name"
+                    />
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label htmlFor="email">
+                    EMAIL ADDRESS
+                  </label>
+
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={authForm.email}
+                    onChange={handleAuthChange}
+                    autoComplete="email"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="password">
+                    PASSWORD
+                  </label>
+
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    placeholder={
+                      isLogin
+                        ? "Enter your password"
+                        : "At least 6 characters"
+                    }
+                    value={authForm.password}
+                    onChange={handleAuthChange}
+                    autoComplete={
+                      isLogin
+                        ? "current-password"
+                        : "new-password"
+                    }
+                  />
+                </div>
+
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={loading}
+                >
+                  {loading
+                    ? isLogin
+                      ? "Signing in..."
+                      : "Creating account..."
+                    : isLogin
+                    ? "Sign in securely"
+                    : "Create secure account"}
+                </button>
+              </form>
+
+              <div className="auth-switch">
+                {isLogin ? (
+                  <>
+                    Don't have an account?{" "}
+                    <button
+                      className="link-button"
+                      type="button"
+                      onClick={() => {
+                        clearMessages();
+                        setAuthMode("register");
+                      }}
+                    >
+                      Create one
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Already have an account?{" "}
+                    <button
+                      className="link-button"
+                      type="button"
+                      onClick={() => {
+                        clearMessages();
+                        setAuthMode("login");
+                      }}
+                    >
+                      Sign in
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "7px",
+                  marginTop: "22px",
+                  color: "#475569",
+                  fontSize: "11px",
+                }}
+              >
+                <span>
+                  {renderSecurityIcon("shield")}
+                </span>
+                Protected by secure authentication
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  const totalShared = sharedByMe.length;
+  const receivedCount = sharedWithMe.length;
+  const expiredCount = sharedWithMe.filter((share) =>
+    isExpired(share.expires_at)
+  ).length;
+
+  return (
+    <div className="app">
+      <div className="dashboard">
+        <nav className="navbar">
+          <div className="navbar-brand">
+            <div className="navbar-logo">
+              <svg
+                width="19"
+                height="19"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <path
+                  d="M12 3L19 6V11.5C19 16.3 16.1 19.7 12 21C7.9 19.7 5 16.3 5 11.5V6L12 3Z"
+                  stroke="white"
+                  strokeWidth="1.7"
+                />
+                <path
+                  d="M9.2 12.1L11.2 14.1L15.2 10"
+                  stroke="white"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+
+            TrustShare
+          </div>
+
+          <div className="navbar-right">
+            <div className="user-info">
+              <div className="user-avatar">
+                {getInitials()}
+              </div>
+
+              <div className="user-details">
+                <strong>{user.name}</strong>
+                <span>{user.email}</span>
+              </div>
+            </div>
+
+            <button
+              className="logout-button"
+              onClick={logout}
+            >
+              Sign out
+            </button>
+          </div>
+        </nav>
+
+        <main className="dashboard-container">
+          <div className="page-heading">
+            <div
+              style={{
+                color: "#818cf8",
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "1px",
+                marginBottom: "8px",
+              }}
+            >
+              SECURE WORKSPACE
+            </div>
+
+            <h1>
+              Good to see you, {user.name.split(" ")[0]}.
+            </h1>
 
             <p>
-              Secure File Sharing Platform
+              Manage your files and collaboration securely
+              from one place.
             </p>
           </div>
 
-          <button
-            className="logout-button"
-            onClick={handleLogout}
-          >
-            Logout
-          </button>
-        </header>
-
-        <main className="dashboard-content">
-
-          <section className="welcome-section">
-
-            <h2>
-              Welcome, {user.name} 👋
-            </h2>
-
-            <p>
-              Manage your files securely
-              and collaborate with your team.
-            </p>
-
-          </section>
-
-          {message && (
-            <div className="success-message">
-              {message}
-            </div>
-          )}
-
           {error && (
-            <div className="error-message">
+            <div className="alert alert-error">
               {error}
             </div>
           )}
 
-          <section className="stats-grid">
+          {success && (
+            <div className="alert alert-success">
+              {success}
+            </div>
+          )}
 
+          <div className="stats-grid">
             <div className="stat-card">
-
-              <div className="stat-icon">
-                📄
+              <div className="stat-label">
+                MY FILES
               </div>
 
-              <div>
-                <h3>
-                  {files.length}
-                </h3>
-
-                <p>
-                  My Files
-                </p>
+              <div className="stat-value">
+                {files.length}
               </div>
-
             </div>
 
             <div className="stat-card">
-
-              <div className="stat-icon">
-                🔗
+              <div className="stat-label">
+                SHARED BY ME
               </div>
 
-              <div>
-                <h3>
-                  {sharedFiles.length}
-                </h3>
-
-                <p>
-                  Shared By Me
-                </p>
+              <div className="stat-value">
+                {totalShared}
               </div>
-
             </div>
 
             <div className="stat-card">
-
-              <div className="stat-icon">
-                📥
+              <div className="stat-label">
+                SHARED WITH ME
               </div>
 
-              <div>
-                <h3>
-                  {receivedFiles.length}
-                </h3>
-
-                <p>
-                  Shared With Me
-                </p>
+              <div className="stat-value">
+                {receivedCount}
               </div>
-
             </div>
+          </div>
 
-          </section>
-
-          <section className="files-section">
-
+          <div className="section-card">
             <div className="section-header">
-
               <div>
-                <h2>
-                  My Files
-                </h2>
-
+                <h2>Upload a file</h2>
                 <p>
-                  Your uploaded files are encrypted
-                  before being stored.
+                  Your uploaded file is encrypted before
+                  being stored.
                 </p>
               </div>
+            </div>
 
-              <label className="upload-button">
+            <div className="upload-area">
+              <label className="upload-label">
+                <svg
+                  width="17"
+                  height="17"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <path
+                    d="M12 16V4M12 4L7 9M12 4L17 9"
+                    stroke="white"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M5 20H19"
+                    stroke="white"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
 
                 {uploading
-                  ? "Uploading..."
-                  : "+ Upload File"}
+                  ? "Encrypting & uploading..."
+                  : "Choose a file"}
 
                 <input
+                  className="file-input"
                   type="file"
-                  onChange={handleUpload}
+                  onChange={handleFileUpload}
                   disabled={uploading}
-                  hidden
                 />
-
               </label>
 
+              <p className="upload-text">
+                Maximum file size: 10 MB
+              </p>
+            </div>
+          </div>
+
+          <div className="section-card">
+            <div className="section-header">
+              <div>
+                <h2>My Files</h2>
+                <p>
+                  Files owned and managed by you.
+                </p>
+              </div>
             </div>
 
-            {filesLoading ? (
-
-              <div className="empty-files">
-
-                <div className="empty-icon">
-                  ⏳
-                </div>
-
-                <h3>
-                  Loading files...
-                </h3>
-
+            {files.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📁</div>
+                No files uploaded yet.
               </div>
-
-            ) : files.length === 0 ? (
-
-              <div className="empty-files">
-
-                <div className="empty-icon">
-                  📂
-                </div>
-
-                <h3>
-                  No files yet
-                </h3>
-
-                <p>
-                  Upload your first file
-                  to start using TrustShare.
-                </p>
-
-                <label className="upload-button">
-
-                  Upload Your First File
-
-                  <input
-                    type="file"
-                    onChange={handleUpload}
-                    disabled={uploading}
-                    hidden
-                  />
-
-                </label>
-
-              </div>
-
             ) : (
-
               <div className="file-list">
-
                 {files.map((file) => (
-
                   <div
-                    className="file-card"
+                    className="file-row"
                     key={file.id}
                   >
-
                     <div className="file-info">
-
-                      <div className="file-icon">
-                        📄
+                      <div className="file-name">
+                        🔒 {file.filename}
                       </div>
 
-                      <div>
-
-                        <h3>
-                          {file.filename}
-                        </h3>
-
-                        <p>
-                          {file.file_size} bytes
-                        </p>
-
-                        <p>
-                          🔐 Encrypted at rest
-                        </p>
-
+                      <div className="file-meta">
+                        {formatSize(file.file_size)}
+                        {" • "}
+                        {file.content_type ||
+                          "Unknown type"}
+                        {" • "}
+                        {formatDate(
+                          file.uploaded_at
+                        )}
                       </div>
-
                     </div>
 
                     <div className="file-actions">
-
                       <button
+                        className="action-button primary"
                         onClick={() =>
-                          handleDownload(file)
+                          handleDownload(
+                            file.id,
+                            file.filename
+                          )
                         }
                       >
                         Download
                       </button>
 
                       <button
-                        onClick={() => {
-                          setSelectedFileId(
-                            selectedFileId === file.id
-                              ? null
-                              : file.id
-                          );
-
-                          setShareUserId("");
-                          setShareExpiry("");
-
-                          setError("");
-                          setMessage("");
-                        }}
+                        className="action-button"
+                        onClick={() =>
+                          setSelectedFile(file)
+                        }
                       >
-                        🔗 Share
+                        Share
                       </button>
 
                       <button
-                        className="delete-button"
+                        className="action-button danger"
                         onClick={() =>
-                          handleDelete(file.id)
+                          handleDelete(
+                            file.id,
+                            file.filename
+                          )
                         }
                       >
                         Delete
                       </button>
-
                     </div>
-
-                    {selectedFileId === file.id && (
-
-                      <div className="share-panel">
-
-                        <h4>
-                          Share "{file.filename}"
-                        </h4>
-
-                        <p>
-                          Enter the User ID and
-                          optional expiration time.
-                        </p>
-
-                        <div className="share-form">
-
-                          <input
-                            type="number"
-                            min="1"
-                            placeholder="Enter User ID"
-                            value={shareUserId}
-                            onChange={(event) =>
-                              setShareUserId(
-                                event.target.value
-                              )
-                            }
-                          />
-
-                          <input
-                            type="datetime-local"
-                            value={shareExpiry}
-                            min={
-                              new Date(
-                                Date.now() + 60000
-                              )
-                                .toISOString()
-                                .slice(0, 16)
-                            }
-                            onChange={(event) =>
-                              setShareExpiry(
-                                event.target.value
-                              )
-                            }
-                          />
-
-                          <button
-                            onClick={() =>
-                              handleShare(file.id)
-                            }
-                            disabled={sharing}
-                          >
-                            {sharing
-                              ? "Sharing..."
-                              : "Share File"}
-                          </button>
-
-                        </div>
-
-                        <small>
-                          Expiration is optional.
-                          Leave it empty for permanent
-                          access until revoked.
-                        </small>
-
-                      </div>
-
-                    )}
-
                   </div>
-
                 ))}
+              </div>
+            )}
+          </div>
 
+          {selectedFile && (
+            <div className="section-card">
+              <div className="section-header">
+                <div>
+                  <h2>Share File</h2>
+                  <p>
+                    Sharing:{" "}
+                    <strong>
+                      {selectedFile.filename}
+                    </strong>
+                  </p>
+                </div>
+
+                <button
+                  className="action-button"
+                  onClick={() => {
+                    setSelectedFile(null);
+                    setShareUserId("");
+                    setExpiry("");
+                  }}
+                >
+                  Cancel
+                </button>
               </div>
 
-            )}
+              <form
+                className="share-form"
+                onSubmit={handleShare}
+              >
+                <div className="form-group">
+                  <label>
+                    RECIPIENT USER ID
+                  </label>
 
-          </section>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 3"
+                    value={shareUserId}
+                    onChange={(event) =>
+                      setShareUserId(
+                        event.target.value
+                      )
+                    }
+                  />
+                </div>
 
-          <section className="files-section">
+                <div className="form-group">
+                  <label>
+                    EXPIRATION (OPTIONAL)
+                  </label>
 
+                  <input
+                    type="datetime-local"
+                    value={expiry}
+                    onChange={(event) =>
+                      setExpiry(event.target.value)
+                    }
+                  />
+                </div>
+
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={loading}
+                  style={{
+                    width: "auto",
+                    padding: "0 22px",
+                  }}
+                >
+                  {loading
+                    ? "Sharing..."
+                    : "Share securely"}
+                </button>
+              </form>
+            </div>
+          )}
+
+          <div className="section-card">
             <div className="section-header">
-
               <div>
-
-                <h2>
-                  🔗 Shared By Me
-                </h2>
-
+                <h2>Shared By Me</h2>
                 <p>
-                  Files you have shared with
+                  Manage files you have shared with
                   other users.
                 </p>
-
               </div>
-
             </div>
 
-            {sharedFiles.length === 0 ? (
-
-              <div className="empty-files">
-
-                <div className="empty-icon">
-                  🔗
-                </div>
-
-                <h3>
-                  No shared files
-                </h3>
-
-                <p>
-                  Files that you share with
-                  other users will appear here.
-                </p>
-
+            {sharedByMe.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">🔗</div>
+                You haven't shared any files yet.
               </div>
-
             ) : (
-
               <div className="file-list">
-
-                {sharedFiles.map((share) => (
-
-                  <div
-                    className="file-card"
-                    key={share.id}
-                  >
-
-                    <div className="file-info">
-
-                      <div className="file-icon">
-                        🔗
-                      </div>
-
-                      <div>
-
-                        <h3>
-                          File #{share.file_id}
-                        </h3>
-
-                        <p>
-                          Shared with User #
-                          {share.shared_with_user_id}
-                        </p>
-
-                        <p>
-                          Permission:{" "}
-                          {share.permission}
-                        </p>
-
-                        <p>
-                          ⏰ Expires:{" "}
-                          {formatExpiry(
-                            share.expires_at
-                          )}
-                        </p>
-
-                        {isExpired(
-                          share.expires_at
-                        ) && (
-                          <p>
-                            ⚠️ Share expired
-                          </p>
-                        )}
-
-                      </div>
-
-                    </div>
-
-                    <div className="file-actions">
-
-                      <button
-                        className="delete-button"
-                        onClick={() =>
-                          handleRevokeShare(
-                            share.id
-                          )
-                        }
-                      >
-                        Revoke
-                      </button>
-
-                    </div>
-
-                  </div>
-
-                ))}
-
-              </div>
-
-            )}
-
-          </section>
-
-          <section className="files-section">
-
-            <div className="section-header">
-
-              <div>
-
-                <h2>
-                  📥 Shared With Me
-                </h2>
-
-                <p>
-                  Files other users have shared
-                  with your account.
-                </p>
-
-              </div>
-
-            </div>
-
-            {receivedLoading ? (
-
-              <div className="empty-files">
-
-                <div className="empty-icon">
-                  ⏳
-                </div>
-
-                <h3>
-                  Loading shared files...
-                </h3>
-
-              </div>
-
-            ) : receivedFiles.length === 0 ? (
-
-              <div className="empty-files">
-
-                <div className="empty-icon">
-                  📥
-                </div>
-
-                <h3>
-                  No files shared with you
-                </h3>
-
-                <p>
-                  Files shared with your account
-                  will appear here.
-                </p>
-
-              </div>
-
-            ) : (
-
-              <div className="file-list">
-
-                {receivedFiles.map((share) => {
-
-                  const expired =
-                    isExpired(
-                      share.expires_at
-                    );
+                {sharedByMe.map((share) => {
+                  const expired = isExpired(
+                    share.expires_at
+                  );
 
                   return (
                     <div
-                      className="file-card"
+                      className="file-row"
                       key={share.id}
                     >
-
                       <div className="file-info">
-
-                        <div className="file-icon">
-                          📥
+                        <div className="file-name">
+                          🔗 File #{share.file_id}
                         </div>
 
-                        <div>
-
-                          <h3>
-                            {share.filename}
-                          </h3>
-
-                          <p>
-                            👤 Shared by{" "}
-                            <strong>
-                              {share.owner_name}
-                            </strong>
-                          </p>
-
-                          <p>
-                            Permission:{" "}
-                            {share.permission}
-                          </p>
-
-                          <p>
-                            ⏰ Expires:{" "}
-                            {formatExpiry(
-                              share.expires_at
-                            )}
-                          </p>
-
-                          {expired && (
-                            <p>
-                              ⚠️ Access expired
-                            </p>
-                          )}
-
+                        <div className="file-meta">
+                          User ID:{" "}
+                          {share.shared_with_user_id}
+                          {" • "}
+                          Permission:{" "}
+                          {share.permission}
+                          {" • "}
+                          {share.expires_at
+                            ? `Expires: ${formatDate(
+                                share.expires_at
+                              )}`
+                            : "No expiration"}
                         </div>
 
+                        {expired && (
+                          <div className="file-meta expired">
+                            Access expired
+                          </div>
+                        )}
                       </div>
 
                       <div className="file-actions">
-
                         <button
+                          className="action-button danger"
                           onClick={() =>
-                            handleDownloadSharedFile(
-                              share
+                            handleRevoke(
+                              share.id
                             )
                           }
-                          disabled={expired}
                         >
-                          {expired
-                            ? "Expired"
-                            : "Download"}
+                          Revoke
                         </button>
-
                       </div>
-
                     </div>
                   );
                 })}
-
               </div>
-
             )}
+          </div>
 
-          </section>
-
-          <section className="account-section">
-
-            <h2>
-              Account Information
-            </h2>
-
-            <div className="account-card">
-
+          <div className="section-card">
+            <div className="section-header">
               <div>
-                <span>
-                  Name
-                </span>
-
-                <strong>
-                  {user.name}
-                </strong>
+                <h2>Shared With Me</h2>
+                <p>
+                  Files other users have shared with
+                  you.
+                </p>
               </div>
-
-              <div>
-                <span>
-                  Email
-                </span>
-
-                <strong>
-                  {user.email}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Account ID
-                </span>
-
-                <strong>
-                  #{user.id}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Status
-                </span>
-
-                <strong className="status-active">
-                  ● Active
-                </strong>
-              </div>
-
             </div>
 
-          </section>
+            {sharedWithMe.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📥</div>
+                No files have been shared with you.
+              </div>
+            ) : (
+              <div className="file-list">
+                {sharedWithMe.map((share) => {
+                  const expired = isExpired(
+                    share.expires_at
+                  );
 
+                  return (
+                    <div
+                      className="file-row"
+                      key={share.id}
+                    >
+                      <div className="file-info">
+                        <div className="file-name">
+                          {expired ? "⛔" : "📥"}{" "}
+                          {share.filename}
+                        </div>
+
+                        <div className="file-meta">
+                          Shared by{" "}
+                          <strong>
+                            {share.owner_name}
+                          </strong>
+                          {" • "}
+                          Permission:{" "}
+                          {share.permission}
+                        </div>
+
+                        <div className="file-meta">
+                          {share.expires_at
+                            ? expired
+                              ? "Access expired"
+                              : `Expires: ${formatDate(
+                                  share.expires_at
+                                )}`
+                            : "No expiration"}
+                        </div>
+                      </div>
+
+                      <div className="file-actions">
+                        {expired ? (
+                          <button
+                            className="action-button"
+                            disabled
+                            style={{
+                              opacity: 0.45,
+                              cursor:
+                                "not-allowed",
+                            }}
+                          >
+                            Expired
+                          </button>
+                        ) : (
+                          <button
+                            className="action-button primary"
+                            onClick={() =>
+                              handleDownload(
+                                share.file_id,
+                                share.filename
+                              )
+                            }
+                          >
+                            Download
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              padding: "20px",
+              color: "#475569",
+              fontSize: "11px",
+            }}
+          >
+            <span>
+              {renderSecurityIcon("shield")}
+            </span>
+
+            TrustShare • Secure collaboration
+            workspace • Encrypted storage
+          </div>
         </main>
-
       </div>
-    );
-  }
-
-  return (
-    <div className="app">
-
-      <div className="login-container">
-
-        <div className="login-card">
-
-          <div className="logo-section">
-
-            <h1>
-              TrustShare
-            </h1>
-
-            <p>
-              Secure File Sharing Platform
-            </p>
-
-          </div>
-
-          <form onSubmit={handleLogin}>
-
-            <div className="form-group">
-
-              <label>
-                Email
-              </label>
-
-              <input
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(event) =>
-                  setEmail(event.target.value)
-                }
-                required
-              />
-
-            </div>
-
-            <div className="form-group">
-
-              <label>
-                Password
-              </label>
-
-              <input
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(event) =>
-                  setPassword(event.target.value)
-                }
-                required
-              />
-
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-            >
-              {loading
-                ? "Signing in..."
-                : "Sign In"}
-            </button>
-
-          </form>
-
-          {message && (
-            <p className="login-message">
-              {message}
-            </p>
-          )}
-
-          {error && (
-            <p className="login-error">
-              {error}
-            </p>
-          )}
-
-          <div className="security-note">
-
-            🔒 Your connection is protected by
-            secure authentication.
-
-          </div>
-
-        </div>
-
-      </div>
-
     </div>
   );
 }

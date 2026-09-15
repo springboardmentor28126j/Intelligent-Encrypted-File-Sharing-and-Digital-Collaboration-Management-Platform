@@ -1,3 +1,6 @@
+import os
+
+from dotenv import load_dotenv
 from fastapi import (
     APIRouter,
     Depends,
@@ -21,32 +24,36 @@ from schemas import (
 )
 
 
-# Authentication router
+load_dotenv()
+
+
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"]
 )
 
 
-# Password hashing configuration
 pwd_context = CryptContext(
     schemes=["bcrypt"],
     deprecated="auto"
 )
 
 
-# JWT configuration
-SECRET_KEY = "trustshare-secret-key-change-this-later"
+SECRET_KEY = os.getenv(
+    "TRUSTSHARE_JWT_SECRET_KEY"
+)
+
 ALGORITHM = "HS256"
 
 
-# Bearer token security
+if not SECRET_KEY:
+    raise RuntimeError(
+        "TRUSTSHARE_JWT_SECRET_KEY is not configured"
+    )
+
+
 security = HTTPBearer()
 
-
-# ============================================================
-# REGISTER USER
-# ============================================================
 
 @router.post(
     "/register",
@@ -57,7 +64,6 @@ def register_user(
     user_data: UserRegister,
     db: Session = Depends(get_db)
 ):
-    # Check whether email already exists
     existing_user = (
         db.query(User)
         .filter(User.email == user_data.email)
@@ -70,29 +76,22 @@ def register_user(
             detail="Email is already registered"
         )
 
-    # Hash password before storing it
     hashed_password = pwd_context.hash(
         user_data.password
     )
 
-    # Create new user
     new_user = User(
         name=user_data.name,
         email=user_data.email,
         password_hash=hashed_password
     )
 
-    # Save user to database
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
     return new_user
 
-
-# ============================================================
-# LOGIN USER
-# ============================================================
 
 @router.post(
     "/login",
@@ -102,40 +101,34 @@ def login_user(
     user_data: UserLogin,
     db: Session = Depends(get_db)
 ):
-    # Find user by email
     user = (
         db.query(User)
         .filter(User.email == user_data.email)
         .first()
     )
 
-    # If user does not exist
     if not user:
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password"
         )
 
-    # Verify password
     password_valid = pwd_context.verify(
         user_data.password,
         user.password_hash
     )
 
-    # If password is incorrect
     if not password_valid:
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password"
         )
 
-    # Data stored inside JWT
     token_data = {
         "sub": str(user.id),
         "email": user.email
     }
 
-    # Generate JWT access token
     access_token = jwt.encode(
         token_data,
         SECRET_KEY,
@@ -148,26 +141,19 @@ def login_user(
     }
 
 
-# ============================================================
-# GET CURRENT USER FROM JWT
-# ============================================================
-
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ):
-    # Extract token from Authorization header
     token = credentials.credentials
 
     try:
-        # Decode and verify JWT
         payload = jwt.decode(
             token,
             SECRET_KEY,
             algorithms=[ALGORITHM]
         )
 
-        # Get user ID from token
         user_id = payload.get("sub")
 
         if user_id is None:
@@ -182,14 +168,12 @@ def get_current_user(
             detail="Invalid authentication token"
         )
 
-    # Find user in database
     user = (
         db.query(User)
         .filter(User.id == int(user_id))
         .first()
     )
 
-    # User doesn't exist
     if user is None:
         raise HTTPException(
             status_code=401,
@@ -198,10 +182,6 @@ def get_current_user(
 
     return user
 
-
-# ============================================================
-# GET CURRENT USER PROFILE
-# ============================================================
 
 @router.get(
     "/me",
