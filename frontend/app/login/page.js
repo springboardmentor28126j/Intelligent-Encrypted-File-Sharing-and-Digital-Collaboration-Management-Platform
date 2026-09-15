@@ -19,8 +19,10 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setSubmitting(true);
+
     try {
       const result = await login(email, password);
+
       if (result.mfaRequired) {
         setMfaToken(result.mfaToken);
       }
@@ -38,10 +40,13 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setSubmitting(true);
+
     try {
       await verifyMfa(mfaToken, mfaCode);
     } catch (err) {
-      setError(err?.response?.data?.detail || "Invalid code. Try again.");
+      setError(
+        err?.response?.data?.detail || "Invalid code. Try again."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -54,9 +59,11 @@ export default function LoginPage() {
           <h1 className="mb-1 text-center text-2xl font-bold text-brand-700">
             Two-factor verification
           </h1>
+
           <p className="mb-6 text-center text-sm text-gray-500">
             Enter the 6-digit code from your authenticator app
           </p>
+
           <form onSubmit={handleMfaSubmit} className="space-y-4">
             <input
               autoFocus
@@ -68,11 +75,13 @@ export default function LoginPage() {
               className="w-full rounded-md border px-3 py-2 text-center text-lg tracking-widest focus:border-brand-500 focus:outline-none"
               placeholder="000000"
             />
+
             {error && (
               <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
                 {error}
               </p>
             )}
+
             <button
               type="submit"
               disabled={submitting}
@@ -80,6 +89,7 @@ export default function LoginPage() {
             >
               {submitting ? "Verifying…" : "Verify"}
             </button>
+
             <button
               type="button"
               onClick={() => {
@@ -100,18 +110,22 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-sm rounded-xl border bg-white p-8 shadow-sm">
+
         <h1 className="mb-1 text-center text-2xl font-bold text-brand-700">
           TrustShare
         </h1>
+
         <p className="mb-6 text-center text-sm text-gray-500">
           Secure encrypted file sharing
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Email
             </label>
+
             <input
               type="email"
               required
@@ -121,10 +135,12 @@ export default function LoginPage() {
               placeholder="you@example.com"
             />
           </div>
+
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Password
             </label>
+
             <input
               type="password"
               required
@@ -133,6 +149,16 @@ export default function LoginPage() {
               className="w-full rounded-md border px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
               placeholder="••••••••"
             />
+
+            {/* Forgot Password */}
+            <div className="mt-2 text-right">
+              <Link
+                href="/forgot-password"
+                className="text-sm font-medium text-brand-600 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
           </div>
 
           {error && (
@@ -152,7 +178,10 @@ export default function LoginPage() {
 
         <p className="mt-6 text-center text-sm text-gray-500">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-medium text-brand-600 hover:underline">
+          <Link
+            href="/register"
+            className="font-medium text-brand-600 hover:underline"
+          >
             Register
           </Link>
         </p>

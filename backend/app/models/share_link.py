@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -10,8 +11,8 @@ class ShareLink(Base):
     __tablename__ = "share_links"
 
     id = Column(Integer, primary_key=True, index=True)
-    file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
-    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    file_id = Column(UUID(as_uuid=True), ForeignKey("files.id"), nullable=False)
+    created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
     token = Column(String, unique=True, index=True, nullable=False)
 

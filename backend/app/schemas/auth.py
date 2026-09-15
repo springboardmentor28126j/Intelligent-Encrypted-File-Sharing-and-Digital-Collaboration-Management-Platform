@@ -1,11 +1,20 @@
+from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field
-
 
 class UserRegister(BaseModel):
     email: EmailStr
+    name: str | None = None
     full_name: str = Field(min_length=1, max_length=120)
     password: str = Field(min_length=8, max_length=128)
 
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8, max_length=128)
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -43,12 +52,10 @@ class MfaDisableRequest(BaseModel):
 
 
 class UserOut(BaseModel):
-    id: int
+    id: UUID
     email: EmailStr
-    full_name: str
+    name: str | None = None
     role: str
-    is_active: bool
-    mfa_enabled: bool
 
     class Config:
         from_attributes = True

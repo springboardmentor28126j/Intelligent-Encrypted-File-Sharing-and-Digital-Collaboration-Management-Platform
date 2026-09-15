@@ -1,6 +1,7 @@
-from datetime import datetime, timezone
+import uuid
 
-from sqlalchemy import Column, Integer, String, BigInteger, ForeignKey, DateTime, LargeBinary
+from sqlalchemy import Column, String, BigInteger, ForeignKey, DateTime
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -9,26 +10,32 @@ from app.core.database import Base
 class FileRecord(Base):
     __tablename__ = "files"
 
-    id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    owner_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False
+    )
 
     filename = Column(String, nullable=False)
-    content_type = Column(String, nullable=True)
+
+    storage_path = Column(String, nullable=False)
+
     size_bytes = Column(BigInteger, nullable=False)
 
-    # Where the encrypted blob lives (local path or s3 key)
-    storage_object_key = Column(String, nullable=False)
+    uploaded_at = Column(DateTime, nullable=True)
 
-    # Encryption metadata — never store a raw usable key.
-    wrapped_key = Column(String, nullable=False)
-    nonce = Column(LargeBinary, nullable=False)
+    encrypted_key = Column(String, nullable=False)
 
-    version = Column(Integer, default=1)
-    folder = Column(String, default="/")
+    key_nonce = Column(String, nullable=False)
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
-                         onupdate=lambda: datetime.now(timezone.utc))
+    file_nonce = Column(String, nullable=False)
 
     owner = relationship("User", back_populates="files")
-    shares = relationship("ShareLink", back_populates="file", cascade="all, delete-orphan")
+
+    shares = relationship(
+        "ShareLink",
+        back_populates="file",
+        cascade="all, delete-orphan"
+    )
