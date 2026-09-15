@@ -1,14 +1,31 @@
 from datetime import datetime, timedelta, timezone
 import secrets
 import bcrypt
+import os
+import smtplib
+
+from email.message import EmailMessage
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from dotenv import load_dotenv
+
 from database import SessionLocal
 from models import User
 
+
+# =========================
+# LOAD ENVIRONMENT VARIABLES
+# =========================
+
+load_dotenv()
+
+
+# =========================
+# ROUTER
+# =========================
 
 router = APIRouter(
     prefix="/auth",
@@ -22,6 +39,7 @@ router = APIRouter(
 
 def get_db():
     db = SessionLocal()
+
     try:
         yield db
     finally:
@@ -42,6 +60,86 @@ class ResetPasswordRequest(BaseModel):
 
 
 # =========================
+# SEND RESET EMAIL
+# =========================
+
+def send_reset_email(
+    recipient_email: str,
+    reset_link: str
+):
+
+    sender_email = os.getenv(
+        "EMAIL_ADDRESS"
+    )
+
+    sender_password = os.getenv(
+        "EMAIL_APP_PASSWORD"
+    )
+
+    # Check email configuration
+    if not sender_email:
+        raise RuntimeError(
+            "EMAIL_ADDRESS is missing in .env"
+        )
+
+    if not sender_password:
+        raise RuntimeError(
+            "EMAIL_APP_PASSWORD is missing in .env"
+        )
+
+    # Create email
+    message = EmailMessage()
+
+    message["Subject"] = (
+        "Trust Share - Reset Your Password"
+    )
+
+    message["From"] = sender_email
+
+    message["To"] = recipient_email
+
+    message.set_content(
+        f"""
+Hello,
+
+We received a request to reset your Trust Share password.
+
+Click the link below to reset your password:
+
+{reset_link}
+
+This password reset link will expire in 15 minutes.
+
+If you did not request a password reset,
+you can safely ignore this email.
+
+Regards,
+
+Trust Share Team
+"""
+    )
+
+    # Connect to Gmail SMTP
+    with smtplib.SMTP(
+        "smtp.gmail.com",
+        587
+    ) as server:
+
+        server.starttls()
+
+        # Login using Gmail App Password
+        server.login(
+            sender_email,
+            sender_password
+        )
+
+        # Send email
+        server.send_message(
+            message
+        )
+
+
+# =========================
 # FORGOT PASSWORD
 # =========================
 
@@ -50,22 +148,36 @@ def forgot_password(
     request: ForgotPasswordRequest,
     db: Session = Depends(get_db)
 ):
+
+    # Clean email
+    email = request.email.strip()
+
+    # Find user
     user = (
         db.query(User)
-        .filter(User.email == request.email)
+        .filter(
+            User.email == email
+        )
         .first()
     )
 
-    # Do not reveal whether an email exists
+    # =========================
+    # EMAIL NOT REGISTERED
+    # =========================
+
     if user is None:
+
         return {
+            "success": False,
             "message": (
-                "If the email is registered, "
-                "a reset link has been sent."
+                "Email address is not registered."
             )
         }
 
-    # Generate secure token
+    # =========================
+    # GENERATE RESET TOKEN
+    # =========================
+
     reset_token = secrets.token_urlsafe(32)
 
     # Token expires after 15 minutes
@@ -76,21 +188,54 @@ def forgot_password(
 
     # Save token
     user.reset_token = reset_token
+
     user.reset_token_expires = expires_at
 
     db.commit()
+
     db.refresh(user)
 
-    # Create frontend reset link
+    # =========================
+    # CREATE RESET LINK
+    # =========================
+
     reset_link = (
         "http://localhost:3000/reset-password/"
         + reset_token
     )
 
-    # Temporary development output
+    # =========================
+    # SEND EMAIL
+    # =========================
+
+    try:
+
+        send_reset_email(
+            user.email,
+            reset_link
+        )
+
+    except Exception as error:
+
+        print(
+            "EMAIL SENDING ERROR:",
+            repr(error)
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to send password reset email."
+            )
+        )
+
+    # =========================
+    # SUCCESS
+    # =========================
+
     print()
     print("==============================")
-    print("PASSWORD RESET REQUEST")
+    print("PASSWORD RESET EMAIL SENT")
     print("==============================")
     print("Email:", user.email)
     print("Reset Link:", reset_link)
@@ -99,11 +244,10 @@ def forgot_password(
     print()
 
     return {
+        "success": True,
         "message": (
-            "If the email is registered, "
-            "a reset link has been sent."
-        ),
-        "reset_link": reset_link
+            "Password reset link sent successfully."
+        )
     }
 
 
@@ -116,40 +260,58 @@ def reset_password(
     request: ResetPasswordRequest,
     db: Session = Depends(get_db)
 ):
+
     # Find user using reset token
     user = (
         db.query(User)
-        .filter(User.reset_token == request.token)
+        .filter(
+            User.reset_token == request.token
+        )
         .first()
     )
 
-    # Token does not exist
+    # =========================
+    # INVALID TOKEN
+    # =========================
+
     if user is None:
+
         raise HTTPException(
             status_code=400,
-            detail="Invalid or expired reset link."
+            detail=(
+                "Invalid or expired reset link."
+            )
         )
 
-    # Check token expiration
+    # =========================
+    # CHECK EXPIRATION
+    # =========================
+
     if user.reset_token_expires is None:
+
         raise HTTPException(
             status_code=400,
-            detail="Invalid or expired reset link."
+            detail=(
+                "Invalid or expired reset link."
+            )
         )
 
     now = datetime.now(timezone.utc)
 
-    # Handle databases that return a naive datetime
     expires_at = user.reset_token_expires
 
+    # Handle naive datetime
     if expires_at.tzinfo is None:
+
         expires_at = expires_at.replace(
             tzinfo=timezone.utc
         )
 
+    # Token expired
     if expires_at < now:
-        # Remove expired token
+
         user.reset_token = None
+
         user.reset_token_expires = None
 
         db.commit()
@@ -159,19 +321,27 @@ def reset_password(
             detail="Reset link has expired."
         )
 
-    # Validate password
+    # =========================
+    # PASSWORD VALIDATION
+    # =========================
+
     if len(request.new_password) < 6:
+
         raise HTTPException(
             status_code=400,
-            detail="Password must be at least 6 characters."
+            detail=(
+                "Password must be at least 6 characters."
+            )
         )
 
     # =========================
     # HASH NEW PASSWORD
     # =========================
 
-    password_bytes = request.new_password.encode(
-        "utf-8"
+    password_bytes = (
+        request.new_password.encode(
+            "utf-8"
+        )
     )
 
     hashed_password = bcrypt.hashpw(
@@ -179,16 +349,28 @@ def reset_password(
         bcrypt.gensalt()
     ).decode("utf-8")
 
-    # Save new password
+    # =========================
+    # SAVE NEW PASSWORD
+    # =========================
+
     user.password = hashed_password
 
-    # Make reset token single-use
+    # Make token single-use
     user.reset_token = None
+
     user.reset_token_expires = None
 
     db.commit()
+
     db.refresh(user)
 
+    # =========================
+    # SUCCESS
+    # =========================
+
     return {
-        "message": "Password reset successfully."
+        "success": True,
+        "message": (
+            "Password reset successfully."
+        )
     }

@@ -7,7 +7,9 @@ export default function ForgotPassword() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
 
     setLoading(true);
@@ -18,30 +20,66 @@ export default function ForgotPassword() {
         "http://127.0.0.1:8000/auth/forgot-password",
         {
           method: "POST",
+
           headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
           },
+
           body: JSON.stringify({
-            email: email,
+            email: email.trim(),
           }),
         }
       );
 
       const data = await response.json();
 
+      console.log(
+        "Forgot password status:",
+        response.status
+      );
+
+      console.log(
+        "Forgot password response:",
+        data
+      );
+
+      // Backend error
       if (!response.ok) {
         setMessage(
-          data.detail || "Unable to send reset link."
+          data.detail ||
+            "Unable to send reset link."
         );
         return;
       }
 
-      setMessage(
-        "If the email is registered, a reset link has been sent."
-      );
+      // Email is NOT registered
+      if (data.success === false) {
+        setMessage(
+          "Email address is not registered."
+        );
+        return;
+      }
 
-      console.log("Reset link:", data.reset_link);
+      // Email is registered
+      if (data.success === true) {
+        setMessage(
+          "Password reset link generated successfully!"
+        );
+
+        // Show reset link in browser console
+        console.log(
+          "Reset link:",
+          data.reset_link
+        );
+
+        return;
+      }
+
+      // Fallback
+      setMessage(
+        "Unable to process the request."
+      );
 
     } catch (error) {
       console.error(
@@ -52,6 +90,7 @@ export default function ForgotPassword() {
       setMessage(
         "Cannot connect to the backend."
       );
+
     } finally {
       setLoading(false);
     }
@@ -68,7 +107,7 @@ export default function ForgotPassword() {
 
         {/* Project Name */}
         <h1 className="text-4xl font-extrabold text-center mb-3 text-black">
-          Intelligent File Sharing
+          Trust Share
         </h1>
 
         {/* Heading */}
@@ -125,9 +164,13 @@ export default function ForgotPassword() {
 
         {/* Message */}
         {message && (
-          <p className="text-center mt-5 font-medium text-black">
-            {message}
-          </p>
+          <div className="mt-5 text-center">
+
+            <p className="font-semibold text-black">
+              {message}
+            </p>
+
+          </div>
         )}
 
         {/* Back to Login */}

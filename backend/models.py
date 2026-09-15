@@ -1,10 +1,13 @@
+from datetime import datetime
+
 from sqlalchemy import Column, Integer, String, DateTime
+
 from database import Base
 
 
-# ==========================================
-# USER MODEL
-# ==========================================
+# =========================================================
+# User Model
+# =========================================================
 
 class User(Base):
     __tablename__ = "users"
@@ -38,7 +41,6 @@ class User(Base):
         nullable=False
     )
 
-    # Password reset fields
     reset_token = Column(
         String,
         nullable=True
@@ -50,9 +52,9 @@ class User(Base):
     )
 
 
-# ==========================================
-# FILE MODEL
-# ==========================================
+# =========================================================
+# File Model
+# =========================================================
 
 class File(Base):
     __tablename__ = "files"
@@ -81,4 +83,74 @@ class File(Base):
     owner_id = Column(
         Integer,
         nullable=False
+    )
+
+    # Cloudinary encrypted file ID
+    cloudinary_public_id = Column(
+        String,
+        nullable=True
+    )
+
+
+# =========================================================
+# File Share Model
+# =========================================================
+
+class FileShare(Base):
+    __tablename__ = "file_shares"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    # ID of the file being shared
+    file_id = Column(
+        Integer,
+        nullable=False,
+        index=True
+    )
+
+    # ID of the user who owns the file
+    owner_id = Column(
+        Integer,
+        nullable=False,
+        index=True
+    )
+
+    # ID of the user receiving access
+    shared_with_user_id = Column(
+        Integer,
+        nullable=False,
+        index=True
+    )
+
+    # Permission given to the recipient
+    # Examples: "view", "download"
+    permission = Column(
+        String,
+        nullable=False,
+        default="download"
+    )
+
+    # Secure unique token for sharing
+    share_token = Column(
+        String,
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    # Optional expiration time
+    expires_at = Column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    # Time when the share was created
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.utcnow
     )

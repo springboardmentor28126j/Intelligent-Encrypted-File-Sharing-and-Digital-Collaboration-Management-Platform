@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 
+// Backend URL
+const API_URL = "http://127.0.0.1:8000";
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,32 +18,36 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      const loginURL = `${API_URL}/login`;
+
+      console.log("Connecting to backend:", loginURL);
+
       const formData = new URLSearchParams();
 
       formData.append("username", email.trim());
       formData.append("password", password);
 
-      const response = await fetch(
-        "http://127.0.0.1:8000/login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/x-www-form-urlencoded",
-            Accept: "application/json",
-          },
-          body: formData.toString(),
-        }
-      );
+      const response = await fetch(loginURL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        body: formData.toString(),
+      });
+
+      console.log("Login status:", response.status);
 
       const data = await response.json();
 
-      console.log("Login status:", response.status);
       console.log("Login response:", data);
 
+      // ==========================================
+      // LOGIN FAILED
+      // ==========================================
+
       if (!response.ok) {
-        let errorMessage =
-          "Invalid email or password.";
+        let errorMessage = "Invalid email or password.";
 
         if (typeof data.detail === "string") {
           errorMessage = data.detail;
@@ -60,12 +67,21 @@ export default function LoginPage() {
         return;
       }
 
+      // ==========================================
+      // CHECK ACCESS TOKEN
+      // ==========================================
+
       if (!data.access_token) {
         setMessage(
           "Login successful, but access token was not received."
         );
+
         return;
       }
+
+      // ==========================================
+      // STORE LOGIN INFORMATION
+      // ==========================================
 
       localStorage.setItem(
         "access_token",
@@ -79,38 +95,54 @@ export default function LoginPage() {
 
       localStorage.setItem(
         "user_email",
-        data.email
+        data.email || ""
       );
 
-      setMessage("Login successful!");
+      localStorage.setItem(
+        "user_name",
+        data.name || ""
+      );
 
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 500);
+      localStorage.setItem(
+        "user_role",
+        data.role || "user"
+      );
 
+      console.log("Login successful.");
+      console.log("User ID:", data.user_id);
+      console.log("User:", data.name);
+      console.log("Role:", data.role);
+
+      // ==========================================
+      // GO TO DASHBOARD
+      // ==========================================
+
+      window.location.href = "/dashboard";
     } catch (error) {
-      console.error(
-        "Login connection error:",
-        error
-      );
+      console.error("Login connection error:", error);
 
       setMessage(
         "Cannot connect to the backend."
       );
-
     } finally {
       setLoading(false);
     }
   };
 
+  // ==========================================
+  // FORGOT PASSWORD
+  // ==========================================
+
   const handleForgotPassword = () => {
-    window.location.href =
-      "/forgot-password";
+    window.location.href = "/forgot-password";
   };
 
+  // ==========================================
+  // CREATE ACCOUNT
+  // ==========================================
+
   const handleRegister = () => {
-    window.location.href =
-      "/register";
+    window.location.href = "/register";
   };
 
   return (
@@ -118,19 +150,29 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl">
 
+        {/* Project Name */}
+
         <h1 className="text-4xl font-extrabold text-center text-black mb-3">
-          Intelligent File Sharing
+          Trust Share
         </h1>
+
+        {/* Login Heading */}
 
         <h2 className="text-2xl font-bold text-center text-black mb-3">
           Login to your account
         </h2>
 
+        {/* Description */}
+
         <p className="text-center text-gray-600 mb-8">
           Securely access your files
         </p>
 
+        {/* Login Form */}
+
         <form onSubmit={handleLogin}>
+
+          {/* Email */}
 
           <div className="mb-5">
 
@@ -143,6 +185,7 @@ export default function LoginPage() {
 
             <input
               id="email"
+              name="email"
               type="email"
               value={email}
               onChange={(e) =>
@@ -155,6 +198,8 @@ export default function LoginPage() {
 
           </div>
 
+          {/* Password */}
+
           <div className="mb-3">
 
             <label
@@ -166,6 +211,7 @@ export default function LoginPage() {
 
             <input
               id="password"
+              name="password"
               type="password"
               value={password}
               onChange={(e) =>
@@ -177,6 +223,8 @@ export default function LoginPage() {
             />
 
           </div>
+
+          {/* Forgot Password */}
 
           <div className="text-right mb-6">
 
@@ -190,6 +238,8 @@ export default function LoginPage() {
 
           </div>
 
+          {/* Login Button */}
+
           <button
             type="submit"
             disabled={loading}
@@ -202,11 +252,15 @@ export default function LoginPage() {
 
         </form>
 
+        {/* Message */}
+
         {message && (
           <p className="text-center mt-5 font-semibold text-black">
             {message}
           </p>
         )}
+
+        {/* Create Account */}
 
         <div className="text-center mt-7 pt-5 border-t border-gray-200">
 

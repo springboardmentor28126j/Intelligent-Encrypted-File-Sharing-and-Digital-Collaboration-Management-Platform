@@ -10,23 +10,32 @@ export default function ResetPassword() {
   const token = params.token as string;
 
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] =
+    useState("");
 
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleReset = async (e: React.FormEvent) => {
+  const handleReset = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
 
     setMessage("");
 
+    // Check passwords
     if (password !== confirmPassword) {
-      setMessage("Passwords do not match.");
+      setMessage(
+        "Passwords do not match."
+      );
       return;
     }
 
+    // Check password length
     if (password.length < 6) {
-      setMessage("Password must be at least 6 characters.");
+      setMessage(
+        "Password must be at least 6 characters."
+      );
       return;
     }
 
@@ -54,24 +63,36 @@ export default function ResetPassword() {
 
       if (!response.ok) {
         setMessage(
-          data.detail || "Unable to reset password."
+          data.detail ||
+            "Unable to reset password."
         );
+
         return;
       }
 
       setMessage(
-        data.message || "Password reset successfully."
+        data.message ||
+          "Password reset successfully."
       );
 
       setPassword("");
       setConfirmPassword("");
 
+      // Go to login after successful reset
+      setTimeout(() => {
+        router.push("/");
+      }, 1500);
+
     } catch (error) {
-      console.error("Reset password error:", error);
+      console.error(
+        "Reset password error:",
+        error
+      );
 
       setMessage(
         "Cannot connect to the backend."
       );
+
     } finally {
       setLoading(false);
     }
@@ -88,7 +109,7 @@ export default function ResetPassword() {
 
         {/* Project Name */}
         <h1 className="text-4xl font-extrabold text-center mb-3 text-black">
-          Intelligent File Sharing
+          Trust Share
         </h1>
 
         {/* Heading */}
@@ -101,6 +122,7 @@ export default function ResetPassword() {
           Enter your new password below.
         </p>
 
+        {/* Reset Form */}
         <form onSubmit={handleReset}>
 
           {/* New Password */}
@@ -115,6 +137,7 @@ export default function ResetPassword() {
 
             <input
               id="password"
+              name="password"
               type="password"
               value={password}
               onChange={(e) =>
@@ -139,10 +162,13 @@ export default function ResetPassword() {
 
             <input
               id="confirmPassword"
+              name="confirmPassword"
               type="password"
               value={confirmPassword}
               onChange={(e) =>
-                setConfirmPassword(e.target.value)
+                setConfirmPassword(
+                  e.target.value
+                )
               }
               placeholder="Confirm new password"
               className="w-full border border-gray-300 rounded-lg px-4 py-3 text-black placeholder-gray-400 bg-white outline-none focus:ring-2 focus:ring-black"

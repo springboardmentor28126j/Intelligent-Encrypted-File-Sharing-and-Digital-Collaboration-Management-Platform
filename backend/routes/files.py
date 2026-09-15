@@ -9,20 +9,30 @@ from fastapi import (
 from fastapi.responses import FileResponse
 
 from pathlib import Path
-import shutil
+from datetime import datetime, timezone
 import uuid
 import json
+
+import requests
 
 from sqlalchemy.orm import Session
 
 from database import SessionLocal
-from models import File as FileModel, User
+from models import File as FileModel, User, FileShare
 
 from security import get_current_user
 
 from mongodb import create_activity_log
 
 from redis_client import redis_client
+
+from encryption import encrypt_file, decrypt_file
+
+from cloudinary_storage import (
+    upload_encrypted_file,
+    get_encrypted_file_url,
+    delete_encrypted_file
+)
 
 
 # =========================================================
@@ -112,7 +122,62 @@ async def upload_file(
 
 
     # -----------------------------------------------------
-    # SAVE PHYSICAL FILE
+    # READ ORIGINAL FILE
+    # -----------------------------------------------------
+
+    try:
+
+        file_data = await file.read()
+
+        if not file_data:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded file is empty"
+            )
+
+    except HTTPException:
+
+        raise
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to read uploaded file: "
+                f"{error}"
+            )
+        )
+
+
+    # -----------------------------------------------------
+    # ENCRYPT FILE USING AES-256-GCM
+    # -----------------------------------------------------
+
+    try:
+
+        encrypted_data = encrypt_file(
+            file_data
+        )
+
+        print(
+            "File encrypted successfully."
+        )
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to encrypt file: "
+                f"{error}"
+            )
+        )
+
+
+    # -----------------------------------------------------
+    # SAVE ENCRYPTED FILE LOCALLY
     # -----------------------------------------------------
 
     try:
@@ -122,16 +187,81 @@ async def upload_file(
             "wb"
         ) as buffer:
 
-            shutil.copyfileobj(
-                file.file,
-                buffer
+            buffer.write(
+                encrypted_data
             )
+
+        print(
+            "Encrypted file saved locally."
+        )
 
     except Exception as error:
 
         raise HTTPException(
             status_code=500,
-            detail=f"Unable to save file: {error}"
+            detail=(
+                "Unable to save encrypted file: "
+                f"{error}"
+            )
+        )
+
+
+    # -----------------------------------------------------
+    # UPLOAD ENCRYPTED FILE TO CLOUDINARY
+    # -----------------------------------------------------
+
+    cloudinary_public_id = (
+        f"trust_share_{file_id}"
+    )
+
+    try:
+
+        cloudinary_result = upload_encrypted_file(
+
+            encrypted_data,
+
+            cloudinary_public_id
+
+        )
+
+        cloudinary_public_id = (
+
+            cloudinary_result.get(
+                "public_id"
+            )
+
+            or cloudinary_public_id
+
+        )
+
+        print(
+            "Encrypted file uploaded to Cloudinary."
+        )
+
+        print(
+            "Cloudinary Public ID:",
+            cloudinary_public_id
+        )
+
+        print(
+            "Cloudinary Resource Type:",
+            cloudinary_result.get(
+                "resource_type"
+            )
+        )
+
+    except Exception as error:
+
+        if file_path.exists():
+
+            file_path.unlink()
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to upload encrypted file "
+                f"to Cloudinary: {error}"
+            )
         )
 
 
@@ -149,7 +279,11 @@ async def upload_file(
 
             file_path=str(file_path),
 
-            owner_id=current_user.id
+            owner_id=current_user.id,
+
+            cloudinary_public_id=(
+                cloudinary_public_id
+            )
 
         )
 
@@ -159,11 +293,13 @@ async def upload_file(
 
         db.refresh(new_file)
 
+        print(
+            "File information saved to PostgreSQL."
+        )
+
     except Exception as error:
 
         db.rollback()
-
-        # Remove physical file if database fails
 
         if file_path.exists():
 
@@ -216,6 +352,10 @@ async def upload_file(
 
         )
 
+        print(
+            "Upload activity saved to MongoDB."
+        )
+
     except Exception as error:
 
         print(
@@ -231,7 +371,7 @@ async def upload_file(
     return {
 
         "message":
-            "File uploaded successfully",
+            "File uploaded, encrypted, and stored in Cloudinary successfully",
 
         "file_id":
             new_file.id,
@@ -243,7 +383,10 @@ async def upload_file(
             new_file.stored_filename,
 
         "owner_id":
-            new_file.owner_id
+            new_file.owner_id,
+
+        "cloudinary_public_id":
+            new_file.cloudinary_public_id
 
     }
 
@@ -332,7 +475,10 @@ def get_files(
                     file.file_path,
 
                 "owner_id":
-                    file.owner_id
+                    file.owner_id,
+
+                "cloudinary_public_id":
+                    file.cloudinary_public_id
 
             }
 
@@ -437,18 +583,176 @@ def download_file(
 
 
     # -----------------------------------------------------
-    # CHECK PHYSICAL FILE
+    # CHECK CLOUDINARY PUBLIC ID
     # -----------------------------------------------------
 
-    path = Path(
-        file.file_path
-    )
-
-    if not path.exists():
+    if not file.cloudinary_public_id:
 
         raise HTTPException(
             status_code=404,
-            detail="File does not exist"
+            detail=(
+                "Cloudinary file information "
+                "is not available"
+            )
+        )
+
+
+    # -----------------------------------------------------
+    # GENERATE CLOUDINARY URL
+    # -----------------------------------------------------
+
+    try:
+
+        cloudinary_url = get_encrypted_file_url(
+
+            file.cloudinary_public_id
+
+        )
+
+        print(
+            "Cloudinary URL generated successfully."
+        )
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to generate Cloudinary "
+                f"file URL: {error}"
+            )
+        )
+
+
+    # -----------------------------------------------------
+    # RETRIEVE ENCRYPTED FILE FROM CLOUDINARY
+    # -----------------------------------------------------
+
+    try:
+
+        response = requests.get(
+
+            cloudinary_url,
+
+            timeout=30
+
+        )
+
+        if response.status_code != 200:
+
+            raise HTTPException(
+
+                status_code=500,
+
+                detail=(
+                    "Unable to retrieve encrypted "
+                    "file from Cloudinary"
+                )
+
+            )
+
+        encrypted_data = response.content
+
+        print(
+            "Encrypted file retrieved from Cloudinary."
+        )
+
+        print(
+            "Encrypted bytes:",
+            len(encrypted_data)
+        )
+
+    except HTTPException:
+
+        raise
+
+    except Exception as error:
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=(
+                "Unable to download encrypted "
+                f"file from Cloudinary: {error}"
+            )
+
+        )
+
+
+    # -----------------------------------------------------
+    # DECRYPT FILE
+    # -----------------------------------------------------
+
+    try:
+
+        decrypted_data = decrypt_file(
+
+            encrypted_data
+
+        )
+
+        print(
+            "File decrypted successfully."
+        )
+
+    except Exception as error:
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=(
+                "Unable to decrypt file: "
+                f"{error}"
+            )
+
+        )
+
+
+    # -----------------------------------------------------
+    # CREATE TEMPORARY DECRYPTED FILE
+    # -----------------------------------------------------
+
+    temp_file_path = (
+
+        UPLOAD_DIR /
+
+        f"temp_{uuid.uuid4().hex}_{file.filename}"
+
+    )
+
+    try:
+
+        with open(
+
+            temp_file_path,
+
+            "wb"
+
+        ) as decrypted_file:
+
+            decrypted_file.write(
+
+                decrypted_data
+
+            )
+
+        print(
+            "Temporary decrypted file created."
+        )
+
+    except Exception as error:
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=(
+                "Unable to create decrypted file: "
+                f"{error}"
+            )
+
         )
 
 
@@ -471,20 +775,25 @@ def download_file(
     except Exception as error:
 
         print(
+
             "MongoDB activity log failed:",
+
             error
+
         )
 
 
     # -----------------------------------------------------
-    # RETURN FILE
+    # RETURN ORIGINAL FILE
     # -----------------------------------------------------
 
     return FileResponse(
 
-        path=str(path),
+        path=str(temp_file_path),
 
-        filename=file.filename
+        filename=file.filename,
+
+        media_type="application/octet-stream"
 
     )
 
@@ -542,13 +851,19 @@ def delete_file(
         )
 
 
-    # Save filename before deleting
+    # -----------------------------------------------------
+    # SAVE FILE INFORMATION
+    # -----------------------------------------------------
 
     filename = file.filename
 
+    cloudinary_public_id = (
+        file.cloudinary_public_id
+    )
+
 
     # -----------------------------------------------------
-    # DELETE PHYSICAL FILE
+    # DELETE LOCAL ENCRYPTED FILE
     # -----------------------------------------------------
 
     path = Path(
@@ -564,12 +879,24 @@ def delete_file(
         except Exception as error:
 
             raise HTTPException(
+
                 status_code=500,
+
                 detail=(
                     "Unable to delete physical file: "
                     f"{error}"
                 )
+
             )
+
+
+    # -----------------------------------------------------
+    # DELETE CLOUDINARY FILE
+    # -----------------------------------------------------
+    #
+    # Kept disabled while testing.
+    #
+    # -----------------------------------------------------
 
 
     # -----------------------------------------------------
@@ -587,11 +914,14 @@ def delete_file(
         db.rollback()
 
         raise HTTPException(
+
             status_code=500,
+
             detail=(
                 "Unable to delete file information: "
                 f"{error}"
             )
+
         )
 
 
@@ -602,11 +932,13 @@ def delete_file(
     try:
 
         redis_client.delete(
+
             f"user_files:{current_user.id}"
+
         )
 
         print(
-            "Redis file cache cleared after delete."
+            "Redis cache cleared after delete."
         )
 
     except Exception as error:
@@ -636,8 +968,11 @@ def delete_file(
     except Exception as error:
 
         print(
+
             "MongoDB activity log failed:",
+
             error
+
         )
 
 
@@ -654,3 +989,508 @@ def delete_file(
             file_id
 
     }
+
+
+# =========================================================
+# VIEW SHARED FILE
+# =========================================================
+
+@router.get(
+    "/view-shared/{share_id}"
+)
+def view_shared_file(
+    share_id: int,
+
+    current_user: User = Depends(
+        get_current_user
+    ),
+
+    db: Session = Depends(
+        get_db
+    )
+):
+
+    # =====================================================
+    # DEBUG INFORMATION
+    # =====================================================
+
+    print("")
+    print("==========================================")
+    print("VIEW SHARED FILE REQUEST")
+    print("==========================================")
+
+    print(
+        "Requested share_id:",
+        share_id
+    )
+
+    print(
+        "Current user ID:",
+        current_user.id
+    )
+
+    print(
+        "Current user email:",
+        current_user.email
+    )
+
+
+    # =====================================================
+    # FIND SHARING RECORD
+    # =====================================================
+
+    share = (
+
+        db.query(FileShare)
+
+        .filter(
+
+            FileShare.id == share_id,
+
+            FileShare.shared_with_user_id
+            == current_user.id
+
+        )
+
+        .first()
+
+    )
+
+
+    # =====================================================
+    # DEBUG SHARE RECORD
+    # =====================================================
+
+    if share:
+
+        print(
+            "Share record FOUND."
+        )
+
+        print(
+            "Share ID:",
+            share.id
+        )
+
+        print(
+            "File ID:",
+            share.file_id
+        )
+
+        print(
+            "Owner ID:",
+            share.owner_id
+        )
+
+        print(
+            "Shared With User ID:",
+            share.shared_with_user_id
+        )
+
+        print(
+            "Permission:",
+            share.permission
+        )
+
+        print(
+            "Expires At:",
+            share.expires_at
+        )
+
+    else:
+
+        print(
+            "Share record NOT FOUND."
+        )
+
+        print(
+            "The requested share_id does not belong "
+            "to the current user."
+        )
+
+
+    # =====================================================
+    # CHECK SHARE
+    # =====================================================
+
+    if share is None:
+
+        raise HTTPException(
+
+            status_code=403,
+
+            detail=(
+                "You do not have access "
+                "to this shared file."
+            )
+
+        )
+
+
+    # =====================================================
+    # CHECK LINK EXPIRATION
+    # =====================================================
+
+    if share.expires_at is not None:
+
+        expires_at = share.expires_at
+
+        if expires_at.tzinfo is None:
+
+            expires_at = expires_at.replace(
+                tzinfo=timezone.utc
+            )
+
+        if datetime.now(timezone.utc) >= expires_at:
+
+            print(
+                "Shared file link has expired."
+            )
+
+            raise HTTPException(
+
+                status_code=403,
+
+                detail=(
+                    "This shared file link has expired."
+                )
+
+            )
+
+
+    # =====================================================
+    # CHECK VIEW PERMISSION
+    # =====================================================
+
+    if share.permission != "view":
+
+        print(
+            "Permission is:",
+            share.permission
+        )
+
+        raise HTTPException(
+
+            status_code=403,
+
+            detail=(
+                "You only have view permission "
+                "for this file."
+            )
+
+        )
+
+
+    # =====================================================
+    # FIND FILE
+    # =====================================================
+
+    file = (
+
+        db.query(FileModel)
+
+        .filter(
+
+            FileModel.id == share.file_id
+
+        )
+
+        .first()
+
+    )
+
+
+    # =====================================================
+    # CHECK FILE
+    # =====================================================
+
+    if file is None:
+
+        print(
+            "File record not found."
+        )
+
+        raise HTTPException(
+
+            status_code=404,
+
+            detail="File not found."
+
+        )
+
+
+    print(
+        "File found:",
+        file.filename
+    )
+
+    print(
+        "File owner ID:",
+        file.owner_id
+    )
+
+    print(
+        "Cloudinary public ID:",
+        file.cloudinary_public_id
+    )
+
+
+    # =====================================================
+    # CHECK CLOUDINARY FILE
+    # =====================================================
+
+    if not file.cloudinary_public_id:
+
+        raise HTTPException(
+
+            status_code=404,
+
+            detail=(
+                "Cloudinary file information "
+                "is not available."
+            )
+
+        )
+
+
+    # =====================================================
+    # GET ENCRYPTED FILE FROM CLOUDINARY
+    # =====================================================
+
+    try:
+
+        print(
+            "Getting encrypted file from Cloudinary..."
+        )
+
+        cloudinary_url = get_encrypted_file_url(
+
+            file.cloudinary_public_id
+
+        )
+
+        print(
+            "Cloudinary URL generated."
+        )
+
+        response = requests.get(
+
+            cloudinary_url,
+
+            timeout=30
+
+        )
+
+        print(
+            "Cloudinary response status:",
+            response.status_code
+        )
+
+        if response.status_code != 200:
+
+            raise HTTPException(
+
+                status_code=500,
+
+                detail=(
+                    "Unable to retrieve file "
+                    "from Cloudinary."
+                )
+
+            )
+
+        encrypted_data = response.content
+
+        print(
+            "Encrypted file retrieved."
+        )
+
+        print(
+            "Encrypted bytes:",
+            len(encrypted_data)
+        )
+
+
+    except HTTPException:
+
+        raise
+
+
+    except Exception as error:
+
+        print(
+            "Cloudinary retrieval error:",
+            error
+        )
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=(
+                "Unable to retrieve shared file: "
+                f"{error}"
+            )
+
+        )
+
+
+    # =====================================================
+    # DECRYPT FILE ON SERVER
+    # =====================================================
+
+    try:
+
+        print(
+            "Decrypting shared file..."
+        )
+
+        decrypted_data = decrypt_file(
+
+            encrypted_data
+
+        )
+
+        print(
+            "Shared file decrypted successfully."
+        )
+
+        print(
+            "Decrypted bytes:",
+            len(decrypted_data)
+        )
+
+
+    except Exception as error:
+
+        print(
+            "Decryption error:",
+            error
+        )
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=(
+                "Unable to decrypt shared file: "
+                f"{error}"
+            )
+
+        )
+
+
+    # =====================================================
+    # CREATE TEMPORARY FILE FOR VIEWING
+    # =====================================================
+
+    temp_file_path = (
+
+        UPLOAD_DIR /
+
+        f"view_{uuid.uuid4().hex}_{file.filename}"
+
+    )
+
+
+    try:
+
+        with open(
+
+            temp_file_path,
+
+            "wb"
+
+        ) as temporary_file:
+
+            temporary_file.write(
+
+                decrypted_data
+
+            )
+
+        print(
+            "Temporary decrypted file created:"
+        )
+
+        print(
+            temp_file_path
+        )
+
+
+    except Exception as error:
+
+        print(
+            "Temporary file creation error:",
+            error
+        )
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=(
+                "Unable to prepare shared file: "
+                f"{error}"
+            )
+
+        )
+
+
+    # =====================================================
+    # ACTIVITY LOG
+    # =====================================================
+
+    try:
+
+        create_activity_log(
+
+            user_id=current_user.id,
+
+            action="view_shared_file",
+
+            filename=file.filename
+
+        )
+
+        print(
+            "Shared file view activity saved."
+        )
+
+    except Exception as error:
+
+        print(
+
+            "MongoDB activity log failed:",
+
+            error
+
+        )
+
+
+    # =====================================================
+    # RETURN FILE FOR VIEWING
+    # =====================================================
+
+    print(
+        "Returning decrypted file to recipient."
+    )
+
+    print(
+        "=========================================="
+    )
+
+    return FileResponse(
+
+        path=str(temp_file_path),
+
+        media_type="text/plain",
+
+        headers={
+
+            "Content-Disposition":
+                "inline"
+
+        }
+
+    )
