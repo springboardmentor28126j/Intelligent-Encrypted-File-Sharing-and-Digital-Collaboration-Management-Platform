@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import api, { getErrorMessage } from '../services/api'
 import { Notice } from '../components/common'
@@ -9,7 +9,16 @@ export default function PublicShare() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
+  // Tracks which token has already initiated an automated download
+  const fetchedTokenRef = useRef(null)
+
   useEffect(() => {
+    // Guard against React StrictMode's dev double-mount
+    if (fetchedTokenRef.current === token) {
+      return
+    }
+
+    fetchedTokenRef.current = token
     fetchSharedFile()
   }, [token])
 
@@ -39,9 +48,8 @@ export default function PublicShare() {
 
       setSuccess(`Your download for "${filename}" started automatically!`)
     } catch (err) {
-      // If backend returns 404 / 422 / 500
+      // If backend returns 404 / 410 / 422 / 500
       if (err.response?.data instanceof Blob) {
-        // Parse blob response into error text
         const text = await err.response.data.text()
         try {
           const json = JSON.parse(text)
@@ -72,7 +80,7 @@ export default function PublicShare() {
         {error && (
           <div style={{ marginTop: '20px' }}>
             <p className="muted" style={{ fontSize: '14px', marginBottom: '16px' }}>
-              The link you used may have expired or access was revoked by the file owner.
+              The link you used may have expired, exceeded its download limit, or access was revoked by the file owner.
             </p>
             <Link to="/login" className="primary">Go to Login</Link>
           </div>

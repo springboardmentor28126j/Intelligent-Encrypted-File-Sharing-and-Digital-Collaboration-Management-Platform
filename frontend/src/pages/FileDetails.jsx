@@ -16,10 +16,10 @@ export default function FileDetails() {
 	async function openPreview() { const supported = file.file_type === 'application/pdf' || file.file_type.startsWith('image/') || file.file_type.startsWith('audio/') || file.file_type.startsWith('video/'); if (!supported) return setPreview({ ...file, previewUrl: '' }); try { const response = await api.get(`/files/${id}/download`, { responseType: 'blob' }); setPreview({ ...file, previewUrl: URL.createObjectURL(response.data) }); setError('') } catch (e) { setError(getErrorMessage(e)); setSuccess('') } }
 	async function rename(name) { try { const response = await api.put(`/files/${id}`, { original_filename: name }); setFile(response.data); setRenameOpen(false); setError(''); setSuccess('File renamed successfully.') } catch (e) { setError(getErrorMessage(e)); setSuccess('') } }
 	async function share({ recipients, permission }) { try { const response = await api.post(`/files/${id}/share`, { emails: recipients, permission }); setShares(current => [response.data, ...current.filter(item => item.id !== response.data.id)]); setShareOpen(false); setError(''); setSuccess('File shared successfully.') } catch (e) { setError(getErrorMessage(e)); setSuccess('') } }
-	async function generateLink(expiration = 'never') {
-		const response = await api.post(`/files/${id}/share-links`, { expiration })
-		return response.data
-	}
+	async function generateLink(options = {}) {
+  const response = await api.post(`/files/${id}/share-links`, options)
+  return response.data
+}
 	async function revokeLink(linkId) { await api.delete(`/files/${id}/share-links/${linkId}`) }
 	async function remove() { if (!window.confirm('Are you sure you want to delete this file?')) return; try { await api.delete(`/files/${id}`); navigate('/files') } catch (e) { setError(getErrorMessage(e)); setSuccess('') } }
 	function closePreview() { if (preview?.previewUrl) URL.revokeObjectURL(preview.previewUrl); setPreview(null) }

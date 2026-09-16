@@ -14,6 +14,7 @@ export default function ShareModal({ file, onClose, onShare, onGenerateLink, onR
   const [editingShareId, setEditingShareId] = useState(null)
   const [editingPermission, setEditingPermission] = useState('VIEWER')
   const [shareManagementError, setShareManagementError] = useState('')
+  const [maxDownloads, setMaxDownloads] = useState('')
 
   useEffect(() => {
     setRecipients([])
@@ -23,6 +24,7 @@ export default function ShareModal({ file, onClose, onShare, onGenerateLink, onR
     setExpiration('never')
     setLinkError('')
     setLinkCopied(false)
+    setMaxDownloads('')
   }, [file])
 
   useEffect(() => {
@@ -193,16 +195,20 @@ export default function ShareModal({ file, onClose, onShare, onGenerateLink, onR
           </div>
         </form>
 
-        {/* 4C: Secure Link with Expiration */}
+        {/* 4C & 4E: Secure Link with Expiration and Download Limits */}
         <section className="secure-link-section">
           <h3>Secure Link</h3>
           {secureLink ? (
             <>
-              {secureLink.expires_at && (
-                <p className="muted" style={{ fontSize: '13px', margin: '4px 0 10px' }}>
-                  Expires: {new Date(secureLink.expires_at).toLocaleString()}
-                </p>
-              )}
+              <div style={{ fontSize: '13px', margin: '4px 0 10px', color: '#697872', display: 'grid', gap: '4px' }}>
+                {secureLink.expires_at && (
+                  <div>Expires: {new Date(secureLink.expires_at).toLocaleString()}</div>
+                )}
+                <div>
+                  Max downloads: {secureLink.max_downloads ? `${secureLink.max_downloads} allowed` : 'No limit'}
+                </div>
+              </div>
+
               <div className="secure-link-row">
                 <input readOnly value={secureLink.share_url} aria-label="Generated secure link" />
                 <button type="button" className="ghost-button" onClick={copyLink}>
@@ -225,7 +231,35 @@ export default function ShareModal({ file, onClose, onShare, onGenerateLink, onR
                   <option value="7d">7 days</option>
                 </select>
               </label>
-              <button type="button" className="primary" disabled={linkBusy} onClick={generateLink}>
+
+              <label style={{ margin: 0 }}>
+                Maximum downloads
+                <select value={maxDownloads} onChange={(e) => setMaxDownloads(e.target.value)}>
+                  <option value="">No limit</option>
+                  <option value="1">1 download</option>
+                  <option value="2">2 downloads</option>
+                  <option value="3">3 downloads</option>
+                  <option value="5">5 downloads</option>
+                  <option value="10">10 downloads</option>
+                </select>
+              </label>
+
+              <button
+                type="button"
+                className="primary"
+                disabled={linkBusy}
+                onClick={() => {
+                  setLinkBusy(true)
+                  setLinkError('')
+                  onGenerateLink({
+                    expiration,
+                    max_downloads: maxDownloads ? Number(maxDownloads) : null
+                  })
+                    .then((data) => setSecureLink(data))
+                    .catch((err) => setLinkError(getErrorMessage(err)))
+                    .finally(() => setLinkBusy(false))
+                }}
+              >
                 {linkBusy ? 'Generating...' : 'Generate Secure Link'}
               </button>
             </div>

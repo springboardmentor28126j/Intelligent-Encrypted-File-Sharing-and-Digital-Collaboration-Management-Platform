@@ -29,10 +29,7 @@ logger = logging.getLogger(__name__)
 def hash_share_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
-# In backend/app/routers/secure_share_links.py
-
 def build_share_url(token: str) -> str:
-    # Use frontend origin (e.g. http://localhost:5173) instead of direct backend API
     base_url = settings.frontend_origin.rstrip("/")
     return f"{base_url}/share/{quote(token, safe='')}"
 
@@ -49,7 +46,7 @@ def create_share_link(
     if item.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the file owner can create a secure link")
 
-    # 4C: Calculate expires_at
+    # Expiration logic
     expires_at = None
     exp_choice = (data.expiration or "never").lower() if data else "never"
 
@@ -59,8 +56,11 @@ def create_share_link(
         expires_at = datetime.utcnow() + timedelta(days=1)
     elif exp_choice == "7d":
         expires_at = datetime.utcnow() + timedelta(days=7)
-    elif exp_choice == "1m":  # Handy for local testing!
+    elif exp_choice == "1m":
         expires_at = datetime.utcnow() + timedelta(minutes=1)
+
+    # 4E: Maximum downloads restriction
+    max_dl = data.max_downloads if (data and data.max_downloads and data.max_downloads > 0) else None
 
     token = secrets.token_urlsafe(32)
     link = SecureShareLink(
@@ -68,6 +68,8 @@ def create_share_link(
         created_by_user_id=current_user.id,
         token_hash=hash_share_token(token),
         expires_at=expires_at,
+        max_downloads=max_dl,
+        download_count=0
     )
     db.add(link)
     db.commit()
@@ -80,6 +82,8 @@ def create_share_link(
         "created_at": link.created_at,
         "expires_at": link.expires_at,
         "revoked_at": link.revoked_at,
+        "max_downloads": link.max_downloads,
+        "download_count": link.download_count,
     }
 
 @router.delete("/api/files/{file_id}/share-links/{link_id}")
@@ -99,22 +103,42 @@ def revoke_share_link(file_id: int, link_id: int, current_user: User = Depends(g
 
     return {"message": "Secure link revoked"}
 
+# In backend/app/routers/secure_share_links.py
+
 @router.get("/api/share-links/{token}")
 def access_share_link(token: str, db: Session = Depends(get_db)):
     token_hash = hash_share_token(token)
     link = db.query(SecureShareLink).filter(SecureShareLink.token_hash == token_hash).first()
-    
-    # 4A check: must exist and not revoked
-    if not link or link.revoked_at is not None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secure link is invalid")
 
-    # 4C check: check expiration before loading file content
-    if link.expires_at is not None and link.expires_at <= datetime.utcnow():
+    # 1. Non-existent or Revoked
+    if not link or link.revoked_at is not None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secure link is invalid")
 
     item = db.get(File, link.file_id)
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secure link is invalid")
+
+    owner = db.get(User, item.owner_id)
+
+    # 2. Expiration check (Log event for owner)
+    if link.expires_at is not None and link.expires_at <= datetime.utcnow():
+        if owner:
+            log_activity(
+                db, owner, "share_link_expired",
+                f"Attempted access to expired secure link for '{item.original_filename}'",
+                item.id
+            )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secure link is invalid")
+
+    # 3. Download Limit check (Log event for owner)
+    if link.max_downloads is not None and link.download_count >= link.max_downloads:
+        if owner:
+            log_activity(
+                db, owner, "download_limit_exceeded",
+                f"Download limit ({link.max_downloads}) reached on secure link for '{item.original_filename}'",
+                item.id
+            )
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Download limit reached for this link")
 
     try:
         content = read_file_content(item)
@@ -126,6 +150,18 @@ def access_share_link(token: str, db: Session = Depends(get_db)):
     except ValueError as error:
         logger.error("Secure share-link file integrity failure for file_id=%s", item.id)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="The shared file failed integrity verification") from error
+
+    # 4. Increment count and log successful delivery for owner
+    link.download_count += 1
+    db.commit()
+
+    if owner:
+        count_display = f"({link.download_count}/{link.max_downloads})" if link.max_downloads else f"({link.download_count})"
+        log_activity(
+            db, owner, "share_link_download",
+            f"File '{item.original_filename}' was downloaded via secure link {count_display}",
+            item.id
+        )
 
     filename = quote(Path(item.original_filename).name)
     return Response(
