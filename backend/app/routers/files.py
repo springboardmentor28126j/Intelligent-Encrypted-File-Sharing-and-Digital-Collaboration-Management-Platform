@@ -1,3 +1,4 @@
+import hashlib
 import logging
 from pathlib import Path
 from urllib.parse import quote
@@ -5,9 +6,11 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, File as UploadFileParam, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse as DownloadResponse
 from fastapi.responses import Response
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import ActivityLog, File, FileEncryption, FileShare, Folder, User
+from ..models.file import file_display_name, file_display_size, file_display_type, file_is_deleted
 from ..schemas.file import FileRename, FileResponse
 from ..services.activity_service import log_activity, log_download_notification
 from ..services.encryption_service import EncryptionConfigurationError, decrypt_file_data, metadata_for_storage
@@ -21,16 +24,17 @@ CATEGORIES = {"Documents", "Images", "Videos", "PDFs", "Spreadsheets", "Other"}
 
 
 def to_response(item: File):
+    folder = getattr(item, "folder", None)
     return {
         "id": item.id,
         "owner_id": item.owner_id,
-        "original_filename": item.original_filename,
-        "file_size": item.file_size,
-        "file_type": item.file_type,
-        "category": item.category,
-        "version": item.version,
+        "original_filename": file_display_name(item),
+        "file_size": file_display_size(item),
+        "file_type": file_display_type(item),
+        "category": getattr(item, "category", None) or "Other",
+        "version": getattr(item, "version", None) or 1,
         "folder_id": item.folder_id,
-        "folder_name": item.folder.name if item.folder else None,
+        "folder_name": folder.name if folder else None,
         "created_at": item.created_at,
         "updated_at": item.updated_at,
     }
@@ -38,13 +42,21 @@ def to_response(item: File):
 
 def require_file_access(file_id: int, user: User, db: Session, required_permission: str | None = None):
     item = db.get(File, file_id)
-    if not item:
+    if not item or file_is_deleted(item):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "File not found")
 
     if item.owner_id == user.id:
         return item, None
 
-    share = db.query(FileShare).filter(FileShare.file_id == file_id, FileShare.shared_with_user_id == user.id).first()
+    share = (
+        db.query(FileShare)
+        .filter(
+            FileShare.file_id == file_id,
+            FileShare.is_revoked.is_(False),
+            or_(FileShare.shared_with_user_id == user.id, FileShare.shared_with_id == user.id),
+        )
+        .first()
+    )
     if not share:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You do not have access to this file")
 
@@ -60,7 +72,7 @@ def require_file_access(file_id: int, user: User, db: Session, required_permissi
 
 
 def owned_file(file_id: int, user: User, db: Session):
-    item = db.query(File).filter(File.id == file_id, File.owner_id == user.id).first()
+    item = db.query(File).filter(File.id == file_id, File.owner_id == user.id, File.is_deleted.is_(False)).first()
     if not item:
         raise HTTPException(404, "File not found")
     return item
@@ -68,9 +80,10 @@ def owned_file(file_id: int, user: User, db: Session):
 
 @router.get("", response_model=list[FileResponse])
 def list_files(search: str = Query(""), category: str = Query(""), folder_id: int | None = None, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    query = db.query(File).filter(File.owner_id == current_user.id)
+    query = db.query(File).filter(File.owner_id == current_user.id, File.is_deleted.is_(False))
     if search:
-        query = query.filter(File.original_filename.ilike(f"%{search}%"))
+        term = f"%{search}%"
+        query = query.filter(or_(File.original_filename.ilike(term), File.filename.ilike(term)))
     if category:
         query = query.filter(File.category == category)
     if folder_id is not None:
@@ -106,7 +119,32 @@ async def upload_file(file: UploadFile = UploadFileParam(...), category: str = F
         log_activity(db, current_user, "storage_upload_failed", "Encrypted file could not be stored")
         raise HTTPException(503, "The file could not be securely stored") from error
 
-    item = File(owner_id=current_user.id, folder_id=folder_id, original_filename=file.filename, stored_filename=stored.key, file_path=stored.local_path or "", storage_backend=stored.backend, storage_key=stored.key, file_size=size, file_type=file.content_type or "application/octet-stream", category=category)
+    content_type = file.content_type or "application/octet-stream"
+    storage_path = stored.key or stored.local_path or ""
+    item = File(
+        owner_id=current_user.id,
+        folder_id=folder_id,
+        original_filename=file.filename,
+        filename=file.filename,
+        stored_filename=stored.key,
+        file_path=stored.local_path or storage_path,
+        storage_path=storage_path,
+        storage_backend=stored.backend,
+        storage_key=stored.key,
+        file_size=size,
+        size=size,
+        file_type=content_type,
+        content_type=content_type[:100],
+        category=category,
+        version=1,
+        extension=Path(file.filename).suffix[:20],
+        sha256_hash=hashlib.sha256(encrypted.ciphertext).hexdigest(),
+        download_count=0,
+        is_deleted=False,
+        is_encrypted=True,
+        is_public=False,
+        encryption_algorithm="AES-256-GCM",
+    )
     try:
         db.add(item)
         db.flush()
@@ -120,7 +158,7 @@ async def upload_file(file: UploadFile = UploadFileParam(...), category: str = F
         except StorageError:
             logger.error("Uploaded object cleanup failed after database failure")
         raise
-    log_activity(db, current_user, "upload", f"Uploaded {item.original_filename}", item.id)
+    log_activity(db, current_user, "upload", f"Uploaded {file_display_name(item)}", item.id)
     return to_response(item)
 
 
@@ -130,7 +168,11 @@ def shared_with_me(current_user: User = Depends(get_current_user), db: Session =
         db.query(FileShare, File, User)
         .join(File, File.id == FileShare.file_id)
         .join(User, User.id == File.owner_id)
-        .filter(FileShare.shared_with_user_id == current_user.id)
+        .filter(
+            FileShare.is_revoked.is_(False),
+            File.is_deleted.is_(False),
+            or_(FileShare.shared_with_user_id == current_user.id, FileShare.shared_with_id == current_user.id),
+        )
         .order_by(File.created_at.desc())
         .all()
     )
@@ -139,11 +181,11 @@ def shared_with_me(current_user: User = Depends(get_current_user), db: Session =
         response.append({
             "id": file.id,
             "file_id": file.id,
-            "original_filename": file.original_filename,
-            "file_size": file.file_size,
-            "file_type": file.file_type,
-            "category": file.category,
-            "version": file.version,
+            "original_filename": file_display_name(file),
+            "file_size": file_display_size(file),
+            "file_type": file_display_type(file),
+            "category": file.category or "Other",
+            "version": file.version or 1,
             "owner_id": file.owner_id,
             "owner_name": owner.name,
             "shared_by": owner.name,
@@ -196,22 +238,22 @@ def download_file(file_id: int, current_user: User = Depends(get_current_user), 
         if item.owner_id != current_user.id:
             owner = db.get(User, item.owner_id)
             if owner:
-                log_download_notification(db, owner, current_user, item.original_filename, item.id)
-        log_activity(db, current_user, "download", f"Downloaded {item.original_filename}", item.id)
-        filename = quote(Path(item.original_filename).name)
-        return Response(content=content, media_type=item.file_type, headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"})
+                log_download_notification(db, owner, current_user, file_display_name(item), item.id)
+        log_activity(db, current_user, "download", f"Downloaded {file_display_name(item)}", item.id)
+        filename = quote(Path(file_display_name(item)).name)
+        return Response(content=content, media_type=file_display_type(item), headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"})
 
     if item.owner_id != current_user.id:
         owner = db.get(User, item.owner_id)
         if owner:
-            log_download_notification(db, owner, current_user, item.original_filename, item.id)
+            log_download_notification(db, owner, current_user, file_display_name(item), item.id)
 
-    log_activity(db, current_user, "download", f"Downloaded {item.original_filename}", item.id)
+    log_activity(db, current_user, "download", f"Downloaded {file_display_name(item)}", item.id)
     if item_storage_backend:
-        filename = quote(Path(item.original_filename).name)
-        return Response(content=encrypted_content, media_type=item.file_type, headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"})
+        filename = quote(Path(file_display_name(item)).name)
+        return Response(content=encrypted_content, media_type=file_display_type(item), headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"})
 
-    return DownloadResponse(item.file_path, filename=item.original_filename, media_type=item.file_type)
+    return DownloadResponse(item.file_path, filename=file_display_name(item), media_type=file_display_type(item))
 
 
 @router.put("/{file_id}", response_model=FileResponse)
@@ -224,13 +266,15 @@ def rename_file(file_id: int, data: FileRename, current_user: User = Depends(get
     if not new_name or new_name != data.original_filename.strip():
         raise HTTPException(400, "Invalid filename")
 
-    extension = Path(item.original_filename).suffix
+    extension = Path(file_display_name(item)).suffix
     if extension and Path(new_name).suffix.lower() != extension.lower():
         raise HTTPException(400, "The original file extension must be preserved")
 
     # If file uses storage_backend (encrypted local or S3), just update original_filename in DB
     if getattr(item, "storage_backend", None) and getattr(item, "storage_key", None):
         item.original_filename = new_name
+        item.filename = new_name
+        item.extension = Path(new_name).suffix[:20]
         db.commit()
         db.refresh(item)
         log_activity(db, current_user, "rename", f"Renamed file to {new_name}", item.id)
@@ -247,6 +291,8 @@ def rename_file(file_id: int, data: FileRename, current_user: User = Depends(get
         item.file_path = str(new_path)
 
     item.original_filename = new_name
+    item.filename = new_name
+    item.extension = Path(new_name).suffix[:20]
     db.commit()
     db.refresh(item)
     log_activity(db, current_user, "rename", f"Renamed file to {new_name}", item.id)
@@ -269,5 +315,5 @@ def delete_file(file_id: int, current_user: User = Depends(get_current_user), db
     db.query(ActivityLog).filter(ActivityLog.file_id == item.id).update({ActivityLog.file_id: None}, synchronize_session=False)
     db.delete(item)
     db.commit()
-    log_activity(db, current_user, "delete", f"Deleted {item.original_filename}")
+    log_activity(db, current_user, "delete", f"Deleted {file_display_name(item)}")
     return {"message": "File deleted"}

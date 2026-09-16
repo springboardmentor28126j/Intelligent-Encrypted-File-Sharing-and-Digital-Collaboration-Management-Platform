@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..database import get_db
 from ..models import File, SecureShareLink, User
+from ..models.file import file_display_name, file_display_type, file_is_deleted
 from ..schemas.secure_share_link import SecureShareLinkCreate, SecureShareLinkResponse
 from ..services.activity_service import log_activity
 from ..services.encryption_service import EncryptionConfigurationError
@@ -41,7 +42,7 @@ def create_share_link(
     db: Session = Depends(get_db)
 ):
     item = db.get(File, file_id)
-    if not item:
+    if not item or file_is_deleted(item):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
     if item.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the file owner can create a secure link")
@@ -74,7 +75,7 @@ def create_share_link(
     db.add(link)
     db.commit()
     db.refresh(link)
-    log_activity(db, current_user, "share_link_create", f"Created a secure link for {item.original_filename}", item.id)
+    log_activity(db, current_user, "share_link_create", f"Created a secure link for {file_display_name(item)}", item.id)
     return {
         "id": link.id,
         "file_id": link.file_id,
@@ -99,7 +100,7 @@ def revoke_share_link(file_id: int, link_id: int, current_user: User = Depends(g
     if link.revoked_at is None:
         link.revoked_at = datetime.utcnow()
         db.commit()
-        log_activity(db, current_user, "share_link_revoke", f"Revoked a secure link for {item.original_filename}", item.id)
+        log_activity(db, current_user, "share_link_revoke", f"Revoked a secure link for {file_display_name(item)}", item.id)
 
     return {"message": "Secure link revoked"}
 
@@ -115,7 +116,7 @@ def access_share_link(token: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secure link is invalid")
 
     item = db.get(File, link.file_id)
-    if not item:
+    if not item or file_is_deleted(item):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secure link is invalid")
 
     owner = db.get(User, item.owner_id)
@@ -125,7 +126,7 @@ def access_share_link(token: str, db: Session = Depends(get_db)):
         if owner:
             log_activity(
                 db, owner, "share_link_expired",
-                f"Attempted access to expired secure link for '{item.original_filename}'",
+                f"Attempted access to expired secure link for '{file_display_name(item)}'",
                 item.id
             )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secure link is invalid")
@@ -135,7 +136,7 @@ def access_share_link(token: str, db: Session = Depends(get_db)):
         if owner:
             log_activity(
                 db, owner, "download_limit_exceeded",
-                f"Download limit ({link.max_downloads}) reached on secure link for '{item.original_filename}'",
+                f"Download limit ({link.max_downloads}) reached on secure link for '{file_display_name(item)}'",
                 item.id
             )
         raise HTTPException(status_code=status.HTTP_410_GONE, detail="Download limit reached for this link")
@@ -159,13 +160,13 @@ def access_share_link(token: str, db: Session = Depends(get_db)):
         count_display = f"({link.download_count}/{link.max_downloads})" if link.max_downloads else f"({link.download_count})"
         log_activity(
             db, owner, "share_link_download",
-            f"File '{item.original_filename}' was downloaded via secure link {count_display}",
+            f"File '{file_display_name(item)}' was downloaded via secure link {count_display}",
             item.id
         )
 
-    filename = quote(Path(item.original_filename).name)
+    filename = quote(Path(file_display_name(item)).name)
     return Response(
         content=content,
-        media_type=item.file_type,
+        media_type=file_display_type(item),
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"}
     )

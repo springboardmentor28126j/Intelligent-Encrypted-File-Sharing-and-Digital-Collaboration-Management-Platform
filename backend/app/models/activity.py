@@ -11,4 +11,6 @@ class ActivityLog(Base):
     action: Mapped[str] = mapped_column(String(40), nullable=False)
     file_id: Mapped[int | None] = mapped_column(ForeignKey("files.id"), nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
