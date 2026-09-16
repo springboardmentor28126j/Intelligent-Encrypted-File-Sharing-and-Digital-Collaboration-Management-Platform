@@ -10,3 +10,5 @@ python-multipart==0.0.20
 email-validator==2.2.0
 cryptography==44.0.0
 boto3==1.35.76
+pymongo==4.18.1
+pyotp==2.9.0

@@ -11,6 +11,7 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    totp_code: str | None = None
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -33,8 +34,23 @@ class UserResponse(BaseModel):
     email: EmailStr
     role: str
     created_at: object
+    mfa_enabled: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class MFASetupResponse(BaseModel):
+    secret: str
+    otpauth_uri: str
+    mfa_enabled: bool = False
+
+
+class MFAVerifyRequest(BaseModel):
+    totp_code: str = Field(pattern=r"^\d{6}$")
+
+
+class MFAStatusResponse(BaseModel):
+    mfa_enabled: bool
 
 
 class LoginResponse(BaseModel):

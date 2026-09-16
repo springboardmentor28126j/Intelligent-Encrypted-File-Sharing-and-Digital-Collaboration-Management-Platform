@@ -61,8 +61,6 @@ def ensure_schema_compatibility():
 
         users = _table_columns("users")
         if users:
-            _add_column_if_missing(connection, "users", users, "mfa_secret", "mfa_secret VARCHAR(64)")
-            _add_column_if_missing(connection, "users", users, "mfa_enabled", "mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE")
             _add_column_if_missing(connection, "users", users, "storage_quota", "storage_quota BIGINT NOT NULL DEFAULT 5368709120")
             _add_column_if_missing(connection, "users", users, "used_storage", "used_storage BIGINT NOT NULL DEFAULT 0")
             _add_column_if_missing(connection, "users", users, "role", "role VARCHAR(20) NOT NULL DEFAULT 'user'")
@@ -93,8 +91,15 @@ def ensure_schema_compatibility():
             _add_column_if_missing(connection, "activity_logs", logs, "user_agent", "user_agent VARCHAR(255)")
 
 
+def ensure_user_mfa_columns():
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;"))
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_secret VARCHAR(64);"))
+
+
 def ensure_file_storage_columns():
     ensure_schema_compatibility()
+    ensure_user_mfa_columns()
 
 
 def get_db():

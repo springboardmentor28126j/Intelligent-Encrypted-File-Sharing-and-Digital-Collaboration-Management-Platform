@@ -28,6 +28,23 @@ def get_token_subject(token: str) -> int | None:
     except (JWTError, TypeError, ValueError):
         return None
 
+def get_token_expiration(token: str) -> int | None:
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm]
+        )
+
+        exp = payload.get("exp")
+
+        if exp is None:
+            return None
+
+        return int(exp)
+
+    except (JWTError, TypeError, ValueError):
+        return None
 
 def create_reset_token() -> tuple[str, str]:
     token = secrets.token_urlsafe(32)

@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     smtp_from_email: str = ""
     smtp_use_tls: bool = True
 
+    mongodb_url: str
+    mongodb_db_name: str = "trustshare"
+    redis_url: str
+
     model_config = SettingsConfigDict(env_file=BACKEND_DIR / ".env", extra="ignore")
 
 

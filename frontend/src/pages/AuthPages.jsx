@@ -5,7 +5,95 @@ import { useAuth } from '../context/AuthContext'
 import { Notice, PasswordField } from '../components/common'
 
 function AuthLayout({ children }) { return <div className="auth-page"><div className="auth-art"><span className="brand-mark">T</span><h1>Your files,<br /><em>kept close.</em></h1><p>A calm, private home for the documents that matter.</p></div>{children}</div> }
-export function Login() { const [form, setForm] = useState({ email: '', password: '' }); const [error, setError] = useState(''); const { login } = useAuth(); const navigate = useNavigate(); async function submit(event) { event.preventDefault(); setError(''); try { await login(form.email, form.password); navigate('/dashboard') } catch (e) { setError(getErrorMessage(e)) } } return <AuthLayout><form className="auth-card" onSubmit={submit}><span className="eyebrow">TRUSTSHARE</span><h2>Welcome back</h2><p className="muted">Sign in to continue to your workspace.</p><Notice error={error} /><label>Email<input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label><PasswordField label="Password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /><button className="primary full">Sign in</button><Link className="center-link" to="/forgot-password">Forgot password?</Link><p className="switch">New to TrustShare? <Link to="/register">Create account</Link></p></form></AuthLayout> }
+function isMfaChallengeError(error) {
+  const message = getErrorMessage(error).toLowerCase()
+  return message.includes('mfa') || message.includes('totp') || message.includes('two-factor')
+}
+
+export function Login() {
+  const [form, setForm] = useState({ email: '', password: '' })
+  const [totpCode, setTotpCode] = useState('')
+  const [mfaStep, setMfaStep] = useState(false)
+  const [error, setError] = useState('')
+  const { login } = useAuth()
+  const navigate = useNavigate()
+
+  async function submit(event) {
+    event.preventDefault()
+    setError('')
+
+    if (mfaStep) {
+      if (!/^\d{6}$/.test(totpCode)) {
+        setError('Enter the 6-digit code from your Authenticator app.')
+        return
+      }
+    }
+
+    try {
+      await login(form.email, form.password, mfaStep ? totpCode : undefined)
+      navigate('/dashboard')
+    } catch (e) {
+      if (!mfaStep && isMfaChallengeError(e)) {
+        setMfaStep(true)
+        setTotpCode('')
+        setError('')
+        return
+      }
+      if (mfaStep && isMfaChallengeError(e)) {
+        setError('Invalid or expired MFA code. Please enter the current code from your Authenticator app.')
+        return
+      }
+      setError(getErrorMessage(e))
+    }
+  }
+
+  function backToPassword() {
+    setMfaStep(false)
+    setTotpCode('')
+    setError('')
+  }
+
+  return (
+    <AuthLayout>
+      <form className="auth-card" onSubmit={submit}>
+        <span className="eyebrow">TRUSTSHARE</span>
+        {mfaStep ? (
+          <>
+            <h2>Two-Factor Authentication</h2>
+            <p className="muted">Enter the 6-digit code from your Authenticator app.</p>
+            <Notice error={error} />
+            <label>
+              Authenticator code
+              <input
+                required
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxLength="6"
+                value={totpCode}
+                onChange={e => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              />
+            </label>
+            <button className="primary full" type="submit">Verify & Sign In</button>
+            <button className="center-link" type="button" onClick={backToPassword}>Back</button>
+          </>
+        ) : (
+          <>
+            <h2>Welcome back</h2>
+            <p className="muted">Sign in to continue to your workspace.</p>
+            <Notice error={error} />
+            <label>Email<input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
+            <PasswordField label="Password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+            <button className="primary full">Sign in</button>
+            <Link className="center-link" to="/forgot-password">Forgot password?</Link>
+            <p className="switch">New to TrustShare? <Link to="/register">Create account</Link></p>
+          </>
+        )}
+      </form>
+    </AuthLayout>
+  )
+}
 export function Register() { const [form, setForm] = useState({ name: '', email: '', password: '', confirm_password: '' }); const [error, setError] = useState(''); const { login } = useAuth(); const navigate = useNavigate(); async function submit(event) { event.preventDefault(); setError(''); try { await api.post('/auth/register', form); await login(form.email, form.password); navigate('/dashboard') } catch (e) { setError(getErrorMessage(e)) } } return <AuthLayout><form className="auth-card" onSubmit={submit}><span className="eyebrow">TRUSTSHARE</span><h2>Create your account</h2><p className="muted">Start organizing your secure workspace.</p><Notice error={error} /><label>Full name<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label><label>Email<input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label><PasswordField label="Password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /><PasswordField label="Confirm password" value={form.confirm_password} onChange={e => setForm({ ...form, confirm_password: e.target.value })} /><button className="primary full">Create account</button><p className="switch">Already have an account? <Link to="/login">Sign in</Link></p></form></AuthLayout> }
 export function ForgotPassword() { const [email, setEmail] = useState(''); const [error, setError] = useState(''); const navigate = useNavigate(); async function submit(e) { e.preventDefault(); try { await api.post('/auth/forgot-password', { email }); navigate('/verify-otp', { state: { email } }) } catch (x) { setError(getErrorMessage(x)) } } return <AuthLayout><form className="auth-card" onSubmit={submit}><span className="eyebrow">ACCOUNT RECOVERY</span><h2>Reset your password</h2><p className="muted">Enter your email to receive a six-digit OTP.</p><Notice error={error} /><label>Email<input required type="email" value={email} onChange={e => setEmail(e.target.value)} /></label><button className="primary full">Send OTP</button><Link className="center-link" to="/login">Back to login</Link></form></AuthLayout> }
 export function VerifyOTP() { const [otp, setOtp] = useState(''); const [error, setError] = useState(''); const navigate = useNavigate(); const email = window.history.state.usr?.email || ''; async function submit(e) { e.preventDefault(); try { const { data } = await api.post('/auth/verify-otp', { email, otp }); navigate('/reset-password', { state: { resetToken: data.reset_token } }) } catch (x) { setError(getErrorMessage(x)) } } return <AuthLayout><form className="auth-card" onSubmit={submit}><span className="eyebrow">ACCOUNT RECOVERY</span><h2>Verify your OTP</h2><p className="muted">Enter the six-digit code sent to your email.</p><Notice error={error} /><label>OTP<input required pattern="[0-9]{6}" maxLength="6" inputMode="numeric" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, ''))} /></label><button className="primary full">Verify OTP</button></form></AuthLayout> }
