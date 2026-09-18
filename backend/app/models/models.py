@@ -12,6 +12,7 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String, unique=True, nullable=False, index=True)
+    name = Column(String, nullable=True)
     password_hash = Column(String, nullable=False)
     role = Column(String, default="user")
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -21,7 +22,8 @@ class File(Base):
     __tablename__ = "files"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey(
+        "users.id"), nullable=False)
     filename = Column(String, nullable=False)
     storage_path = Column(String, nullable=False)
     size_bytes = Column(BigInteger, nullable=False)
@@ -47,7 +49,8 @@ class FileShare(Base):
     __tablename__ = "file_shares"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    file_id = Column(UUID(as_uuid=True), ForeignKey("files.id"), nullable=False)
+    file_id = Column(UUID(as_uuid=True), ForeignKey(
+        "files.id"), nullable=False)
     shared_with_email = Column(String, nullable=False)
     permission = Column(String, default="read")  # "read" or "write"
     created_at = Column(DateTime, default=datetime.utcnow)
