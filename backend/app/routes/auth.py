@@ -14,8 +14,10 @@ from app.core.security import (
     create_reset_token,
     decode_reset_token,
 )
-from app.core.mongo import log_activity
+from app.core.mongo import log_activity, count_recent_failed_logins
+from app.core.notifications import notify
 from app.models.models import User
+from datetime import datetime, timedelta, timezone
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -79,6 +81,22 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         attempted_id = str(
             user.id) if user else f"unknown:{form_data.username}"
         log_activity(attempted_id, "login_failed", category="security")
+
+        # Real-time alert: if this pushes the account over the same
+        # threshold /admin/security/suspicious-logins checks for, notify
+        # the account owner immediately rather than waiting for an admin
+        # to happen to look.
+        if user:
+            since = (datetime.now(timezone.utc) -
+                     timedelta(minutes=15)).isoformat()
+            if count_recent_failed_logins(str(user.id), since) >= 5:
+                notify(
+                    db,
+                    user.id,
+                    "security",
+                    "Multiple failed login attempts were detected on your account in the last 15 minutes.",
+                )
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
 

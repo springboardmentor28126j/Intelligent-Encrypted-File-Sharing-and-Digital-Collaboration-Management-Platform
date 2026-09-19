@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.database import Base, engine
 from app.models import models  # noqa: F401  (ensures models are registered before create_all)
-from app.routes import auth, files, activity, share, admin
+from app.routes import auth, files, activity, share, admin, notifications, analytics
 
 Base.metadata.create_all(bind=engine)
 
@@ -22,6 +22,8 @@ app.include_router(files.router)
 app.include_router(activity.router)
 app.include_router(share.router)
 app.include_router(admin.router)
+app.include_router(notifications.router)
+app.include_router(analytics.router)
 
 
 @app.get("/health")

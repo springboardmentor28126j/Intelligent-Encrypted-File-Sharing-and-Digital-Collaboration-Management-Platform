@@ -17,6 +17,7 @@ from app.core.encryption import (
     unwrap_key,
 )
 from app.core.mongo import log_activity
+from app.core.notifications import notify
 from app.core.redis_client import create_share_token, list_share_links, revoke_share_token
 from app.core.storage import save_file, read_file, delete_file as storage_delete_file
 from app.models.models import File, FileShare, User
@@ -60,9 +61,11 @@ def _decrypt_file_record(file_record: File) -> bytes:
 
 
 def _get_owned_file_or_404(file_id: str, db: Session, current_user: User) -> File:
-    file_record = db.query(File).filter(File.id == file_id, File.owner_id == current_user.id).first()
+    file_record = db.query(File).filter(
+        File.id == file_id, File.owner_id == current_user.id).first()
     if not file_record:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
     return file_record
 
 
@@ -73,7 +76,8 @@ def _get_accessible_file_or_404(file_id: str, db: Session, current_user: User) -
     permission level ('read'/'write') the share grant specifies."""
     file_record = db.query(File).filter(File.id == file_id).first()
     if not file_record:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
     if file_record.owner_id == current_user.id:
         return file_record, "owner"
@@ -84,7 +88,8 @@ def _get_accessible_file_or_404(file_id: str, db: Session, current_user: User) -
         .first()
     )
     if not share:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
     return file_record, share.permission
 
@@ -172,15 +177,26 @@ def list_shared_with_me(db: Session = Depends(get_db), current_user: User = Depe
 
 @router.get("/{file_id}/download")
 def download_file(file_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    file_record, _permission = _get_accessible_file_or_404(file_id, db, current_user)
+    file_record, _permission = _get_accessible_file_or_404(
+        file_id, db, current_user)
     plaintext = _decrypt_file_record(file_record)
 
     log_activity(str(current_user.id), "download", file_id)
 
+    if file_record.owner_id != current_user.id:
+        notify(
+            db,
+            file_record.owner_id,
+            "download",
+            f"{current_user.email} downloaded your file '{file_record.filename}'",
+            resource_id=file_id,
+        )
+
     return Response(
         content=plaintext,
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{file_record.filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{file_record.filename}"'},
     )
 
 
@@ -188,7 +204,8 @@ def download_file(file_id: str, db: Session = Depends(get_db), current_user: Use
 def preview_file(file_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Like download, but tells the browser to try to display it inline
     (images, PDFs, text) instead of forcing a save-as dialog."""
-    file_record, _permission = _get_accessible_file_or_404(file_id, db, current_user)
+    file_record, _permission = _get_accessible_file_or_404(
+        file_id, db, current_user)
     plaintext = _decrypt_file_record(file_record)
 
     guessed_type, _ = mimetypes.guess_type(file_record.filename)
@@ -210,7 +227,8 @@ def rename_file(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    file_record, permission = _get_accessible_file_or_404(file_id, db, current_user)
+    file_record, permission = _get_accessible_file_or_404(
+        file_id, db, current_user)
     if permission not in ("owner", "write"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -219,7 +237,8 @@ def rename_file(
 
     new_name = payload.filename.strip()
     if not new_name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename cannot be empty")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Filename cannot be empty")
 
     old_name = file_record.filename
     file_record.filename = new_name
@@ -326,6 +345,16 @@ def share_with_user(
 
     log_activity(str(current_user.id), "shared_with_user", file_id)
 
+    recipient = db.query(User).filter(User.email == payload.email).first()
+    if recipient:
+        notify(
+            db,
+            recipient.id,
+            "share",
+            f"{current_user.email} shared '{file_record.filename}' with you ({payload.permission} access)",
+            resource_id=file_id,
+        )
+
     return {
         "id": str(share.id),
         "email": share.shared_with_email,
@@ -338,7 +367,8 @@ def list_file_shares(file_id: str, db: Session = Depends(get_db), current_user: 
     _get_owned_file_or_404(file_id, db, current_user)
     shares = db.query(FileShare).filter(FileShare.file_id == file_id).all()
     return [
-        {"id": str(s.id), "email": s.shared_with_email, "permission": s.permission}
+        {"id": str(s.id), "email": s.shared_with_email,
+         "permission": s.permission}
         for s in shares
     ]
 
@@ -347,7 +377,8 @@ def list_file_shares(file_id: str, db: Session = Depends(get_db), current_user: 
 def revoke_user_share(share_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     share = db.query(FileShare).filter(FileShare.id == share_id).first()
     if not share:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Share not found")
 
     _get_owned_file_or_404(str(share.file_id), db, current_user)
 

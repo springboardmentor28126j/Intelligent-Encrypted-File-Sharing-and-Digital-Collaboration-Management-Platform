@@ -36,13 +36,29 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str | Non
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
             server.starttls()
             server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-            server.sendmail(settings.SMTP_FROM_EMAIL, [to_email], msg.as_string())
+            server.sendmail(settings.SMTP_FROM_EMAIL, [
+                            to_email], msg.as_string())
         return True
     except Exception as exc:
         # Never let an email failure break the request — log it and let
         # the caller decide how to degrade (e.g. a dev-mode token fallback).
         print(f"[email] Failed to send to {to_email}: {exc}")
         return False
+
+
+def send_notification_email(to_email: str, subject: str, message: str) -> bool:
+    """Generic notification email — used for share alerts, download alerts,
+    and security warnings. Reuses the same SMTP setup as password reset."""
+    html = f"""
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+      <h2 style="color:#10243e;">TrustShare notification</h2>
+      <p>{message}</p>
+      <p style="color:#64748b; font-size:13px;">
+        You're receiving this because it's tied to your TrustShare account.
+      </p>
+    </div>
+    """
+    return send_email(to_email, subject, html, message)
 
 
 def send_password_reset_email(to_email: str, reset_link: str) -> bool:

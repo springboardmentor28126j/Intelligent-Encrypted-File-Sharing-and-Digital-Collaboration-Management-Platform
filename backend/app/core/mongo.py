@@ -55,3 +55,13 @@ def count_recent_failed_logins(user_id: str, since_iso: str) -> int:
             "timestamp": {"$gte": since_iso},
         }
     )
+
+
+def get_action_counts_since(since_iso: str) -> dict:
+    """Platform-wide counts of each action type since a given timestamp —
+    the basis for the admin security/activity summary report."""
+    pipeline = [
+        {"$match": {"timestamp": {"$gte": since_iso}}},
+        {"$group": {"_id": "$action", "count": {"$sum": 1}}},
+    ]
+    return {row["_id"]: row["count"] for row in activity_logs.aggregate(pipeline)}

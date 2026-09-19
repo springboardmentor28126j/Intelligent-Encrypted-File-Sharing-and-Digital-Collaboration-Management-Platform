@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, String, BigInteger, DateTime, ForeignKey
+from sqlalchemy import Column, String, BigInteger, Boolean, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.database import Base
@@ -53,4 +53,25 @@ class FileShare(Base):
         "files.id"), nullable=False)
     shared_with_email = Column(String, nullable=False)
     permission = Column(String, default="read")  # "read" or "write"
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Notification(Base):
+    """An in-app alert for a user: someone shared a file with them, someone
+    downloaded their file, a security event on their own account, etc.
+
+    Named app_notifications (not notifications) because a teammate's own
+    code already created a differently-shaped "notifications" table on the
+    shared database (int4 id instead of UUID, different columns) — rather
+    than fight over one table name, this uses its own."""
+
+    __tablename__ = "app_notifications"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey(
+        "users.id"), nullable=False)
+    type = Column(String, nullable=False)  # "share" | "download" | "security"
+    message = Column(String, nullable=False)
+    resource_id = Column(String, nullable=True)
+    is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
