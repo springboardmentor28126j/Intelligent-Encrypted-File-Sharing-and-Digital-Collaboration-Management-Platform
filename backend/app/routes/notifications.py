@@ -28,7 +28,8 @@ def list_notifications(
             "message": n.message,
             "resource_id": n.resource_id,
             "is_read": n.is_read,
-            "created_at": n.created_at.isoformat(),
+            # naive UTC -> mark it explicitly so the browser converts correctly
+            "created_at": n.created_at.isoformat() + "Z",
         }
         for n in notes
     ]

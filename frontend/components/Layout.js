@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import api from "../lib/api";
+import NotificationBell from "./NotificationBell";
 
 const NAV_ITEMS = [
   { key: "overview", label: "Dashboard", href: "/dashboard" },
@@ -8,6 +9,7 @@ const NAV_ITEMS = [
   { key: "upload", label: "Upload file", href: "/upload" },
   { key: "folders", label: "Folders", href: "/folders" },
   { key: "activity", label: "Activity", href: "/activity" },
+  { key: "admin", label: "Admin", href: "/admin" },
   { key: "profile", label: "Profile", href: "/profile" },
 ];
 
@@ -95,6 +97,7 @@ export default function Layout({ active, eyebrow, title, action, children }) {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <NotificationBell />
           <span
             style={{
               fontSize: 13,

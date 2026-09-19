@@ -18,6 +18,16 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Folder(Base):
+    __tablename__ = "folders"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey(
+        "users.id"), nullable=False)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class File(Base):
     __tablename__ = "files"
 
@@ -28,6 +38,8 @@ class File(Base):
     storage_path = Column(String, nullable=False)
     size_bytes = Column(BigInteger, nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
+    folder_id = Column(UUID(as_uuid=True), ForeignKey(
+        "folders.id"), nullable=True)
 
     # Envelope encryption metadata (all base64-encoded).
     # encrypted_key: the per-file AES key, itself encrypted with the master key.

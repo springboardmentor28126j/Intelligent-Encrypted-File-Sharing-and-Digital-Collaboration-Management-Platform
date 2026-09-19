@@ -20,13 +20,17 @@ from app.core.mongo import log_activity
 from app.core.notifications import notify
 from app.core.redis_client import create_share_token, list_share_links, revoke_share_token
 from app.core.storage import save_file, read_file, delete_file as storage_delete_file
-from app.models.models import File, FileShare, User
+from app.models.models import File, FileShare, Folder, User
 
 router = APIRouter(prefix="/files", tags=["files"])
 
 
 class RenameRequest(BaseModel):
     filename: str
+
+
+class MoveFileRequest(BaseModel):
+    folder_id: str | None
 
 
 class ShareLinkRequest(BaseModel):
@@ -247,6 +251,32 @@ def rename_file(
     log_activity(str(current_user.id), "rename", file_id)
 
     return {"id": str(file_record.id), "filename": file_record.filename, "previous_filename": old_name}
+
+
+@router.patch("/{file_id}/move")
+def move_file(
+    file_id: str,
+    payload: MoveFileRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Move a file into a folder, or back to unfiled by passing folder_id: null.
+    Only the owner can move a file — a write-share doesn't extend to this."""
+    file_record = _get_owned_file_or_404(file_id, db, current_user)
+
+    if payload.folder_id:
+        folder = db.query(Folder).filter(
+            Folder.id == payload.folder_id).first()
+        if not folder or folder.owner_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+
+    file_record.folder_id = payload.folder_id
+    db.commit()
+
+    log_activity(str(current_user.id), "file_moved", file_id)
+
+    return {"id": file_id, "folder_id": payload.folder_id}
 
 
 @router.delete("/{file_id}")
