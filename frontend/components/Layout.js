@@ -9,12 +9,12 @@ const NAV_ITEMS = [
   { key: "upload", label: "Upload file", href: "/upload" },
   { key: "folders", label: "Folders", href: "/folders" },
   { key: "activity", label: "Activity", href: "/activity" },
-  { key: "admin", label: "Admin", href: "/admin" },
   { key: "profile", label: "Profile", href: "/profile" },
 ];
 
 export default function Layout({ active, eyebrow, title, action, children }) {
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -24,12 +24,20 @@ export default function Layout({ active, eyebrow, title, action, children }) {
     }
     api
       .get("/auth/me")
-      .then((res) => setEmail(res.data.email))
+      .then((res) => {
+        setEmail(res.data.email);
+        setRole(res.data.role);
+      })
       .catch(() => {
         localStorage.removeItem("token");
         router.push("/");
       });
   }, []);
+
+  const navItems =
+    role === "admin"
+      ? [...NAV_ITEMS.slice(0, 5), { key: "admin", label: "Admin", href: "/admin" }, ...NAV_ITEMS.slice(5)]
+      : NAV_ITEMS;
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -72,7 +80,7 @@ export default function Layout({ active, eyebrow, title, action, children }) {
           </div>
 
           <nav style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const isActive = active === item.key;
               return (
                 <a
