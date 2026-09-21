@@ -101,12 +101,9 @@ def ensure_file_storage_columns():
     ensure_schema_compatibility()
     ensure_user_mfa_columns()
 
-
+# In backend/app/database.py inside ensure_file_storage_columns or a new helper:
 def ensure_activity_log_columns():
-    inspector = inspect(engine)
-    if "activity_logs" not in inspector.get_table_names():
-        return
-    columns = {column["name"] for column in inspector.get_columns("activity_logs")}
+    columns = {column["name"] for column in inspect(engine).get_columns("activity_logs")}
     with engine.begin() as connection:
         if "ip_address" not in columns:
             connection.execute(text("ALTER TABLE activity_logs ADD COLUMN ip_address VARCHAR(45)"))
