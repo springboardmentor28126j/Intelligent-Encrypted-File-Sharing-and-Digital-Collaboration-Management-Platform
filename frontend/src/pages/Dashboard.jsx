@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import api, { getErrorMessage } from '../services/api'
 import { ActivityList, FileTable, Notice, Panel, Stat } from '../components/common'
 import { useAuth } from '../context/AuthContext'
+
+const CATEGORY_COLORS = ['#2e5b4b', '#4a7c59', '#73956f', '#8eb69b', '#b3cbb9', '#d2ded5']
 
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return '0 B'
@@ -52,11 +55,11 @@ export default function Dashboard() {
         <Stat label="Uploads (7d)" value={data.stats?.recent_uploads_count ?? 0} />
       </div>
 
-      {/* Storage Analytics & Category Distribution */}
-      <section className="panel" style={{ marginBottom: '24px', padding: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Storage Analytics</h3>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: '#2e5b4b' }}>
+      {/* Storage Analytics Section */}
+      <section className="panel" style={{ marginBottom: '24px' }}>
+        <div className="panel-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <h3>Storage Analytics</h3>
+          <span style={{ fontSize: '13px', color: '#687770', fontWeight: 600 }}>
             {formatBytes(storageUsed)} of {formatBytes(storageLimit)} ({percentage}%)
           </span>
         </div>
@@ -68,7 +71,7 @@ export default function Dashboard() {
           background: '#e9ede8',
           borderRadius: '4px',
           overflow: 'hidden',
-          marginBottom: '20px',
+          marginBottom: '24px',
         }}>
           <div style={{
             width: `${Math.max(percentage, 2)}%`,
@@ -78,37 +81,78 @@ export default function Dashboard() {
           }} />
         </div>
 
-        {/* Category Cards */}
-        <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#687770', display: 'block', marginBottom: '12px' }}>
+        {/* Category Header */}
+        <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#687770', display: 'block', marginBottom: '14px' }}>
           Category Distribution
         </span>
-        {categories.length > 0 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '14px' }}>
-            {categories.map((cat) => (
-              <div
-                key={cat.category}
-                style={{
-                  background: '#f8faf7',
-                  border: '1px solid #e2e8e0',
-                  borderRadius: '8px',
-                  padding: '14px 16px',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <strong style={{ fontSize: '14px', color: '#182522' }}>{cat.category}</strong>
-                  <span style={{ fontSize: '12px', color: '#2e5b4b', fontWeight: 600 }}>
-                    {formatBytes(cat.size_bytes)}
-                  </span>
-                </div>
-                <div style={{ fontSize: '12px', color: '#7d8a84', marginTop: '4px' }}>
-                  {cat.count} {cat.count === 1 ? 'file' : 'files'}
-                </div>
+
+        {/* Donut Chart & Category Cards Layout */}
+        <div style={{ display: 'grid', gridTemplateColumns: categories.length > 0 ? '220px 1fr' : '1fr', gap: '24px', alignItems: 'center' }}>
+          {/* Visual Donut Chart */}
+          <div style={{ width: '100%', height: '180px' }}>
+            {categories.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categories}
+                    dataKey="size_bytes"
+                    nameKey="category"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={48}
+                    outerRadius={75}
+                    paddingAngle={4}
+                  >
+                    {categories.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value, name) => [formatBytes(value), name]}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: '#9ba6a1', fontSize: '13px' }}>
+                No files stored
               </div>
-            ))}
+            )}
           </div>
-        ) : (
-          <p className="muted" style={{ fontSize: '13px', margin: 0 }}>No files categorized yet.</p>
-        )}
+
+          {/* Category Detail Cards */}
+          {categories.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' }}>
+              {categories.map((cat, index) => (
+                <div
+                  key={cat.category}
+                  style={{
+                    background: '#f8faf7',
+                    border: '1px solid #e2e8e0',
+                    borderLeft: `4px solid ${CATEGORY_COLORS[index % CATEGORY_COLORS.length]}`,
+                    borderRadius: '8px',
+                    padding: '12px 14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: '13px', color: '#182522' }}>{cat.category}</strong>
+                    <span style={{ fontSize: '12px', color: '#2e5b4b', fontWeight: 600 }}>
+                      {formatBytes(cat.size_bytes)}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#7d8a84', marginTop: '4px' }}>
+                    {cat.count} {cat.count === 1 ? 'file' : 'files'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="muted" style={{ fontSize: '13px', margin: 0 }}>No files categorized yet.</p>
+          )}
+        </div>
       </section>
 
       {/* Security Quick Link */}
