@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from ..models import ActivityLog, User
-from ..mongo import activity_collection
+from ..mongo import get_mongo_collection
 
 
 def log_activity(
@@ -26,7 +26,7 @@ def log_activity(
 
     # MongoDB activity logging
     try:
-        activity_collection.insert_one(
+        get_mongo_collection().insert_one(
             {
                 "user_id": user.id,
                 "action": action,
@@ -36,8 +36,8 @@ def log_activity(
             }
         )
     except Exception:
-        # MongoDB failure should not break the existing
-        # PostgreSQL activity logging.
+        # MongoDB failure should not break
+        # existing PostgreSQL activity logging.
         pass
 
 
@@ -65,7 +65,7 @@ def log_download_notification(
 
     # Also store the download notification in MongoDB
     try:
-        activity_collection.insert_one(
+        get_mongo_collection().insert_one(
             {
                 "user_id": owner.id,
                 "action": "shared_download",

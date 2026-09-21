@@ -10,7 +10,18 @@ Base.metadata.create_all(bind=engine)
 ensure_file_storage_columns()
 ensure_user_mfa_columns()
 app = FastAPI(title="TrustShare API", description="Milestone 1 secure file-sharing API")
-app.add_middleware(CORSMiddleware, allow_origins=[settings.frontend_origin], allow_credentials=True, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"], allow_headers=["Authorization", "Content-Type"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(folders.router)

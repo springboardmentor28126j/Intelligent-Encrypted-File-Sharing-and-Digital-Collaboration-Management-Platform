@@ -7,6 +7,7 @@ import FileDetails from './pages/FileDetails'
 import Folders from './pages/Folders'
 import MyFiles from './pages/MyFiles'
 import Profile from './pages/Profile'
+import Security from './pages/Security'
 import SharedWithMe from './pages/SharedWithMe'
 import UploadFile from './pages/UploadFile'
 import PublicShare from './pages/PublicShare' // 1. Import new page
@@ -37,6 +38,7 @@ function AppRoutes() {
                 <Route path="/shared-with-me" element={<SharedWithMe />} />
                 <Route path="/folders" element={<Folders />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/security" element={<Security />} />
                 <Route path="/activity" element={<Activity />} />
                 <Route path="*" element={<Navigate to="/dashboard" />} />
               </Routes>
