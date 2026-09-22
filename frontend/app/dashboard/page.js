@@ -49,7 +49,7 @@ function FileRow({ file, onDeleted }) {
         </Link>
       </td>
       <td className="py-3 pr-4 text-sm text-gray-500">{formatBytes(file.size_bytes)}</td>
-      <td className="py-3 pr-4 text-sm text-gray-500">{formatDate(file.created_at)}</td>
+      <td className="py-3 pr-4 text-sm text-gray-500">{formatDate(file.uploaded_at)}</td>
       <td className="py-3 text-right text-sm">
         <button
           disabled={busy}

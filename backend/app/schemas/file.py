@@ -27,6 +27,9 @@ class ShareLinkCreate(BaseModel):
     max_downloads: int | None = None
     expires_in_hours: int | None = None
 
+class ShareEmailRequest(BaseModel):
+    recipient_email: str
+
 class ShareLinkOut(BaseModel):
     id: int
     file_id: UUID
