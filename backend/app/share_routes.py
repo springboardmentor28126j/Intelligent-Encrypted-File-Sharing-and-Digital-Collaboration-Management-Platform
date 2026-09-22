@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal
-from .models import User, FileShare
+from .models import User, File as DBFile, FileShare
 from .auth import get_current_user
 from .encryption import decrypt_file
 from .cloud_storage import download_encrypted_file
@@ -42,46 +42,31 @@ def share_file(
     db: Session = SessionLocal()
 
     try:
-        # ----------------------------------------------------
-        # 1. Validate permission
-        # ----------------------------------------------------
+        # Validate permission
         if data.permission not in ["view", "download"]:
             raise HTTPException(
                 status_code=400,
                 detail="Permission must be 'view' or 'download'"
             )
 
-        # ----------------------------------------------------
-        # 2. Make sure the file belongs to the current user
-        # ----------------------------------------------------
-        expected_prefix = f"user_{current_user.id}/"
+        # Find the file in the shared database
+        db_file = (
+            db.query(DBFile)
+            .filter(
+                DBFile.owner_id == current_user.id,
+                DBFile.storage_path == data.storage_path,
+                DBFile.is_deleted == False
+            )
+            .first()
+        )
 
-        if not data.storage_path.startswith(expected_prefix):
+        if not db_file:
             raise HTTPException(
-                status_code=403,
-                detail="You can only share files that belong to you"
+                status_code=404,
+                detail="File not found"
             )
 
-        # ----------------------------------------------------
-        # 3. Calculate expiration time
-        # ----------------------------------------------------
-        expires_at = None
-
-        if data.expires_in_hours is not None:
-
-            if data.expires_in_hours <= 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Expiration time must be greater than 0 hours"
-                )
-
-            expires_at = datetime.utcnow() + timedelta(
-                hours=data.expires_in_hours
-            )
-
-        # ----------------------------------------------------
-        # 4. Find recipient
-        # ----------------------------------------------------
+        # Find recipient
         recipient = (
             db.query(User)
             .filter(User.email == data.shared_with_email)
@@ -94,77 +79,83 @@ def share_file(
                 detail="Recipient user not found"
             )
 
-        # ----------------------------------------------------
-        # 5. Prevent self-sharing
-        # ----------------------------------------------------
+        # Prevent self-sharing
         if recipient.id == current_user.id:
             raise HTTPException(
                 status_code=400,
                 detail="You cannot share a file with yourself"
             )
 
-        # ----------------------------------------------------
-        # 6. Check for existing active share
-        # ----------------------------------------------------
+        # Calculate expiration
+        expires_at = None
+
+        if data.expires_in_hours is not None:
+            if data.expires_in_hours <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Expiration time must be greater than 0 hours"
+                )
+
+            expires_at = (
+                datetime.now(timezone.utc)
+                + timedelta(hours=data.expires_in_hours)
+            )
+
+        # Check existing active share
         existing_share = (
             db.query(FileShare)
             .filter(
+                FileShare.file_id == db_file.id,
                 FileShare.owner_id == current_user.id,
                 FileShare.shared_with_id == recipient.id,
-                FileShare.storage_path == data.storage_path,
-                FileShare.is_revoked == 0
+                FileShare.is_revoked == False
             )
             .first()
         )
 
         if existing_share:
 
-            # Permanent share
-            if existing_share.expires_at is None:
+            if (
+                existing_share.expires_at is None
+                or existing_share.expires_at > datetime.now(timezone.utc)
+            ):
                 raise HTTPException(
                     status_code=400,
                     detail="File is already shared with this user"
                 )
 
-            # Temporary share that has not expired
-            if existing_share.expires_at > datetime.utcnow():
-                raise HTTPException(
-                    status_code=400,
-                    detail="File is already shared with this user"
-                )
-
-            # Temporary share has expired.
-            # Deactivate the old share so a new share can be created.
-            existing_share.is_revoked = 1
+            # Existing share has expired
+            existing_share.is_revoked = True
+            existing_share.updated_at = datetime.now(timezone.utc)
             db.commit()
 
-        # ----------------------------------------------------
-        # 7. Create new sharing record
-        # ----------------------------------------------------
+        # Create new share
+        now = datetime.now(timezone.utc)
+
         new_share = FileShare(
+            file_id=db_file.id,
             owner_id=current_user.id,
             shared_with_id=recipient.id,
-            storage_path=data.storage_path,
+            recipient_email=recipient.email,
             permission=data.permission,
+            is_revoked=False,
             expires_at=expires_at,
-            is_revoked=0,
-            created_at=datetime.utcnow()
+            created_at=now,
+            updated_at=now
         )
 
         db.add(new_share)
         db.commit()
         db.refresh(new_share)
 
-        # ----------------------------------------------------
-        # 8. Return share information
-        # ----------------------------------------------------
         return {
             "message": "File shared successfully",
             "share_id": new_share.id,
-            "shared_with": recipient.username,
+            "file_id": db_file.id,
+            "filename": db_file.filename,
+            "shared_with": recipient.name,
             "email": recipient.email,
             "permission": new_share.permission,
-            "storage_path": new_share.storage_path,
             "expires_at": new_share.expires_at,
             "created_at": new_share.created_at
         }
@@ -176,9 +167,6 @@ def share_file(
 # ============================================================
 # RECEIVED SHARED FILES
 # ============================================================
-# ============================================================
-# RECEIVED SHARED FILES
-# ============================================================
 
 @router.get("/received")
 def get_received_files(
@@ -187,47 +175,48 @@ def get_received_files(
     db: Session = SessionLocal()
 
     try:
-        # Get all active shares received by the current user
         shares = (
-            db.query(FileShare)
+            db.query(FileShare, DBFile)
+            .join(
+                DBFile,
+                FileShare.file_id == DBFile.id
+            )
             .filter(
                 FileShare.shared_with_id == current_user.id,
-                FileShare.is_revoked == 0
+                FileShare.is_revoked == False,
+                DBFile.is_deleted == False
             )
             .all()
         )
 
         active_files = []
-        current_time = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
-        for share in shares:
+        for share, db_file in shares:
 
-            # ------------------------------------------------
-            # Check whether temporary share has expired
-            # ------------------------------------------------
+            # Check expiration
             if (
                 share.expires_at is not None
-                and current_time > share.expires_at
+                and now > share.expires_at
             ):
-                # Automatically revoke expired share
-                share.is_revoked = 1
+                share.is_revoked = True
+                share.updated_at = now
                 continue
 
-            # ------------------------------------------------
-            # Add active share
-            # ------------------------------------------------
-            active_files.append(
-                {
-                    "share_id": share.id,
-                    "owner_id": share.owner_id,
-                    "storage_path": share.storage_path,
-                    "permission": share.permission,
-                    "expires_at": share.expires_at,
-                    "created_at": share.created_at
-                }
-            )
+            active_files.append({
+                "share_id": share.id,
+                "file_id": db_file.id,
+                "filename": (
+                    db_file.original_filename
+                    or db_file.filename
+                ),
+                "storage_path": db_file.storage_path,
+                "owner_id": share.owner_id,
+                "permission": share.permission,
+                "expires_at": share.expires_at,
+                "created_at": share.created_at
+            })
 
-        # Save automatic revocations
         db.commit()
 
         return {
@@ -250,126 +239,114 @@ def download_shared_file(
     db: Session = SessionLocal()
 
     try:
-        # ----------------------------------------------------
-        # 1. Find the share
-        # ----------------------------------------------------
-        share = (
-            db.query(FileShare)
+        # Find share + corresponding file
+        result = (
+            db.query(FileShare, DBFile)
+            .join(
+                DBFile,
+                FileShare.file_id == DBFile.id
+            )
             .filter(
                 FileShare.id == share_id,
                 FileShare.shared_with_id == current_user.id,
-                FileShare.is_revoked == 0
+                FileShare.is_revoked == False,
+                DBFile.is_deleted == False
             )
             .first()
         )
 
-        if not share:
+        if not result:
             raise HTTPException(
                 status_code=404,
                 detail="Shared file not found or access has been revoked"
             )
 
-        # ----------------------------------------------------
-        # 2. Check expiration
-        # ----------------------------------------------------
-        if share.expires_at is not None:
+        share, db_file = result
 
-            if datetime.utcnow() > share.expires_at:
+        # Check expiration
+        if (
+            share.expires_at is not None
+            and datetime.now(timezone.utc) > share.expires_at
+        ):
+            share.is_revoked = True
+            share.updated_at = datetime.now(timezone.utc)
+            db.commit()
 
-                # Mark expired share as revoked
-                share.is_revoked = 1
-                db.commit()
+            raise HTTPException(
+                status_code=403,
+                detail="Shared file access has expired"
+            )
 
-                raise HTTPException(
-                    status_code=403,
-                    detail="Shared file access has expired"
-                )
-
-        # ----------------------------------------------------
-        # 3. Check download permission
-        # ----------------------------------------------------
+        # Check permission
         if share.permission != "download":
             raise HTTPException(
                 status_code=403,
                 detail="Download permission not granted"
             )
 
-        # ----------------------------------------------------
-        # 4. Validate owner's storage path
-        # ----------------------------------------------------
+        storage_path = db_file.storage_path
+
+        # Validate storage path
         expected_prefix = f"user_{share.owner_id}/"
 
-        if not share.storage_path.startswith(expected_prefix):
+        if not storage_path.startswith(expected_prefix):
             raise HTTPException(
                 status_code=403,
                 detail="Invalid shared file path"
             )
 
-        # ----------------------------------------------------
-        # 5. Download encrypted file from Supabase
-        # ----------------------------------------------------
+        # Download encrypted file
         try:
             encrypted_file_data = download_encrypted_file(
-                share.storage_path
+                storage_path
             )
-
         except Exception:
             raise HTTPException(
                 status_code=404,
                 detail="Encrypted shared file not found"
             )
 
-        # ----------------------------------------------------
-        # 6. Validate encrypted data
-        # ----------------------------------------------------
         if len(encrypted_file_data) < 13:
             raise HTTPException(
                 status_code=500,
                 detail="Invalid encrypted file"
             )
 
-        # ----------------------------------------------------
-        # 7. Extract AES-GCM nonce
-        # ----------------------------------------------------
+        # Extract nonce
         nonce = encrypted_file_data[:12]
-
-        # Remaining bytes contain encrypted data + auth tag
         encrypted_data = encrypted_file_data[12:]
 
-        # ----------------------------------------------------
-        # 8. Decrypt file
-        # ----------------------------------------------------
+        # Decrypt
         try:
             decrypted_data = decrypt_file(
                 nonce,
                 encrypted_data
             )
-
         except Exception:
             raise HTTPException(
                 status_code=500,
                 detail="File decryption failed"
             )
 
-        # ----------------------------------------------------
-        # 9. Recover original filename
-        # ----------------------------------------------------
-        stored_name = Path(share.storage_path).name
+        # Update download count
+        db_file.download_count = (
+            db_file.download_count or 0
+        ) + 1
 
-        parts = stored_name.split("_", 1)
+        db.commit()
 
         original_filename = (
-            parts[1]
-            if len(parts) == 2
-            else stored_name
+            db_file.original_filename
+            or db_file.filename
+            or Path(storage_path).name
         )
 
-        # ----------------------------------------------------
-        # 10. Return decrypted file
-        # ----------------------------------------------------
         return Response(
             content=decrypted_data,
-            media_type="application/octet-stream",
+            media_type=(
+                db_file.content_type
+                or "application/octet-stream"
+            ),
             headers={
                 "Content-Disposition":
                     f'attachment; filename="{original_filename}"'
@@ -378,6 +355,7 @@ def download_shared_file(
 
     finally:
         db.close()
+
 
 # ============================================================
 # REVOKE SHARED FILE ACCESS
@@ -391,13 +369,12 @@ def revoke_shared_file(
     db: Session = SessionLocal()
 
     try:
-        # Find the share owned by the current user
         share = (
             db.query(FileShare)
             .filter(
                 FileShare.id == share_id,
                 FileShare.owner_id == current_user.id,
-                FileShare.is_revoked == 0
+                FileShare.is_revoked == False
             )
             .first()
         )
@@ -408,17 +385,17 @@ def revoke_shared_file(
                 detail="Share not found or access already revoked"
             )
 
-        # Revoke access
-        share.is_revoked = 1
+        share.is_revoked = True
+        share.updated_at = datetime.now(timezone.utc)
 
         db.commit()
 
         return {
             "message": "File sharing access revoked successfully",
             "share_id": share.id,
-            "storage_path": share.storage_path,
+            "file_id": share.file_id,
             "revoked": True
         }
 
     finally:
-        db.close()        
+        db.close()

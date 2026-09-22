@@ -1,4 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Boolean,
+    BigInteger,
+    ForeignKey,
+)
+
 from .database import Base
 
 
@@ -7,37 +16,156 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    username = Column(
-        String,
+    name = Column(String(100), nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, server_default="now()")
+    role = Column(String(20), nullable=False, default="USER")
+
+    mfa_secret = Column(String(64), nullable=True)
+    mfa_enabled = Column(Boolean, nullable=False, default=False)
+
+    storage_quota = Column(
+        BigInteger,
+        nullable=False,
+        default=5368709120
+    )
+
+    used_storage = Column(
+        BigInteger,
+        nullable=False,
+        default=0
+    )
+
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        server_default="now()"
+    )
+
+
+class Folder(Base):
+    __tablename__ = "folders"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+
+class File(Base):
+    __tablename__ = "files"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    owner_id = Column(
+        Integer,
+        ForeignKey("users.id"),
         nullable=False
     )
 
-    email = Column(
-        String,
-        unique=True,
-        index=True,
+    folder_id = Column(
+        Integer,
+        ForeignKey("folders.id"),
+        nullable=True
+    )
+
+    filename = Column(String(255), nullable=True)
+    storage_path = Column(String(500), nullable=True)
+    content_type = Column(String(100), nullable=True)
+    size = Column(BigInteger, nullable=True)
+    category = Column(String(20), nullable=True)
+
+    is_deleted = Column(Boolean, nullable=False, default=False)
+
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        server_default="now()"
+    )
+
+    updated_at = Column(
+        DateTime,
+        nullable=True
+    )
+
+    is_encrypted = Column(
+        Boolean,
+        nullable=False,
+        default=False
+    )
+
+    encryption_key = Column(String(255), nullable=True)
+    encryption_nonce = Column(String(64), nullable=True)
+    storage_backend = Column(String(32), nullable=True)
+    extension = Column(String(20), nullable=True)
+    sha256_hash = Column(String(64), nullable=True)
+    encryption_algorithm = Column(String(50), nullable=True)
+    description = Column(String, nullable=True)
+
+    download_count = Column(
+        Integer,
+        nullable=True,
+        default=0
+    )
+
+    is_public = Column(
+        Boolean,
+        nullable=True,
+        default=False
+    )
+
+    storage_key = Column(String(500), nullable=True)
+    original_filename = Column(String(255), nullable=True)
+    stored_filename = Column(String(255), nullable=True)
+    file_path = Column(String(500), nullable=True)
+
+    file_size = Column(Integer, nullable=True)
+    file_type = Column(String(120), nullable=True)
+
+    version = Column(
+        Integer,
+        nullable=True,
+        default=1
+    )
+
+
+class FileEncryption(Base):
+    __tablename__ = "file_encryptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    file_id = Column(
+        Integer,
+        ForeignKey("files.id"),
         nullable=False
     )
 
-    password = Column(
-        String,
+    algorithm = Column(String(40), nullable=False)
+    key_version = Column(String(20), nullable=True)
+    wrapped_key = Column(String(512), nullable=True)
+    key_nonce = Column(String(64), nullable=True)
+
+    file_nonce = Column(
+        String(64),
         nullable=False
     )
 
-    role = Column(
-        String,
-        default="user",
-        nullable=False
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        server_default="now()"
     )
 
 
 class FileShare(Base):
     __tablename__ = "file_shares"
 
-    id = Column(
+    id = Column(Integer, primary_key=True, index=True)
+
+    file_id = Column(
         Integer,
-        primary_key=True,
-        index=True
+        ForeignKey("files.id"),
+        nullable=False
     )
 
     owner_id = Column(
@@ -49,18 +177,39 @@ class FileShare(Base):
     shared_with_id = Column(
         Integer,
         ForeignKey("users.id"),
-        nullable=False
-    )
-
-    storage_path = Column(
-        String,
-        nullable=False
+        nullable=True
     )
 
     permission = Column(
         String,
-        default="download",
         nullable=False
+    )
+
+    is_revoked = Column(
+        Boolean,
+        nullable=False,
+        default=False
+    )
+
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        server_default="now()"
+    )
+
+    updated_at = Column(
+        DateTime,
+        nullable=True
+    )
+
+    recipient_email = Column(
+        String(255),
+        nullable=True
+    )
+
+    share_token = Column(
+        String(255),
+        nullable=True
     )
 
     expires_at = Column(
@@ -68,13 +217,19 @@ class FileShare(Base):
         nullable=True
     )
 
-    is_revoked = Column(
+    max_downloads = Column(
         Integer,
-        default=0,
-        nullable=False
+        nullable=True
     )
 
-    created_at = Column(
-        DateTime,
-        nullable=False
+    download_count = Column(
+        Integer,
+        nullable=True,
+        default=0
+    )
+
+    shared_with_user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=True
     )
