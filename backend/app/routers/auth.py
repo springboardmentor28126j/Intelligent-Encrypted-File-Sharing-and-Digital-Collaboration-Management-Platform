@@ -1,5 +1,8 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -14,6 +17,7 @@ from app.core.security import (
     get_current_user,
 )
 from app.models.user import User
+from app.models.audit_log import AuditLog
 from app.schemas.auth import (
     UserRegister,
     TokenResponse,
@@ -29,6 +33,7 @@ from app.schemas.auth import (
 from app.services.audit_service import log_action
 from app.services.notification_service import notify
 from app.services import mfa_service
+
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -102,11 +107,17 @@ def login(
         .first()
     )
 
+    # -----------------------------------------------------
+    # WRONG EMAIL OR PASSWORD
+    # -----------------------------------------------------
+
     if not user or not verify_password(
         form_data.password,
         user.password_hash
     ):
         if user:
+
+            # Record failed login
             log_action(
                 db,
                 user_id=user.id,
@@ -115,12 +126,103 @@ def login(
                 resource_id=str(user.id),
                 ip_address=ip,
             )
+
+            # -------------------------------------------------
+            # CHECK MULTIPLE FAILED LOGIN ATTEMPTS
+            # -------------------------------------------------
+
+            now = datetime.now(timezone.utc)
+
+            # Look back 15 minutes
+            window_start = now - timedelta(minutes=15)
+
+            # Find the latest successful login
+            last_successful_login = (
+                db.query(AuditLog.created_at)
+                .filter(
+                    AuditLog.user_id == user.id,
+                    AuditLog.action == "user.login",
+                )
+                .order_by(AuditLog.created_at.desc())
+                .first()
+            )
+
+            # Start counting failed attempts from:
+            # - last successful login, OR
+            # - beginning of 15-minute window
+            if last_successful_login:
+                last_login_time = last_successful_login[0]
+
+                # Handle timezone safely
+                if last_login_time.tzinfo is None:
+                    last_login_time = last_login_time.replace(
+                        tzinfo=timezone.utc
+                    )
+
+                count_start = max(
+                    window_start,
+                    last_login_time
+                )
+            else:
+                count_start = window_start
+
+            # Count failed login attempts
+            failed_attempts = (
+                db.query(func.count(AuditLog.id))
+                .filter(
+                    AuditLog.user_id == user.id,
+                    AuditLog.action == "user.login_failed",
+                    AuditLog.created_at >= count_start,
+                )
+                .scalar()
+                or 0
+            )
+
+            # -------------------------------------------------
+            # SEND EMAIL ON 3RD FAILED ATTEMPT
+            # -------------------------------------------------
+
+            if failed_attempts == 3:
+
+                # Record security event
+                log_action(
+                    db,
+                    user_id=user.id,
+                    action="security.multiple_login_failures",
+                    resource_type="user",
+                    resource_id=str(user.id),
+                    ip_address=ip,
+                    detail=(
+                        "3 failed login attempts detected "
+                        "within 15 minutes."
+                    ),
+                )
+
+                # Send notification + email
+                notify(
+                    db,
+                    user,
+                    type="security.multiple_login_failures",
+                    title="Security Alert: Multiple Failed Login Attempts",
+                    message=(
+                        "We detected 3 unsuccessful login attempts "
+                        "on your TrustShare account within the last "
+                        "15 minutes. If this was not you, please "
+                        "change your password and contact support."
+                    ),
+                    also_email=True,
+                )
+
             db.commit()
 
         raise HTTPException(
             status_code=401,
             detail="Incorrect email or password"
         )
+
+    # -----------------------------------------------------
+    # SUCCESSFUL LOGIN
+    # -----------------------------------------------------
 
     access_token = create_access_token(
         subject=str(user.id)

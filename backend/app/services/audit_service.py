@@ -22,5 +22,6 @@ def log_action(
         ip_address=ip_address,
         detail=detail,
     )
+
     db.add(entry)
     db.commit()
