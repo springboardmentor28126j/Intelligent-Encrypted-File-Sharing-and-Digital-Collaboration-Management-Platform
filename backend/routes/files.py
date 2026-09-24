@@ -3,7 +3,8 @@ from fastapi import (
     UploadFile,
     File as FastAPIFile,
     HTTPException,
-    Depends
+    Depends,
+    Request
 )
 
 from fastapi.responses import FileResponse
@@ -22,7 +23,10 @@ from models import File as FileModel, User, FileShare
 
 from security import get_current_user
 
-from mongodb import create_activity_log
+from mongodb import (
+    create_activity_log,
+    create_security_alert
+)
 
 from redis_client import redis_client
 
@@ -78,6 +82,9 @@ def get_db():
 
 @router.post("/upload")
 async def upload_file(
+
+    request: Request,
+
     file: UploadFile = FastAPIFile(...),
 
     current_user: User = Depends(
@@ -88,6 +95,18 @@ async def upload_file(
         get_db
     )
 ):
+
+    # -----------------------------------------------------
+    # GET CLIENT IP ADDRESS
+    # -----------------------------------------------------
+
+    ip_address = request.client.host
+
+    print(
+        "Upload request IP:",
+        ip_address
+    )
+
 
     # -----------------------------------------------------
     # CHECK FILE NAME
@@ -348,12 +367,19 @@ async def upload_file(
 
             action="upload",
 
-            filename=original_filename
+            filename=original_filename,
+
+            ip_address=ip_address
 
         )
 
         print(
             "Upload activity saved to MongoDB."
+        )
+
+        print(
+            "Logged IP address:",
+            ip_address
         )
 
     except Exception as error:
@@ -397,6 +423,7 @@ async def upload_file(
 
 @router.get("/")
 def get_files(
+
     current_user: User = Depends(
         get_current_user
     ),
@@ -537,7 +564,10 @@ def get_files(
     "/download/{file_id}"
 )
 def download_file(
+
     file_id: int,
+
+    request: Request,
 
     current_user: User = Depends(
         get_current_user
@@ -547,6 +577,18 @@ def download_file(
         get_db
     )
 ):
+
+    # -----------------------------------------------------
+    # GET CLIENT IP ADDRESS
+    # -----------------------------------------------------
+
+    ip_address = request.client.host
+
+    print(
+        "Download request IP:",
+        ip_address
+    )
+
 
     # -----------------------------------------------------
     # FIND ONLY CURRENT USER'S FILE
@@ -768,8 +810,19 @@ def download_file(
 
             action="download",
 
-            filename=file.filename
+            filename=file.filename,
 
+            ip_address=ip_address
+
+        )
+
+        print(
+            "Download activity saved to MongoDB."
+        )
+
+        print(
+            "Logged IP address:",
+            ip_address
         )
 
     except Exception as error:
@@ -806,7 +859,10 @@ def download_file(
     "/{file_id}"
 )
 def delete_file(
+
     file_id: int,
+
+    request: Request,
 
     current_user: User = Depends(
         get_current_user
@@ -816,6 +872,14 @@ def delete_file(
         get_db
     )
 ):
+
+    ip_address = request.client.host
+
+    print(
+        "Delete request IP:",
+        ip_address
+    )
+
 
     # -----------------------------------------------------
     # FIND ONLY CURRENT USER'S FILE
@@ -961,8 +1025,14 @@ def delete_file(
 
             action="delete",
 
-            filename=filename
+            filename=filename,
 
+            ip_address=ip_address
+
+        )
+
+        print(
+            "Delete activity saved to MongoDB."
         )
 
     except Exception as error:
@@ -999,7 +1069,10 @@ def delete_file(
     "/view-shared/{share_id}"
 )
 def view_shared_file(
+
     share_id: int,
+
+    request: Request,
 
     current_user: User = Depends(
         get_current_user
@@ -1009,6 +1082,14 @@ def view_shared_file(
         get_db
     )
 ):
+
+    ip_address = request.client.host
+
+    print(
+        "View shared file request IP:",
+        ip_address
+    )
+
 
     # =====================================================
     # DEBUG INFORMATION
@@ -1110,10 +1191,45 @@ def view_shared_file(
 
 
     # =====================================================
-    # CHECK SHARE
+    # SECURITY ALERT — UNAUTHORIZED ACCESS
     # =====================================================
 
     if share is None:
+
+        print(
+            "Unauthorized shared file access attempt."
+        )
+
+        try:
+
+            create_security_alert(
+
+                user_id=current_user.id,
+
+                alert_type="unauthorized_file_access",
+
+                severity="high",
+
+                message=(
+                    "Unauthorized attempt to access "
+                    "a shared file."
+                ),
+
+                ip_address=ip_address
+
+            )
+
+            print(
+                "Unauthorized access security alert "
+                "saved to MongoDB."
+            )
+
+        except Exception as error:
+
+            print(
+                "MongoDB security alert failed:",
+                error
+            )
 
         raise HTTPException(
 
@@ -1147,6 +1263,41 @@ def view_shared_file(
                 "Shared file link has expired."
             )
 
+            # -------------------------------------------------
+            # SECURITY ALERT — EXPIRED FILE ACCESS
+            # -------------------------------------------------
+
+            try:
+
+                create_security_alert(
+
+                    user_id=current_user.id,
+
+                    alert_type="expired_file_access",
+
+                    severity="high",
+
+                    message=(
+                        "Attempt to access an expired "
+                        "shared file."
+                    ),
+
+                    ip_address=ip_address
+
+                )
+
+                print(
+                    "Expired file access security alert "
+                    "saved to MongoDB."
+                )
+
+            except Exception as error:
+
+                print(
+                    "MongoDB security alert failed:",
+                    error
+                )
+
             raise HTTPException(
 
                 status_code=403,
@@ -1168,6 +1319,56 @@ def view_shared_file(
             "Permission is:",
             share.permission
         )
+
+        # We need the file name for the alert.
+        permission_file = (
+
+            db.query(FileModel)
+
+            .filter(
+                FileModel.id == share.file_id
+            )
+
+            .first()
+
+        )
+
+        try:
+
+            create_security_alert(
+
+                user_id=current_user.id,
+
+                alert_type="permission_violation",
+
+                severity="medium",
+
+                message=(
+                    "Attempt to access a shared file "
+                    "without the required permission."
+                ),
+
+                filename=(
+                    permission_file.filename
+                    if permission_file
+                    else None
+                ),
+
+                ip_address=ip_address
+
+            )
+
+            print(
+                "Permission violation security alert "
+                "saved to MongoDB."
+            )
+
+        except Exception as error:
+
+            print(
+                "MongoDB security alert failed:",
+                error
+            )
 
         raise HTTPException(
 
@@ -1438,7 +1639,7 @@ def view_shared_file(
 
 
     # =====================================================
-    # ACTIVITY LOG
+    # SAVE VIEW ACTIVITY TO MONGODB
     # =====================================================
 
     try:
@@ -1449,7 +1650,9 @@ def view_shared_file(
 
             action="view_shared_file",
 
-            filename=file.filename
+            filename=file.filename,
+
+            ip_address=ip_address
 
         )
 
@@ -1465,6 +1668,44 @@ def view_shared_file(
 
             error
 
+        )
+
+
+    # =====================================================
+    # SAVE VIEW SECURITY ALERT TO MONGODB
+    # =====================================================
+
+    try:
+
+        create_security_alert(
+
+            user_id=current_user.id,
+
+            alert_type="shared_file_viewed",
+
+            severity="medium",
+
+            message=(
+                f"Shared file {file.filename} "
+                f"was viewed."
+            ),
+
+            filename=file.filename,
+
+            ip_address=ip_address
+
+        )
+
+        print(
+            "Shared file view security alert "
+            "saved to MongoDB."
+        )
+
+    except Exception as error:
+
+        print(
+            "MongoDB security alert failed:",
+            error
         )
 
 

@@ -21,9 +21,12 @@ type Section =
   | "dashboard"
   | "files"
   | "sharing"
+  | "manage-shared"
   | "shared"
   | "security"
-  | "activity";
+  | "activity"
+  | "reports"
+  | "analytics";
 
 type FileItem = {
   id: number;
@@ -52,14 +55,28 @@ type SharedFile = {
   expired?: boolean;
   created_at?: string | null;
 };
-
 type ActivityItem = {
   id: string;
-  title: string;
-  description: string;
-  icon: string;
+  user_id: number;
+  action: string;
+  filename: string | null;
+  status: string;
+  details: string | null;
+  target_user: string | null;
+  timestamp: string;
 };
 
+type SecurityAlert = {
+  id: string;
+  user_id: number;
+  alert_type: string;
+  severity: string;
+  message: string;
+  filename?: string | null;
+  ip_address?: string | null;
+  read: boolean;
+  timestamp?: string | null;
+};
 /* =========================================================
    MAIN COMPONENT
 ========================================================= */
@@ -86,12 +103,40 @@ export default function DashboardPage() {
      DATA
   ======================================================= */
 
-  const [files, setFiles] =
-    useState<FileItem[]>([]);
+const [files, setFiles] =
+  useState<FileItem[]>([]);
 
-  const [sharedFiles, setSharedFiles] =
-    useState<SharedFile[]>([]);
+const [sharedFiles, setSharedFiles] =
+  useState<SharedFile[]>([]);
 
+const [myShares, setMyShares] =
+  useState<any[]>([]);
+
+const [activities, setActivities] =
+  useState<ActivityItem[]>([]);
+
+const [securityAlerts, setSecurityAlerts] =
+  useState<SecurityAlert[]>([]);
+
+const [storageAnalytics, setStorageAnalytics] =
+  useState<any>(null);
+
+const [analyticsLoading, setAnalyticsLoading] =
+  useState(false);
+
+const [activityLoading, setActivityLoading] =
+  useState(false);
+
+const [activityReport, setActivityReport] =
+  useState<ActivityItem[]>([]);
+
+const [securityReport, setSecurityReport] =
+  useState<SecurityAlert[]>([]);
+const [suspiciousActivity, setSuspiciousActivity] = useState<any>(null);
+const [suspiciousLoading, setSuspiciousLoading] = useState(false);
+
+const [reportLoading, setReportLoading] =
+  useState(false);
   /* =======================================================
      UI
   ======================================================= */
@@ -172,6 +217,27 @@ export default function DashboardPage() {
 
     loadAllData();
   }, [router]);
+
+  useEffect(() => {
+  if (activeSection === "activity") {
+    loadActivities();
+  }
+
+  if (activeSection === "security") {
+    loadSecurityAlerts();
+  }
+
+  if (activeSection === "reports") {
+    loadReports();
+  }
+
+  if (activeSection === "analytics") {
+    loadStorageAnalytics();
+  }
+  if (activeSection === "security") {
+  loadSuspiciousActivity();
+}
+}, [activeSection]);
 
   /* =======================================================
      LOAD MY FILES
@@ -326,6 +392,399 @@ export default function DashboardPage() {
       );
     }
   };
+    /* =======================================================
+     LOAD MY SHARED FILES
+  ======================================================= */
+
+  const loadMyShares = async () => {
+    const token =
+      localStorage.getItem("access_token");
+
+    if (!token) {
+      router.push("/");
+      return;
+    }
+
+    try {
+      const response =
+        await fetch(
+          `${API_URL}/sharing/my-shares`,
+          {
+            method: "GET",
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        );
+
+      if (
+        response.status === 401
+      ) {
+        localStorage.clear();
+        router.push("/");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          "Unable to load your shared files."
+        );
+      }
+
+      const data =
+        await response.json();
+
+      if (
+        Array.isArray(data?.files)
+      ) {
+        setMyShares(
+          data.files
+        );
+      } else {
+        setMyShares([]);
+      }
+
+    } catch (err) {
+      console.error(
+        "Load my shares error:",
+        err
+      );
+
+      setMyShares([]);
+    }
+  };
+
+  /* =======================================================
+     LOAD ACTIVITY
+  ======================================================= */
+
+  const loadActivities = async () => {
+    const token =
+      localStorage.getItem("access_token");
+
+    if (!token) {
+      router.push("/");
+      return;
+    }
+
+    try {
+      setActivityLoading(true);
+
+      const response =
+        await fetch(
+          `${API_URL}/activity/`,
+          {
+            method: "GET",
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        );
+
+      if (response.status === 401) {
+        localStorage.clear();
+        router.push("/");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          "Unable to load activity."
+        );
+      }
+
+      const data =
+        await response.json();
+
+      setActivities(
+        Array.isArray(data?.activities)
+          ? data.activities
+          : []
+      );
+
+    } catch (err) {
+      console.error(
+        "Load activity error:",
+        err
+      );
+
+      setActivities([]);
+
+    } finally {
+      setActivityLoading(false);
+    }
+  };
+
+  /* =======================================================
+     LOAD SECURITY ALERTS
+  ======================================================= */
+
+  const loadSecurityAlerts = async () => {
+    const token =
+      localStorage.getItem("access_token");
+
+    if (!token) {
+      router.push("/");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/security/alerts`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.status === 401) {
+        localStorage.clear();
+        router.push("/");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          "Unable to load security alerts."
+        );
+      }
+
+      const data = await response.json();
+
+      if (Array.isArray(data?.alerts)) {
+        setSecurityAlerts(data.alerts);
+      } else {
+        setSecurityAlerts([]);
+      }
+    } catch (err) {
+      console.error(
+        "Load security alerts error:",
+        err
+      );
+
+      setSecurityAlerts([]);
+    }
+  };
+    /* =======================================================
+     LOAD SUSPICIOUS ACTIVITY
+  ======================================================= */
+
+  const loadSuspiciousActivity = async () => {
+    try {
+      setSuspiciousLoading(true);
+
+      const token =
+        localStorage.getItem("access_token");
+
+      if (!token) {
+        router.push("/");
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/suspicious/detect`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.status === 401) {
+        localStorage.clear();
+        router.push("/");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          "Unable to detect suspicious activity."
+        );
+      }
+
+      const data = await response.json();
+
+      if (data?.success) {
+        setSuspiciousActivity(data);
+      } else {
+        setSuspiciousActivity(null);
+      }
+    } catch (err) {
+      console.error(
+        "Load suspicious activity error:",
+        err
+      );
+
+      setSuspiciousActivity(null);
+    } finally {
+      setSuspiciousLoading(false);
+    }
+  };
+    /* =======================================================
+     LOAD STORAGE ANALYTICS
+  ======================================================= */
+
+  const loadStorageAnalytics = async () => {
+    const token =
+      localStorage.getItem("access_token");
+
+    if (!token) {
+      router.push("/");
+      return;
+    }
+
+    try {
+      setAnalyticsLoading(true);
+
+      const response = await fetch(
+        `${API_URL}/analytics/storage`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.status === 401) {
+        localStorage.clear();
+        router.push("/");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          "Unable to load storage analytics."
+        );
+      }
+
+      const data = await response.json();
+
+      if (data?.success) {
+        setStorageAnalytics(data);
+      } else {
+        setStorageAnalytics(null);
+      }
+    } catch (err) {
+      console.error(
+        "Load storage analytics error:",
+        err
+      );
+
+      setStorageAnalytics(null);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  /* =======================================================
+     LOAD REPORTS
+  ======================================================= */
+
+  const loadReports = async () => {
+    const token =
+      localStorage.getItem("access_token");
+
+    if (!token) {
+      router.push("/");
+      return;
+    }
+
+    setReportLoading(true);
+
+    try {
+      const [
+        activityResponse,
+        securityResponse,
+      ] = await Promise.all([
+        fetch(
+          `${API_URL}/reports/activity`,
+          {
+            method: "GET",
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        ),
+
+        fetch(
+          `${API_URL}/reports/security`,
+          {
+            method: "GET",
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        ),
+      ]);
+
+      if (
+        activityResponse.status === 401 ||
+        securityResponse.status === 401
+      ) {
+        localStorage.clear();
+        router.push("/");
+        return;
+      }
+
+      if (
+        !activityResponse.ok ||
+        !securityResponse.ok
+      ) {
+        throw new Error(
+          "Unable to load reports."
+        );
+      }
+
+      const activityData =
+        await activityResponse.json();
+
+      const securityData =
+        await securityResponse.json();
+
+      setActivityReport(
+        Array.isArray(
+          activityData?.activities
+        )
+          ? activityData.activities
+          : []
+      );
+
+      setSecurityReport(
+        Array.isArray(
+          securityData?.alerts
+        )
+          ? securityData.alerts
+          : []
+      );
+
+    } catch (err) {
+      console.error(
+        "Load reports error:",
+        err
+      );
+
+      setActivityReport([]);
+      setSecurityReport([]);
+
+    } finally {
+      setReportLoading(false);
+    }
+  };
 
   /* =======================================================
      LOAD EVERYTHING
@@ -339,6 +798,8 @@ export default function DashboardPage() {
     await Promise.all([
       loadFiles(),
       loadSharedFiles(),
+      loadMyShares(),
+      loadSecurityAlerts(),
     ]);
 
     setLoading(false);
@@ -707,6 +1168,79 @@ export default function DashboardPage() {
       setSharing(false);
     }
   };
+  /* =======================================================
+   REVOKE FILE SHARE
+======================================================= */
+
+const handleRevokeShare = async (
+  fileId: number,
+  shareId: number
+) => {
+  const confirmed = window.confirm(
+    "Are you sure you want to revoke this file share?"
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  const token =
+    localStorage.getItem("access_token");
+
+  if (!token) {
+    router.push("/");
+    return;
+  }
+
+  setMessage("");
+  setError("");
+
+  try {
+    const response = await fetch(
+      `${API_URL}/sharing/files/${fileId}/share/${shareId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      }
+    );
+
+    const data =
+      await response
+        .json()
+        .catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(
+        data?.detail ||
+          "Unable to revoke file sharing."
+      );
+    }
+
+    setMessage(
+      "File sharing revoked successfully."
+    );
+
+    await loadMyShares();
+    await loadSharedFiles();
+    await loadActivities();
+
+  } catch (err: any) {
+    console.error(
+      "Revoke share error:",
+      err
+    );
+
+    setError(
+      err.message ||
+        "Unable to revoke file sharing."
+    );
+  }
+};
+
 
   /* =======================================================
      VIEW SHARED FILE
@@ -1405,106 +1939,17 @@ export default function DashboardPage() {
       }
     ).length;
 
-  /* =======================================================
-     ACTIVITY
-  ======================================================= */
-
-  const activity:
-    ActivityItem[] = [
-      ...files
-        .slice(0, 5)
-        .map((file) => ({
-          id:
-            `file-${file.id}`,
-
-          title:
-            "File available",
-
-          description:
-            file.filename,
-
-          icon: "↑",
-        })),
-
-      ...sharedFiles
-        .slice(0, 5)
-        .map((file) => ({
-          id:
-            `share-${file.id}`,
-
-          title:
-            "Shared file received",
-
-          description:
-            `${file.filename} • ${
-              file.shared_by ||
-              file.shared_by_email ||
-              "Trust Share user"
-            }`,
-
-          icon: "↗",
-        })),
-
-      {
-        id: "security",
-
-        title:
-          "Encryption enabled",
-
-        description:
-          "AES-256-GCM server-side encryption",
-
-        icon: "✓",
-      },
-    ];
-
-  /* =======================================================
-     NAVIGATION
-  ======================================================= */
-
-  const navigationItems:
-    {
-      id: Section;
-      label: string;
-      icon: string;
-    }[] = [
-      {
-        id: "dashboard",
-        label: "Dashboard",
-        icon: "⌂",
-      },
-
-      {
-        id: "files",
-        label: "My Files",
-        icon: "▣",
-      },
-
-      {
-        id: "sharing",
-        label: "File Sharing",
-        icon: "↗",
-      },
-
-      {
-        id: "shared",
-        label: "Shared With Me",
-        icon: "🔗",
-      },
-
-      {
-        id: "security",
-        label: "Security",
-        icon: "◇",
-      },
-
-      {
-        id: "activity",
-        label: "Activity",
-        icon: "≡",
-      },
-    ];
-
+const navigationItems = [
+  { id: "dashboard", label: "Dashboard", icon: "⌂" },
+  { id: "files", label: "My Files", icon: "▣" },
+  { id: "sharing", label: "File Sharing", icon: "↗" },
+  { id: "manage-shared", label: "Manage Shared Files", icon: "⚙" },
+  { id: "shared", label: "Shared With Me", icon: "🔗" },
+  { id: "security", label: "Security", icon: "◇" },
+  { id: "activity", label: "Activity", icon: "≡" },
+  { id: "reports", label: "Reports", icon: "▤" },
+  { id: "analytics", label: "Storage Analytics", icon: "◫" },
+];
   /* =======================================================
      DATE FORMAT
   ======================================================= */
@@ -2566,7 +3011,80 @@ export default function DashboardPage() {
                   }
                   sharing={sharing}
                 />
+{/* =======================================================
+    MANAGE SHARED FILES
+======================================================= */}
 
+<div className="mt-8">
+  <h3 className="text-xl font-bold mb-2">
+    Manage Shared Files
+  </h3>
+
+  <p className="text-sm text-slate-500 mb-5">
+    Manage files that you have shared with other users.
+  </p>
+
+  {myShares.length === 0 ? (
+    <div className="rounded-xl border border-slate-200 p-6 text-center">
+      <p className="text-slate-500">
+        You have not shared any files yet.
+      </p>
+    </div>
+  ) : (
+    <div className="space-y-4">
+      {myShares.map((share) => (
+        <div
+          key={share.share_id}
+          className="rounded-xl border border-slate-200 p-5"
+        >
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h4 className="font-semibold text-slate-800">
+                {share.filename}
+              </h4>
+
+              <p className="text-sm text-slate-500 mt-1">
+                Shared with:{" "}
+                {share.recipient_email ||
+                  share.recipient_name ||
+                  "Unknown user"}
+              </p>
+
+              <p className="text-sm text-slate-500 mt-1">
+                Permission:{" "}
+                {share.permission === "view"
+                  ? "View Only"
+                  : "Download"}
+              </p>
+
+              <p className="text-sm text-slate-500 mt-1">
+                Expires:{" "}
+                {share.expires_at
+                  ? new Date(
+                      share.expires_at
+                    ).toLocaleString()
+                  : "Never"}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                handleRevokeShare(
+                  share.file_id,
+                  share.share_id
+                )
+              }
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+            >
+              Revoke
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
               </div>
 
             </section>
@@ -3277,7 +3795,7 @@ export default function DashboardPage() {
               <PageHeading
                 eyebrow="Protection"
                 title="Security Center"
-                description="Review the security mechanisms implemented in your Trust Share workspace."
+                description="Review the security mechanisms and security alerts detected in your Trust Share workspace."
               />
 
               <div
@@ -3318,25 +3836,244 @@ export default function DashboardPage() {
 
               </div>
 
-              <div
-                className="
-                  mt-6
-                  rounded-2xl
-                  bg-gray-900
-                  p-7
-                  text-white
-                "
-              >
+              {/* SECURITY ALERTS */}
 
-                <p
-                  className="
-                    text-xs
-                    font-bold
-                    uppercase
-                    tracking-[0.18em]
-                    text-gray-400
-                  "
-                >
+              <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+
+                <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
+
+                  <div>
+                    <h3 className="font-bold">
+                      Security Alerts
+                    </h3>
+
+                    <p className="mt-1 text-xs text-gray-400">
+                      Security events detected for your account.
+                    </p>
+                  </div>
+
+                  <span className="rounded-full bg-gray-100 px-3 py-1 text-[10px] font-bold text-gray-600">
+                    {securityAlerts.length} Alert{securityAlerts.length === 1 ? "" : "s"}
+                  </span>
+
+                </div>
+
+                {securityAlerts.length === 0 ? (
+                  <div className="px-6 py-10 text-center">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-xl text-emerald-600">
+                      ✓
+                    </div>
+                    <h4 className="mt-4 text-sm font-bold">
+                      No security alerts
+                    </h4>
+                    <p className="mt-1 text-xs text-gray-400">
+                      No suspicious security events have been detected.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {securityAlerts.map((alert) => {
+                      const severity =
+                        (alert.severity || "medium").toLowerCase();
+
+                      const severityClass =
+                        severity === "high"
+                          ? "bg-red-50 text-red-700 border-red-200"
+                          : severity === "medium"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-blue-50 text-blue-700 border-blue-200";
+
+                      return (
+                        <div
+                          key={alert.id}
+                          className="px-6 py-5 hover:bg-gray-50"
+                        >
+
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+
+                            <div className="flex min-w-0 gap-4">
+
+                              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${severityClass}`}>
+                                {severity === "high" ? "!" : "•"}
+                              </div>
+
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="text-sm font-semibold text-gray-900">
+                                    {alert.alert_type
+                                      ? alert.alert_type
+                                          .replace(/_/g, " ")
+                                          .replace(/\b\w/g, (char) => char.toUpperCase())
+                                      : "Security Alert"}
+                                  </h4>
+
+                                  <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase ${severityClass}`}>
+                                    {severity}
+                                  </span>
+                                </div>
+
+                                <p className="mt-2 text-sm leading-6 text-gray-600">
+                                  {alert.message}
+                                </p>
+
+                                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-gray-400">
+                                  {alert.filename && (
+                                    <span>
+                                      File: {alert.filename}
+                                    </span>
+                                  )}
+
+                                  {alert.ip_address && (
+                                    <span>
+                                      IP: {alert.ip_address}
+                                    </span>
+                                  )}
+
+                                  {alert.timestamp && (
+                                    <span>
+                                      {new Date(alert.timestamp).toLocaleString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                            </div>
+
+                            <span
+                              className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-semibold ${
+                                alert.read
+                                  ? "bg-gray-100 text-gray-500"
+                                  : "bg-gray-900 text-white"
+                              }`}
+                            >
+                              {alert.read ? "Read" : "New"}
+                            </span>
+
+                          </div>
+
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+              </div>
+
+              {/* SUSPICIOUS ACTIVITY DETECTION */}
+
+              <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+
+                <div className="flex flex-col gap-4 border-b border-gray-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+
+                  <div>
+                    <h3 className="font-bold">
+                      Suspicious Activity Detection
+                    </h3>
+
+                    <p className="mt-1 text-xs text-gray-400">
+                      Automatically detects unusual security activity in the last 10 minutes.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={loadSuspiciousActivity}
+                    disabled={suspiciousLoading}
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {suspiciousLoading ? "Checking..." : "Refresh"}
+                  </button>
+
+                </div>
+
+                {suspiciousLoading ? (
+
+                  <div className="px-6 py-10 text-center">
+                    <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-gray-900" />
+                    <p className="mt-4 text-sm text-gray-500">
+                      Checking for suspicious activity...
+                    </p>
+                  </div>
+
+                ) : suspiciousActivity?.suspicious ? (
+
+                  <div className="p-6">
+                    {Array.isArray(suspiciousActivity.events) &&
+                      suspiciousActivity.events.map((event: any, index: number) => {
+                        const severity = (event.severity || "medium").toLowerCase();
+
+                        const severityClass =
+                          severity === "high"
+                            ? "border-red-200 bg-red-50 text-red-700"
+                            : severity === "medium"
+                            ? "border-amber-200 bg-amber-50 text-amber-700"
+                            : "border-blue-200 bg-blue-50 text-blue-700";
+
+                        return (
+                          <div
+                            key={`${event.type || "event"}-${index}`}
+                            className="rounded-xl border p-5"
+                          >
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="flex min-w-0 gap-4">
+                                <div
+                                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg font-bold ${severityClass}`}
+                                >
+                                  !
+                                </div>
+
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <h4 className="text-sm font-semibold text-gray-900">
+                                      {event.type || "Suspicious Activity"}
+                                    </h4>
+
+                                    <span
+                                      className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase ${severityClass}`}
+                                    >
+                                      {severity}
+                                    </span>
+                                  </div>
+
+                                  <p className="mt-2 text-sm leading-6 text-gray-600">
+                                    {event.message || "Suspicious activity was detected."}
+                                  </p>
+
+                                  {event.count !== undefined && (
+                                    <p className="mt-2 text-xs font-semibold text-gray-400">
+                                      Detected events: {event.count}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                ) : (
+
+                  <div className="px-6 py-10 text-center">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-xl text-emerald-600">
+                      ✓
+                    </div>
+
+                    <h4 className="mt-4 text-sm font-bold">
+                      No Suspicious Activity
+                    </h4>
+
+                    <p className="mt-1 text-xs text-gray-400">
+                      No suspicious activity was detected during the current monitoring period.
+                    </p>
+                  </div>
+
+                )}
+
+              </div>
+
+              <div className="mt-6 rounded-2xl bg-gray-900 p-7 text-white">
+
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-400">
                   Trust Share
                 </p>
 
@@ -3344,72 +4081,32 @@ export default function DashboardPage() {
                   Multiple layers of protection
                 </h3>
 
-                <p
-                  className="
-                    mt-3
-                    max-w-2xl
-                    text-sm
-                    leading-6
-                    text-gray-400
-                  "
-                >
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-400">
                   Trust Share combines authentication,
-                  encryption, access control and
-                  temporary sharing to provide a secure
-                  file-sharing workflow.
+                  encryption, access control, security
+                  monitoring and temporary sharing to provide
+                  a secure file-sharing workflow.
                 </p>
 
-                <div
-                  className="
-                    mt-7
-                    grid
-                    gap-3
-                    sm:grid-cols-2
-                    lg:grid-cols-4
-                  "
-                >
-
+                <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {[
                     "Authentication",
                     "Encryption",
                     "Access Control",
-                    "Expiration",
-                  ].map(
-                    (item) => (
-                      <div
-                        key={item}
-                        className="
-                          rounded-xl
-                          border
-                          border-white/10
-                          bg-white/5
-                          p-4
-                        "
-                      >
-
-                        <div
-                          className="
-                            mb-3
-                            flex
-                            h-8
-                            w-8
-                            items-center
-                            justify-center
-                            rounded-lg
-                            bg-white/10
-                          "
-                        >
-                          ✓
-                        </div>
-
-                        <p className="text-sm font-semibold">
-                          {item}
-                        </p>
-
+                    "Security Monitoring",
+                  ].map((item) => (
+                    <div
+                      key={item}
+                      className="rounded-xl border border-white/10 bg-white/5 p-4"
+                    >
+                      <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
+                        ✓
                       </div>
-                    )
-                  )}
-
+                      <p className="text-sm font-semibold">
+                        {item}
+                      </p>
+                    </div>
+                  ))}
                 </div>
 
               </div>
@@ -3417,6 +4114,266 @@ export default function DashboardPage() {
             </section>
           )}
 
+{/* =================================================
+    MANAGE SHARED FILES
+================================================= */}
+
+{activeSection === "manage-shared" && (
+  <section>
+
+    <PageHeading
+      eyebrow="Sharing management"
+      title="Manage Shared Files"
+      description="View and manage the files you have shared with other Trust Share users."
+    />
+
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+
+      {myShares.length === 0 ? (
+
+        <EmptyState
+          icon="↗"
+          title="No shared files"
+          description="Files you share with other users will appear here."
+        />
+
+      ) : (
+
+        <div className="overflow-x-auto">
+
+          <table className="w-full text-left">
+
+            <thead>
+
+              <tr
+                className="
+                  border-b
+                  border-gray-100
+                  bg-gray-50/70
+                  text-[10px]
+                  uppercase
+                  tracking-wider
+                  text-gray-400
+                "
+              >
+
+                <th className="px-6 py-4">
+                  File
+                </th>
+
+                <th className="px-6 py-4">
+                  Shared With
+                </th>
+
+                <th className="px-6 py-4">
+                  Permission
+                </th>
+
+                <th className="px-6 py-4">
+                  Expiration
+                </th>
+
+                <th className="px-6 py-4">
+                  Shared On
+                </th>
+
+                <th className="px-6 py-4 text-right">
+                  Action
+                </th>
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              {myShares.map((share) => {
+
+                const expired =
+                  share.expired === true ||
+                  (
+                    share.expires_at &&
+                    new Date(share.expires_at).getTime() <=
+                      Date.now()
+                  );
+
+                return (
+
+                  <tr
+                    key={share.share_id ?? share.id}
+                    className="
+                      border-b
+                      border-gray-50
+                      last:border-0
+                      hover:bg-gray-50
+                    "
+                  >
+
+                    {/* FILE */}
+
+                    <td className="px-6 py-5">
+
+                      <div className="flex items-center gap-3">
+
+                        <div
+                          className="
+                            flex
+                            h-10
+                            w-10
+                            items-center
+                            justify-center
+                            rounded-xl
+                            bg-gray-100
+                          "
+                        >
+                          ▤
+                        </div>
+
+                        <div className="min-w-0">
+
+                          <p
+                            className="
+                              max-w-[220px]
+                              truncate
+                              text-sm
+                              font-semibold
+                            "
+                          >
+                            {share.filename || "Unknown file"}
+                          </p>
+
+                          <p className="text-xs text-gray-400">
+                            File ID #{share.file_id}
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                    </td>
+
+                    {/* SHARED WITH */}
+
+                    <td className="px-6 py-5">
+
+                      <p className="text-sm font-medium">
+                        {share.recipient_name ||
+                          "Trust Share User"}
+                      </p>
+
+                      <p className="mt-1 text-xs text-gray-400">
+                        {share.recipient_email || "-"}
+                      </p>
+
+                    </td>
+
+                    {/* PERMISSION */}
+
+                    <td className="px-6 py-5">
+
+                      <span
+                        className={`
+                          rounded-full
+                          px-3
+                          py-1.5
+                          text-[10px]
+                          font-bold
+                          ${
+                            share.permission === "download"
+                              ? "bg-purple-50 text-purple-700"
+                              : "bg-blue-50 text-blue-700"
+                          }
+                        `}
+                      >
+                        {share.permission === "download"
+                          ? "Download"
+                          : "View Only"}
+                      </span>
+
+                    </td>
+
+                    {/* EXPIRATION */}
+
+                    <td className="px-6 py-5">
+
+                      <span
+                        className={`
+                          text-xs
+                          font-medium
+                          ${
+                            expired
+                              ? "text-red-600"
+                              : "text-gray-500"
+                          }
+                        `}
+                      >
+                        {expired
+                          ? "Expired"
+                          : formatDate(
+                              share.expires_at
+                            )}
+                      </span>
+
+                    </td>
+
+                    {/* SHARED DATE */}
+
+                    <td className="px-6 py-5">
+
+                      <span className="text-xs text-gray-400">
+                        {share.created_at
+                          ? new Date(
+                              share.created_at
+                            ).toLocaleString()
+                          : "-"}
+                      </span>
+
+                    </td>
+
+                    {/* REVOKE */}
+
+                    <td className="px-6 py-5 text-right">
+
+                      <button
+                        onClick={() =>
+                          handleRevokeShare(
+                            share.file_id,
+                            share.share_id ?? share.id
+                          )
+                        }
+                        className="
+                          rounded-lg
+                          bg-red-50
+                          px-4
+                          py-2
+                          text-xs
+                          font-semibold
+                          text-red-600
+                          hover:bg-red-100
+                        "
+                      >
+                        Revoke Access
+                      </button>
+
+                    </td>
+
+                  </tr>
+
+                );
+              })}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      )}
+
+    </div>
+
+  </section>
+)}
           {/* =================================================
               ACTIVITY
           ================================================= */}
@@ -3426,10 +4383,516 @@ export default function DashboardPage() {
             <section>
 
               <PageHeading
-                eyebrow="Workspace history"
-                title="Activity"
-                description="Review the latest file and sharing information available in your workspace."
+                eyebrow="Security monitoring"
+                title="Activity Monitoring"
+                description="Monitor your recent file and security activities recorded by Trust Share."
               />
+
+              <div
+                className="
+                  overflow-hidden
+                  rounded-2xl
+                  border
+                  border-gray-200
+                  bg-white
+                "
+              >
+
+                <div
+                  className="
+                    flex
+                    items-center
+                    justify-between
+                    border-b
+                    border-gray-100
+                    px-6
+                    py-5
+                  "
+                >
+
+                  <div>
+                    <h3 className="font-bold">
+                      Recent Activity
+                    </h3>
+
+                    <p className="mt-1 text-xs text-gray-400">
+                      Real activity records from Trust Share
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={loadActivities}
+                    disabled={activityLoading}
+                    className="
+                      rounded-lg
+                      border
+                      border-gray-200
+                      px-3
+                      py-2
+                      text-xs
+                      font-semibold
+                      text-gray-600
+                      hover:bg-gray-50
+                      disabled:cursor-not-allowed
+                      disabled:opacity-50
+                    "
+                  >
+                    {activityLoading
+                      ? "Refreshing..."
+                      : "Refresh"}
+                  </button>
+
+                </div>
+
+                {activityLoading ? (
+
+                  <div className="px-6 py-16 text-center">
+                    <div
+                      className="
+                        mx-auto
+                        h-8
+                        w-8
+                        animate-spin
+                        rounded-full
+                        border-4
+                        border-gray-200
+                        border-t-gray-900
+                      "
+                    />
+
+                    <p className="mt-4 text-sm text-gray-500">
+                      Loading activity...
+                    </p>
+                  </div>
+
+                ) : activities.length === 0 ? (
+
+                  <EmptyState
+                    icon="≡"
+                    title="No activity yet"
+                    description="Your file and security activities will appear here."
+                  />
+
+                ) : (
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+
+                      <thead>
+                        <tr
+                          className="
+                            border-b
+                            border-gray-100
+                            bg-gray-50/70
+                            text-[10px]
+                            uppercase
+                            tracking-wider
+                            text-gray-400
+                          "
+                        >
+                          <th className="px-6 py-4">
+                            Action
+                          </th>
+
+                          <th className="px-6 py-4">
+                            File
+                          </th>
+
+                          <th className="px-6 py-4">
+                            Status
+                          </th>
+
+                          <th className="px-6 py-4">
+                            Details
+                          </th>
+
+                          <th className="px-6 py-4">
+                            Time
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {activities.map(
+                          (activity) => {
+                            const actionText =
+                              activity.action
+                                .replaceAll("_", " ")
+                                .replace(
+                                  /\b\w/g,
+                                  (char) =>
+                                    char.toUpperCase()
+                                );
+
+                            const normalizedAction =
+                              activity.action.toLowerCase();
+
+                            const icon =
+                              normalizedAction.includes("upload")
+                                ? "↑"
+                                : normalizedAction.includes("download")
+                                ? "↓"
+                                : normalizedAction.includes("share")
+                                ? "↗"
+                                : normalizedAction.includes("delete")
+                                ? "×"
+                                : normalizedAction.includes("view")
+                                ? "◉"
+                                : "≡";
+
+                            return (
+                              <tr
+                                key={activity.id}
+                                className="
+                                  border-b
+                                  border-gray-50
+                                  last:border-0
+                                  hover:bg-gray-50
+                                "
+                              >
+
+                                <td className="px-6 py-5">
+                                  <div className="flex items-center gap-3">
+                                    <div
+                                      className="
+                                        flex
+                                        h-10
+                                        w-10
+                                        items-center
+                                        justify-center
+                                        rounded-xl
+                                        bg-gray-100
+                                        text-sm
+                                        font-bold
+                                      "
+                                    >
+                                      {icon}
+                                    </div>
+
+                                    <span className="text-sm font-semibold">
+                                      {actionText}
+                                    </span>
+                                  </div>
+                                </td>
+
+                                <td className="px-6 py-5">
+                                  <span className="text-sm text-gray-600">
+                                    {activity.filename || "-"}
+                                  </span>
+                                </td>
+
+                                <td className="px-6 py-5">
+                                  <span
+                                    className={`
+                                      rounded-full
+                                      px-3
+                                      py-1.5
+                                      text-[10px]
+                                      font-bold
+                                      ${
+                                        activity.status.toLowerCase() ===
+                                        "success"
+                                          ? "bg-emerald-50 text-emerald-700"
+                                          : "bg-red-50 text-red-700"
+                                      }
+                                    `}
+                                  >
+                                    {activity.status}
+                                  </span>
+                                </td>
+
+                                <td className="px-6 py-5">
+                                  <div className="max-w-[250px]">
+                                    <p className="truncate text-sm text-gray-500">
+                                      {activity.details || "-"}
+                                    </p>
+
+                                    {activity.target_user && (
+                                      <p className="mt-1 truncate text-xs text-gray-400">
+                                        To: {activity.target_user}
+                                      </p>
+                                    )}
+                                  </div>
+                                </td>
+
+                                <td className="px-6 py-5">
+                                  <span className="whitespace-nowrap text-xs text-gray-400">
+                                    {activity.timestamp
+                                      ? new Date(
+                                          activity.timestamp
+                                        ).toLocaleString()
+                                      : "-"}
+                                  </span>
+                                </td>
+
+                              </tr>
+                            );
+                          }
+                        )}
+                      </tbody>
+
+                    </table>
+                  </div>
+                )}
+
+              </div>
+
+              <div
+                className="
+                  mt-6
+                  rounded-2xl
+                  border
+                  border-gray-200
+                  bg-white
+                  p-6
+                "
+              >
+                <h3 className="font-bold">
+                  Activity Logging
+                </h3>
+
+                <p
+                  className="
+                    mt-2
+                    max-w-3xl
+                    text-sm
+                    leading-6
+                    text-gray-500
+                  "
+                >
+                  Trust Share records important file
+                  operations in MongoDB, including uploads,
+                  downloads, sharing and shared-file access.
+                  These records provide the foundation for
+                  audit logging, security alerts and analytics.
+                </p>
+              </div>
+
+            </section>
+          )}
+
+          {/* =================================================
+              REPORTS
+          ================================================= */}
+
+          {activeSection ===
+            "reports" && (
+            <section>
+
+              <PageHeading
+                eyebrow="Reports"
+                title="Activity & Security Reports"
+                description="Review file activity and security events recorded in your Trust Share workspace."
+              />
+
+              <div className="mb-6 flex justify-end">
+                <button
+                  onClick={loadReports}
+                  disabled={reportLoading}
+                  className="
+                    rounded-xl
+                    bg-gray-900
+                    px-5
+                    py-3
+                    text-sm
+                    font-semibold
+                    text-white
+                    hover:bg-gray-800
+                    disabled:cursor-not-allowed
+                    disabled:opacity-50
+                  "
+                >
+                  {reportLoading
+                    ? "Refreshing..."
+                    : "Refresh Reports"}
+                </button>
+              </div>
+
+              {/* FILE ACTIVITY REPORT */}
+
+              <div
+                className="
+                  mb-6
+                  overflow-hidden
+                  rounded-2xl
+                  border
+                  border-gray-200
+                  bg-white
+                "
+              >
+
+                <div
+                  className="
+                    border-b
+                    border-gray-100
+                    px-6
+                    py-5
+                  "
+                >
+                  <h3 className="font-bold">
+                    File Activity Report
+                  </h3>
+
+                  <p className="mt-1 text-xs text-gray-400">
+                    Recent file operations recorded for your account.
+                  </p>
+                </div>
+
+                {reportLoading ? (
+
+                  <div className="px-6 py-16 text-center">
+                    <div
+                      className="
+                        mx-auto
+                        h-8
+                        w-8
+                        animate-spin
+                        rounded-full
+                        border-4
+                        border-gray-200
+                        border-t-gray-900
+                      "
+                    />
+
+                    <p className="mt-4 text-sm text-gray-500">
+                      Loading activity report...
+                    </p>
+                  </div>
+
+                ) : activityReport.length === 0 ? (
+
+                  <EmptyState
+                    icon="≡"
+                    title="No activity records"
+                    description="No file activity has been recorded for your account yet."
+                  />
+
+                ) : (
+
+                  <div className="overflow-x-auto">
+
+                    <table className="w-full text-left">
+
+                      <thead>
+                        <tr
+                          className="
+                            border-b
+                            border-gray-100
+                            text-[10px]
+                            uppercase
+                            tracking-wider
+                            text-gray-400
+                          "
+                        >
+                          <th className="px-6 py-4">
+                            Action
+                          </th>
+
+                          <th className="px-6 py-4">
+                            File
+                          </th>
+
+                          <th className="px-6 py-4">
+                            Status
+                          </th>
+
+                          <th className="px-6 py-4">
+                            Details
+                          </th>
+
+                          <th className="px-6 py-4">
+                            Time
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+
+                        {activityReport.map(
+                          (activity) => (
+                            <tr
+                              key={activity.id}
+                              className="
+                                border-b
+                                border-gray-50
+                                last:border-0
+                                hover:bg-gray-50
+                              "
+                            >
+
+                              <td className="px-6 py-4">
+                                <span className="text-sm font-semibold">
+                                  {activity.action
+                                    ? activity.action
+                                        .replaceAll(
+                                          "_",
+                                          " "
+                                        )
+                                        .replace(
+                                          /\b\w/g,
+                                          (char) =>
+                                            char.toUpperCase()
+                                        )
+                                    : "-"}
+                                </span>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <span className="text-sm">
+                                  {activity.filename ||
+                                    "-"}
+                                </span>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <span
+                                  className="
+                                    rounded-full
+                                    bg-emerald-50
+                                    px-3
+                                    py-1
+                                    text-[10px]
+                                    font-bold
+                                    text-emerald-700
+                                  "
+                                >
+                                  {activity.status ||
+                                    "-"}
+                                </span>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <span className="text-xs text-gray-500">
+                                  {activity.details ||
+                                    "-"}
+                                </span>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <span className="whitespace-nowrap text-xs text-gray-400">
+                                  {activity.timestamp
+                                    ? new Date(
+                                        activity.timestamp
+                                      ).toLocaleString()
+                                    : "-"}
+                                </span>
+                              </td>
+
+                            </tr>
+                          )
+                        )}
+
+                      </tbody>
+
+                    </table>
+
+                  </div>
+
+                )}
+
+              </div>
+
+              {/* SECURITY REPORT */}
 
               <div
                 className="
@@ -3449,138 +4912,446 @@ export default function DashboardPage() {
                     py-5
                   "
                 >
-
                   <h3 className="font-bold">
-                    Recent Activity
+                    Security Report
                   </h3>
 
                   <p className="mt-1 text-xs text-gray-400">
-                    File and sharing activity
+                    Security alerts detected for your account.
                   </p>
-
                 </div>
 
-                {activity.length ===
-                0 ? (
-                  <EmptyState
-                    icon="≡"
-                    title="No activity"
-                    description="Activity will appear as you use Trust Share."
-                  />
-                ) : (
-                  <div
-                    className="
-                      divide-y
-                      divide-gray-100
-                    "
-                  >
+                {reportLoading ? (
 
-                    {activity.map(
-                      (item) => (
-                        <div
-                          key={
-                            item.id
-                          }
+                  <div className="px-6 py-16 text-center">
+                    <p className="text-sm text-gray-500">
+                      Loading security report...
+                    </p>
+                  </div>
+
+                ) : securityReport.length === 0 ? (
+
+                  <EmptyState
+                    icon="◇"
+                    title="No security alerts"
+                    description="No security alerts have been recorded for your account."
+                  />
+
+                ) : (
+
+                  <div className="overflow-x-auto">
+
+                    <table className="w-full text-left">
+
+                      <thead>
+                        <tr
                           className="
-                            flex
-                            items-center
-                            gap-4
-                            px-6
-                            py-5
+                            border-b
+                            border-gray-100
+                            text-[10px]
+                            uppercase
+                            tracking-wider
+                            text-gray-400
                           "
                         >
+                          <th className="px-6 py-4">
+                            Alert
+                          </th>
 
-                          <div
-                            className="
-                              flex
-                              h-10
-                              w-10
-                              shrink-0
-                              items-center
-                              justify-center
-                              rounded-xl
-                              bg-gray-100
-                              text-sm
-                              font-bold
-                            "
-                          >
-                            {
-                              item.icon
-                            }
-                          </div>
+                          <th className="px-6 py-4">
+                            Severity
+                          </th>
 
-                          <div className="min-w-0">
+                          <th className="px-6 py-4">
+                            Message
+                          </th>
 
-                            <p className="text-sm font-semibold">
-                              {
-                                item.title
-                              }
-                            </p>
+                          <th className="px-6 py-4">
+                            File
+                          </th>
 
-                            <p className="mt-1 truncate text-xs text-gray-400">
-                              {
-                                item.description
-                              }
-                            </p>
+                          <th className="px-6 py-4">
+                            IP Address
+                          </th>
 
-                          </div>
+                          <th className="px-6 py-4">
+                            Time
+                          </th>
+                        </tr>
+                      </thead>
 
-                          <span
-                            className="
-                              ml-auto
-                              rounded-full
-                              bg-gray-50
-                              px-3
-                              py-1
-                              text-[10px]
-                              font-semibold
-                              text-gray-500
-                            "
-                          >
-                            Trust Share
-                          </span>
+                      <tbody>
 
-                        </div>
-                      )
-                    )}
+                        {securityReport.map(
+                          (alert) => (
+                            <tr
+                              key={alert.id}
+                              className="
+                                border-b
+                                border-gray-50
+                                last:border-0
+                                hover:bg-gray-50
+                              "
+                            >
+
+                              <td className="px-6 py-4">
+                                <span className="text-sm font-semibold">
+                                  {alert.alert_type
+                                    ? alert.alert_type
+                                        .replaceAll(
+                                          "_",
+                                          " "
+                                        )
+                                        .replace(
+                                          /\b\w/g,
+                                          (char) =>
+                                            char.toUpperCase()
+                                        )
+                                    : "Security Alert"}
+                                </span>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <span
+                                  className={`
+                                    rounded-full
+                                    border
+                                    px-3
+                                    py-1
+                                    text-[10px]
+                                    font-bold
+                                    ${
+                                      alert.severity
+                                        ?.toLowerCase() ===
+                                      "high"
+                                        ? "border-red-200 bg-red-50 text-red-700"
+                                        : alert.severity
+                                            ?.toLowerCase() ===
+                                          "medium"
+                                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                                        : "border-blue-200 bg-blue-50 text-blue-700"
+                                    }
+                                  `}
+                                >
+                                  {alert.severity ||
+                                    "medium"}
+                                </span>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <span className="text-xs text-gray-500">
+                                  {alert.message ||
+                                    "-"}
+                                </span>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <span className="text-xs text-gray-500">
+                                  {alert.filename ||
+                                    "-"}
+                                </span>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <span className="text-xs text-gray-500">
+                                  {alert.ip_address ||
+                                    "-"}
+                                </span>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <span className="whitespace-nowrap text-xs text-gray-400">
+                                  {alert.timestamp
+                                    ? new Date(
+                                        alert.timestamp
+                                      ).toLocaleString()
+                                    : "-"}
+                                </span>
+                              </td>
+
+                            </tr>
+                          )
+                        )}
+
+                      </tbody>
+
+                    </table>
 
                   </div>
+
                 )}
 
               </div>
 
-              <div
-                className="
-                  mt-6
-                  rounded-2xl
-                  border
-                  border-gray-200
-                  bg-white
-                  p-6
-                "
-              >
+            </section>
+          )}
 
-                <h3 className="font-bold">
-                  Activity Logging
-                </h3>
+          {/* =================================================
+              STORAGE ANALYTICS
+          ================================================= */}
 
-                <p
-                  className="
-                    mt-2
-                    max-w-2xl
-                    text-sm
-                    leading-6
-                    text-gray-500
-                  "
-                >
-                  Trust Share uses backend activity
-                  logging for important file operations.
-                  The dashboard displays the file and
-                  sharing information available through
-                  the existing frontend APIs.
-                </p>
+          {activeSection === "analytics" && (
+            <section>
 
-              </div>
+              <PageHeading
+                eyebrow="Storage monitoring"
+                title="Storage Analytics"
+                description="Monitor your file storage usage and analyze the size and storage location of your encrypted files."
+              />
+
+              {analyticsLoading ? (
+                <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
+                  <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-gray-900" />
+                  <p className="mt-4 text-sm text-gray-500">
+                    Loading storage analytics...
+                  </p>
+                </div>
+              ) : storageAnalytics ? (
+                <>
+                  {/* STORAGE SUMMARY */}
+
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
+                    <StatCard
+                      icon="▣"
+                      title="Total Files"
+                      value={storageAnalytics.total_files ?? 0}
+                      subtitle="Files in your workspace"
+                    />
+
+                    <StatCard
+                      icon="◫"
+                      title="Total Storage"
+                      value={`${storageAnalytics.total_mb ?? 0} MB`}
+                      subtitle={`${storageAnalytics.total_bytes ?? 0} bytes used`}
+                    />
+
+                    <StatCard
+                      icon="☁"
+                      title="Cloud Storage"
+                      value={
+                        storageAnalytics.files?.filter(
+                          (file: any) =>
+                            file.storage_type === "Cloud Storage"
+                        ).length ?? 0
+                      }
+                      subtitle="Files stored in cloud storage"
+                    />
+
+                    <StatCard
+                      icon="✓"
+                      title="Encryption"
+                      value="AES-256"
+                      subtitle="Encrypted before storage"
+                    />
+
+                  </div>
+
+                  {/* STORAGE DETAILS */}
+
+                  <div className="mt-7 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+
+                    <div className="flex flex-col gap-3 border-b border-gray-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+
+                      <div>
+                        <h3 className="font-bold">
+                          File Storage Usage
+                        </h3>
+
+                        <p className="mt-1 text-xs text-gray-400">
+                          Storage consumption for each uploaded file.
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={loadStorageAnalytics}
+                        className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      >
+                        Refresh Analytics
+                      </button>
+
+                    </div>
+
+                    {storageAnalytics.files?.length === 0 ? (
+                      <EmptyState
+                        icon="◫"
+                        title="No storage data"
+                        description="Upload a file to start tracking storage usage."
+                      />
+                    ) : (
+                      <div className="overflow-x-auto">
+
+                        <table className="w-full text-left">
+
+                          <thead>
+                            <tr className="border-b border-gray-100 bg-gray-50/70 text-[10px] uppercase tracking-wider text-gray-400">
+
+                              <th className="px-6 py-4">
+                                File
+                              </th>
+
+                              <th className="px-6 py-4">
+                                Size
+                              </th>
+
+                              <th className="px-6 py-4">
+                                Storage
+                              </th>
+
+                              <th className="px-6 py-4">
+                                File ID
+                              </th>
+
+                            </tr>
+                          </thead>
+
+                          <tbody>
+
+                            {storageAnalytics.files?.map(
+                              (file: any) => (
+                                <tr
+                                  key={file.id}
+                                  className="border-b border-gray-100 last:border-0 hover:bg-gray-50"
+                                >
+
+                                  <td className="px-6 py-5">
+                                    <div className="flex items-center gap-3">
+
+                                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-sm">
+                                        ▤
+                                      </div>
+
+                                      <div>
+                                        <p className="text-sm font-semibold">
+                                          {file.filename}
+                                        </p>
+
+                                        <p className="mt-1 text-xs text-gray-400">
+                                          Encrypted file
+                                        </p>
+                                      </div>
+
+                                    </div>
+                                  </td>
+
+                                  <td className="px-6 py-5">
+                                    <div className="text-sm font-semibold">
+                                      {file.size_kb ?? 0} KB
+                                    </div>
+
+                                    <p className="mt-1 text-xs text-gray-400">
+                                      {file.size_bytes ?? 0} bytes
+                                    </p>
+                                  </td>
+
+                                  <td className="px-6 py-5">
+                                    <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-bold text-emerald-700">
+                                      {file.storage_type || "Server Storage"}
+                                    </span>
+                                  </td>
+
+                                  <td className="px-6 py-5 text-xs text-gray-500">
+                                    #{file.id}
+                                  </td>
+
+                                </tr>
+                              )
+                            )}
+
+                          </tbody>
+
+                        </table>
+
+                      </div>
+                    )}
+
+                  </div>
+
+                  {/* STORAGE SUMMARY DETAILS */}
+
+                  <div className="mt-7 rounded-2xl border border-gray-200 bg-white p-6">
+
+                    <div className="mb-5">
+                      <h3 className="font-bold">
+                        Storage Summary
+                      </h3>
+
+                      <p className="mt-1 text-xs text-gray-400">
+                        Current storage usage calculated from your encrypted files.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+                      <div className="rounded-xl bg-gray-50 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                          Files
+                        </p>
+
+                        <p className="mt-2 text-2xl font-bold">
+                          {storageAnalytics.total_files ?? 0}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-gray-50 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                          Bytes
+                        </p>
+
+                        <p className="mt-2 text-2xl font-bold">
+                          {storageAnalytics.total_bytes ?? 0}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-gray-50 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                          Kilobytes
+                        </p>
+
+                        <p className="mt-2 text-2xl font-bold">
+                          {storageAnalytics.total_kb ?? 0}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-gray-50 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                          Megabytes
+                        </p>
+
+                        <p className="mt-2 text-2xl font-bold">
+                          {storageAnalytics.total_mb ?? 0}
+                        </p>
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                </>
+              ) : (
+                <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
+
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100 text-xl">
+                    ◫
+                  </div>
+
+                  <h3 className="mt-4 text-sm font-bold">
+                    Storage analytics unavailable
+                  </h3>
+
+                  <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-gray-400">
+                    We could not load your storage information. Please try again.
+                  </p>
+
+                  <button
+                    onClick={loadStorageAnalytics}
+                    className="mt-5 rounded-xl bg-gray-900 px-5 py-3 text-xs font-semibold text-white hover:bg-gray-800"
+                  >
+                    Retry
+                  </button>
+
+                </div>
+              )}
 
             </section>
           )}

@@ -37,6 +37,13 @@ activity_logs = mongo_db["activity_logs"]
 
 
 # =========================================================
+# SECURITY ALERT COLLECTION
+# =========================================================
+
+security_alerts = mongo_db["security_alerts"]
+
+
+# =========================================================
 # TEST CONNECTION
 # =========================================================
 
@@ -46,7 +53,9 @@ def test_mongodb():
 
         client.admin.command("ping")
 
-        print("MongoDB connection successful.")
+        print(
+            "MongoDB connection successful."
+        )
 
         return True
 
@@ -61,20 +70,73 @@ def test_mongodb():
 
 
 # =========================================================
-# CREATE ACTIVITY LOG
+# CREATE ACTIVITY / AUDIT LOG
 # =========================================================
 
 def create_activity_log(
     user_id: int,
     action: str,
-    filename: str | None = None
+    filename: str | None = None,
+    status: str = "success",
+    details: str | None = None,
+    target_user: str | None = None,
+    ip_address: str | None = None
 ):
 
     log = {
+
         "user_id": user_id,
+
         "action": action,
+
         "filename": filename,
-        "timestamp": datetime.now(timezone.utc)
+
+        "status": status,
+
+        "details": details,
+
+        "target_user": target_user,
+
+        "ip_address": ip_address,
+
+        "timestamp":
+            datetime.now(timezone.utc)
     }
 
     activity_logs.insert_one(log)
+
+
+# =========================================================
+# CREATE SECURITY ALERT
+# =========================================================
+
+def create_security_alert(
+    user_id: int,
+    alert_type: str,
+    severity: str,
+    message: str,
+    filename: str | None = None,
+    ip_address: str | None = None
+):
+
+    alert = {
+
+        "user_id": user_id,
+
+        "alert_type": alert_type,
+
+        "severity": severity,
+
+        "message": message,
+
+        "filename": filename,
+
+        "ip_address": ip_address,
+
+        "read": False,
+
+        "timestamp":
+            datetime.now(timezone.utc)
+    }
+
+    security_alerts.insert_one(alert)

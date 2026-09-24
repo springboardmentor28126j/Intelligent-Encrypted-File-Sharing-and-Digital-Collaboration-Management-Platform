@@ -8,6 +8,12 @@ from routes.files import router as files_router
 from routes.admin import router as admin_router
 from password_reset import router as password_reset_router
 from routes.sharing import router as sharing_router
+from routes.activity import router as activity_router
+from security_alerts import router as security_alerts_router
+from routes.reports import router as reports_router
+from routes.analytics import router as analytics_router
+from suspicious_activity import router as suspicious_activity_router
+
 
 
 # =========================================================
@@ -62,6 +68,18 @@ app.include_router(password_reset_router)
 app.include_router(admin_router)
 
 app.include_router(sharing_router)
+
+app.include_router(activity_router)
+
+app.include_router(security_alerts_router)
+
+app.include_router(reports_router)
+
+app.include_router(analytics_router)
+
+app.include_router(suspicious_activity_router)
+
+
 
 
 # =========================================================
