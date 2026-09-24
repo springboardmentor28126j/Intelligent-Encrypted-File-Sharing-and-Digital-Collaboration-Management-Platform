@@ -31,6 +31,26 @@ function App() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // ============================================================
+  // MILESTONE 3 MONITORING STATE
+  // ============================================================
+
+  const [monitoring, setMonitoring] = useState({
+    dashboard: null,
+    activity: [],
+    alerts: [],
+    notifications: [],
+    storage: null,
+    suspicious: [],
+    fileReport: null,
+  });
+
+  const [monitoringLoading, setMonitoringLoading] = useState(false);
+
+  // ============================================================
+  // AUTH / DASHBOARD INITIALIZATION
+  // ============================================================
+
   useEffect(() => {
     if (token) {
       loadUser();
@@ -40,6 +60,7 @@ function App() {
   useEffect(() => {
     if (token && user) {
       loadDashboard();
+      loadMonitoring();
     }
   }, [token, user]);
 
@@ -61,6 +82,10 @@ function App() {
     setSuccess("");
     setError(message);
   };
+
+  // ============================================================
+  // API REQUEST
+  // ============================================================
 
   const apiRequest = async (endpoint, options = {}) => {
     const headers = {
@@ -96,6 +121,10 @@ function App() {
     return data;
   };
 
+  // ============================================================
+  // LOAD USER
+  // ============================================================
+
   const loadUser = async () => {
     try {
       const data = await apiRequest("/auth/me");
@@ -107,6 +136,10 @@ function App() {
     }
   };
 
+  // ============================================================
+  // LOAD FILE DASHBOARD
+  // ============================================================
+
   const loadDashboard = async () => {
     try {
       const [filesData, receivedData, sentData] =
@@ -116,17 +149,6 @@ function App() {
           apiRequest("/files/shared-by-me"),
         ]);
 
-      /*
-       * GET /files/ returns an array directly.
-       * Example:
-       * [
-       *   {
-       *     "id": "...",
-       *     "filename": "test.txt",
-       *     "size_bytes": 40
-       *   }
-       * ]
-       */
       setFiles(Array.isArray(filesData) ? filesData : []);
 
       setSharedWithMe(
@@ -141,6 +163,52 @@ function App() {
     }
   };
 
+  // ============================================================
+  // MILESTONE 3 MONITORING
+  // ============================================================
+
+  const loadMonitoring = async () => {
+    try {
+      setMonitoringLoading(true);
+
+      const [
+        dashboardData,
+        activityData,
+        alertsData,
+        notificationsData,
+        storageData,
+        suspiciousData,
+        fileReportData,
+      ] = await Promise.all([
+        apiRequest("/monitoring/dashboard"),
+        apiRequest("/monitoring/activity?limit=20"),
+        apiRequest("/monitoring/alerts"),
+        apiRequest("/monitoring/notifications"),
+        apiRequest("/monitoring/analytics/storage"),
+        apiRequest("/monitoring/suspicious"),
+        apiRequest("/monitoring/reports/files"),
+      ]);
+
+      setMonitoring({
+        dashboard: dashboardData,
+        activity: activityData?.activities || [],
+        alerts: alertsData?.alerts || [],
+        notifications: notificationsData?.notifications || [],
+        storage: storageData || null,
+        suspicious: suspiciousData?.events || [],
+        fileReport: fileReportData || null,
+      });
+    } catch (err) {
+      console.error("Monitoring load error:", err);
+    } finally {
+      setMonitoringLoading(false);
+    }
+  };
+
+  // ============================================================
+  // AUTH FORM
+  // ============================================================
+
   const handleAuthChange = (event) => {
     const { name, value } = event.target;
 
@@ -149,6 +217,10 @@ function App() {
       [name]: value,
     }));
   };
+
+  // ============================================================
+  // LOGIN
+  // ============================================================
 
   const handleLogin = async (event) => {
     event.preventDefault();
@@ -202,6 +274,10 @@ function App() {
       setLoading(false);
     }
   };
+
+  // ============================================================
+  // REGISTER
+  // ============================================================
 
   const handleRegister = async (event) => {
     event.preventDefault();
@@ -269,6 +345,10 @@ function App() {
     }
   };
 
+  // ============================================================
+  // LOGOUT
+  // ============================================================
+
   const logout = () => {
     localStorage.removeItem("trustshare_token");
 
@@ -278,8 +358,22 @@ function App() {
     setSharedWithMe([]);
     setSharedByMe([]);
 
+    setMonitoring({
+      dashboard: null,
+      activity: [],
+      alerts: [],
+      notifications: [],
+      storage: null,
+      suspicious: [],
+      fileReport: null,
+    });
+
     clearMessages();
   };
+
+  // ============================================================
+  // FILE UPLOAD
+  // ============================================================
 
   const handleFileUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -308,10 +402,6 @@ function App() {
 
       formData.append("uploaded_file", file);
 
-      /*
-       * Do NOT set Content-Type manually here.
-       * Browser automatically adds multipart/form-data boundary.
-       */
       const response = await fetch(
         `${API_URL}/files/upload`,
         {
@@ -342,6 +432,7 @@ function App() {
       );
 
       await loadDashboard();
+      await loadMonitoring();
     } catch (err) {
       showError(err.message);
     } finally {
@@ -349,6 +440,10 @@ function App() {
       event.target.value = "";
     }
   };
+
+  // ============================================================
+  // DOWNLOAD
+  // ============================================================
 
   const handleDownload = async (fileId, filename) => {
     clearMessages();
@@ -378,7 +473,8 @@ function App() {
 
       const blob = await response.blob();
 
-      const downloadUrl = window.URL.createObjectURL(blob);
+      const downloadUrl =
+        window.URL.createObjectURL(blob);
 
       const link = document.createElement("a");
 
@@ -394,10 +490,16 @@ function App() {
       window.URL.revokeObjectURL(downloadUrl);
 
       showSuccess("File downloaded successfully.");
+
+      await loadMonitoring();
     } catch (err) {
       showError(err.message);
     }
   };
+
+  // ============================================================
+  // DELETE
+  // ============================================================
 
   const handleDelete = async (fileId, filename) => {
     const confirmed = window.confirm(
@@ -418,10 +520,15 @@ function App() {
       showSuccess("File deleted successfully.");
 
       await loadDashboard();
+      await loadMonitoring();
     } catch (err) {
       showError(err.message);
     }
   };
+
+  // ============================================================
+  // SHARE
+  // ============================================================
 
   const handleShare = async (event) => {
     event.preventDefault();
@@ -476,12 +583,17 @@ function App() {
       setShareEmail("");
 
       await loadDashboard();
+      await loadMonitoring();
     } catch (err) {
       showError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  // ============================================================
+  // REVOKE
+  // ============================================================
 
   const handleRevoke = async (shareId) => {
     const confirmed = window.confirm(
@@ -504,10 +616,15 @@ function App() {
       );
 
       await loadDashboard();
+      await loadMonitoring();
     } catch (err) {
       showError(err.message);
     }
   };
+
+  // ============================================================
+  // FORMATTING
+  // ============================================================
 
   const formatSize = (bytes) => {
     if (bytes === 0) {
@@ -554,6 +671,10 @@ function App() {
       .slice(0, 2)
       .toUpperCase();
   };
+
+  // ============================================================
+  // ICONS
+  // ============================================================
 
   const renderLogo = () => (
     <div className="logo-mark">
@@ -702,6 +823,10 @@ function App() {
       </svg>
     );
   };
+
+  // ============================================================
+  // LOGIN / REGISTER PAGE
+  // ============================================================
 
   if (!token || !user) {
     const isLogin = authMode === "login";
@@ -1009,8 +1134,34 @@ function App() {
     );
   }
 
+  // ============================================================
+  // DASHBOARD VALUES
+  // ============================================================
+
   const totalShared = sharedByMe.length;
   const receivedCount = sharedWithMe.length;
+
+  const monitoringDashboard = monitoring.dashboard;
+
+  const totalRequests =
+    monitoringDashboard?.activity?.total_requests || 0;
+
+  const successfulRequests =
+    monitoringDashboard?.activity?.successful_requests || 0;
+
+  const failedRequests =
+    monitoringDashboard?.activity?.failed_requests || 0;
+
+  const storageFileCount =
+    monitoring.storage?.file_count ?? files.length;
+
+  const storageMb =
+    monitoring.storage?.total_mb ?? 0;
+
+  const alertCount = monitoring.alerts.length;
+
+  const suspiciousCount =
+    monitoring.suspicious.length;
 
   return (
     <div className="app">
@@ -1101,6 +1252,10 @@ function App() {
             </div>
           )}
 
+          {/* =====================================================
+              BASIC FILE STATISTICS
+          ===================================================== */}
+
           <div className="stats-grid">
             <div className="stat-card">
               <div className="stat-label">
@@ -1132,6 +1287,528 @@ function App() {
               </div>
             </div>
           </div>
+
+          {/* =====================================================
+              MILESTONE 3 MONITORING DASHBOARD
+          ===================================================== */}
+
+          <div className="section-card monitoring-card">
+            <div className="section-header">
+              <div>
+                <h2>
+                  Security Monitoring & Analytics
+                </h2>
+
+                <p>
+                  Real-time activity, security alerts,
+                  audit monitoring and storage analytics.
+                </p>
+              </div>
+
+              <button
+                className="action-button primary"
+                onClick={loadMonitoring}
+                disabled={monitoringLoading}
+              >
+                {monitoringLoading
+                  ? "Refreshing..."
+                  : "Refresh"}
+              </button>
+            </div>
+
+            <div className="monitoring-stats">
+              <div className="monitoring-stat">
+                <div className="monitoring-stat-icon">
+                  {renderSecurityIcon("clock")}
+                </div>
+
+                <div>
+                  <div className="monitoring-stat-label">
+                    API ACTIVITY
+                  </div>
+
+                  <div className="monitoring-stat-value">
+                    {totalRequests}
+                  </div>
+
+                  <div className="monitoring-stat-detail">
+                    Last 24 hours
+                  </div>
+                </div>
+              </div>
+
+              <div className="monitoring-stat">
+                <div className="monitoring-stat-icon success-icon">
+                  {renderSecurityIcon("shield")}
+                </div>
+
+                <div>
+                  <div className="monitoring-stat-label">
+                    SUCCESSFUL
+                  </div>
+
+                  <div className="monitoring-stat-value">
+                    {successfulRequests}
+                  </div>
+
+                  <div className="monitoring-stat-detail">
+                    Successful requests
+                  </div>
+                </div>
+              </div>
+
+              <div className="monitoring-stat">
+                <div className="monitoring-stat-icon warning-icon">
+                  {renderSecurityIcon("shield")}
+                </div>
+
+                <div>
+                  <div className="monitoring-stat-label">
+                    FAILED
+                  </div>
+
+                  <div className="monitoring-stat-value">
+                    {failedRequests}
+                  </div>
+
+                  <div className="monitoring-stat-detail">
+                    Failed requests
+                  </div>
+                </div>
+              </div>
+
+              <div className="monitoring-stat">
+                <div className="monitoring-stat-icon">
+                  {renderSecurityIcon("lock")}
+                </div>
+
+                <div>
+                  <div className="monitoring-stat-label">
+                    STORAGE
+                  </div>
+
+                  <div className="monitoring-stat-value">
+                    {storageMb}
+                    <span className="small-unit">
+                      {" "}
+                      MB
+                    </span>
+                  </div>
+
+                  <div className="monitoring-stat-detail">
+                    {storageFileCount} files
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="monitoring-grid">
+              {/* SECURITY ALERTS */}
+
+              <div className="monitoring-panel">
+                <div className="monitoring-panel-header">
+                  <div>
+                    <h3>Security Alerts</h3>
+                    <span>
+                      {alertCount} active alert
+                      {alertCount !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+
+                  <div
+                    className={
+                      alertCount > 0
+                        ? "status-badge danger"
+                        : "status-badge success"
+                    }
+                  >
+                    {alertCount > 0
+                      ? "Attention"
+                      : "Secure"}
+                  </div>
+                </div>
+
+                {monitoring.alerts.length === 0 ? (
+                  <div className="monitoring-empty">
+                    <div className="monitoring-empty-icon">
+                      ✓
+                    </div>
+
+                    <strong>
+                      No security alerts
+                    </strong>
+
+                    <span>
+                      No security events require
+                      attention.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="monitoring-list">
+                    {monitoring.alerts.map(
+                      (alert, index) => (
+                        <div
+                          className="monitoring-list-item alert-item"
+                          key={`${alert.type}-${index}`}
+                        >
+                          <div>
+                            <strong>
+                              {alert.title ||
+                                alert.type}
+                            </strong>
+
+                            <span>
+                              {alert.message}
+                            </span>
+                          </div>
+
+                          <span
+                            className={`severity-badge ${
+                              alert.severity ||
+                              "medium"
+                            }`}
+                          >
+                            {alert.severity ||
+                              "medium"}
+                          </span>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* NOTIFICATIONS */}
+
+              <div className="monitoring-panel">
+                <div className="monitoring-panel-header">
+                  <div>
+                    <h3>Notifications</h3>
+                    <span>
+                      {monitoring.notifications.length}{" "}
+                      notification
+                      {monitoring.notifications.length !==
+                      1
+                        ? "s"
+                        : ""}
+                    </span>
+                  </div>
+                </div>
+
+                {monitoring.notifications.length ===
+                0 ? (
+                  <div className="monitoring-empty">
+                    <div className="monitoring-empty-icon">
+                      ✓
+                    </div>
+
+                    <strong>
+                      No new notifications
+                    </strong>
+
+                    <span>
+                      Everything looks normal.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="monitoring-list">
+                    {monitoring.notifications.map(
+                      (notification, index) => (
+                        <div
+                          className="monitoring-list-item"
+                          key={`${notification.type}-${index}`}
+                        >
+                          <div>
+                            <strong>
+                              {notification.title ||
+                                notification.type}
+                            </strong>
+
+                            <span>
+                              {notification.message}
+                            </span>
+
+                            <small>
+                              {formatDate(
+                                notification.created_at
+                              )}
+                            </small>
+                          </div>
+
+                          <span
+                            className={`severity-badge ${
+                              notification.severity ||
+                              "info"
+                            }`}
+                          >
+                            {notification.severity ||
+                              "info"}
+                          </span>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* FILE REPORT + STORAGE */}
+
+            <div className="monitoring-grid">
+              <div className="monitoring-panel">
+                <div className="monitoring-panel-header">
+                  <div>
+                    <h3>File Activity Report</h3>
+                    <span>
+                      Activity summary
+                    </span>
+                  </div>
+                </div>
+
+                {monitoring.fileReport ? (
+                  <div className="report-grid">
+                    <div>
+                      <span>Uploads</span>
+                      <strong>
+                        {monitoring.fileReport.uploads ??
+                          0}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>Downloads</span>
+                      <strong>
+                        {monitoring.fileReport.downloads ??
+                          0}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>Deletions</span>
+                      <strong>
+                        {monitoring.fileReport.deletions ??
+                          0}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>Total files</span>
+                      <strong>
+                        {monitoring.fileReport
+                          .total_owned_files ??
+                          0}
+                      </strong>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="monitoring-empty">
+                    Loading report...
+                  </div>
+                )}
+              </div>
+
+              <div className="monitoring-panel">
+                <div className="monitoring-panel-header">
+                  <div>
+                    <h3>Storage Analytics</h3>
+                    <span>
+                      Current encrypted storage usage
+                    </span>
+                  </div>
+                </div>
+
+                <div className="storage-analytics">
+                  <div className="storage-circle">
+                    <strong>
+                      {storageMb}
+                    </strong>
+
+                    <span>MB</span>
+                  </div>
+
+                  <div className="storage-details">
+                    <div>
+                      <span>Files stored</span>
+                      <strong>
+                        {storageFileCount}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>Total bytes</span>
+                      <strong>
+                        {monitoring.storage
+                          ?.total_bytes ??
+                          0}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* SUSPICIOUS ACTIVITY */}
+
+            <div className="monitoring-panel suspicious-panel">
+              <div className="monitoring-panel-header">
+                <div>
+                  <h3>
+                    Suspicious Activity Detection
+                  </h3>
+
+                  <span>
+                    Automated security monitoring
+                  </span>
+                </div>
+
+                <div
+                  className={
+                    suspiciousCount > 0
+                      ? "status-badge danger"
+                      : "status-badge success"
+                  }
+                >
+                  {suspiciousCount > 0
+                    ? `${suspiciousCount} detected`
+                    : "No suspicious activity"}
+                </div>
+              </div>
+
+              {monitoring.suspicious.length === 0 ? (
+                <div className="monitoring-empty">
+                  <div className="monitoring-empty-icon">
+                    ✓
+                  </div>
+
+                  <strong>
+                    No suspicious activity detected
+                  </strong>
+
+                  <span>
+                    Automated checks found no
+                    suspicious events during the last
+                    24 hours.
+                  </span>
+                </div>
+              ) : (
+                <div className="monitoring-list">
+                  {monitoring.suspicious.map(
+                    (event, index) => (
+                      <div
+                        className="monitoring-list-item alert-item"
+                        key={`${event.type}-${index}`}
+                      >
+                        <div>
+                          <strong>
+                            {event.type}
+                          </strong>
+
+                          <span>
+                            {event.message}
+                          </span>
+                        </div>
+
+                        <span
+                          className={`severity-badge ${
+                            event.severity ||
+                            "medium"
+                          }`}
+                        >
+                          {event.severity ||
+                            "medium"}
+                        </span>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* RECENT ACTIVITY / AUDIT */}
+
+            <div className="monitoring-panel">
+              <div className="monitoring-panel-header">
+                <div>
+                  <h3>
+                    Recent Activity & Audit Log
+                  </h3>
+
+                  <span>
+                    Latest monitored API activity
+                  </span>
+                </div>
+              </div>
+
+              {monitoring.activity.length === 0 ? (
+                <div className="monitoring-empty">
+                  No activity recorded yet.
+                </div>
+              ) : (
+                <div className="audit-table-wrapper">
+                  <table className="audit-table">
+                    <thead>
+                      <tr>
+                        <th>Action</th>
+                        <th>Method</th>
+                        <th>Endpoint</th>
+                        <th>Status</th>
+                        <th>Time</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {monitoring.activity.map(
+                        (activity) => (
+                          <tr key={activity.id}>
+                            <td>
+                              <strong>
+                                {activity.action}
+                              </strong>
+                            </td>
+
+                            <td>
+                              <span className="method-badge">
+                                {activity.method}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className="endpoint-text">
+                                {activity.path}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span
+                                className={
+                                  activity.status_code <
+                                  400
+                                    ? "status-code success"
+                                    : "status-code danger"
+                                }
+                              >
+                                {activity.status_code}
+                              </span>
+                            </td>
+
+                            <td>
+                              {formatDate(
+                                activity.created_at
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* =====================================================
+              UPLOAD
+          ===================================================== */}
 
           <div className="section-card">
             <div className="section-header">
@@ -1186,6 +1863,10 @@ function App() {
               </p>
             </div>
           </div>
+
+          {/* =====================================================
+              MY FILES
+          ===================================================== */}
 
           <div className="section-card">
             <div className="section-header">
@@ -1262,6 +1943,10 @@ function App() {
             )}
           </div>
 
+          {/* =====================================================
+              SHARE FILE
+          ===================================================== */}
+
           {selectedFile && (
             <div className="section-card">
               <div className="section-header">
@@ -1335,6 +2020,10 @@ function App() {
             </div>
           )}
 
+          {/* =====================================================
+              SHARED BY ME
+          ===================================================== */}
+
           <div className="section-card">
             <div className="section-header">
               <div>
@@ -1397,6 +2086,10 @@ function App() {
               </div>
             )}
           </div>
+
+          {/* =====================================================
+              SHARED WITH ME
+          ===================================================== */}
 
           <div className="section-card">
             <div className="section-header">
@@ -1485,7 +2178,8 @@ function App() {
             </span>
 
             TrustShare • Secure collaboration
-            workspace • Encrypted storage
+            workspace • Encrypted storage • Security
+            monitoring
           </div>
         </main>
       </div>
