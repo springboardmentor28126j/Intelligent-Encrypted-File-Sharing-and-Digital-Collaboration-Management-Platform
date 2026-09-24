@@ -24,10 +24,12 @@ function categoryFor(filename) {
 
 export default function Files() {
   const [files, setFiles] = useState([]);
+  const [folders, setFolders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All categories");
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [moveMenuId, setMoveMenuId] = useState(null);
   const [shareTarget, setShareTarget] = useState(null);
   const [banner, setBanner] = useState({ type: "", message: "" });
 
@@ -38,7 +40,10 @@ export default function Files() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(loadFiles, []);
+  useEffect(() => {
+    loadFiles();
+    api.get("/folders").then((res) => setFolders(res.data));
+  }, []);
 
   const showBanner = (type, message) => {
     setBanner({ type, message });
@@ -99,6 +104,18 @@ export default function Files() {
       loadFiles();
     } catch (err) {
       showBanner("error", err.response?.data?.detail || "Could not delete file");
+    }
+  };
+
+  const handleMove = async (id, folderId, folderName) => {
+    setMoveMenuId(null);
+    setOpenMenuId(null);
+    try {
+      await api.patch(`/files/${id}/move`, { folder_id: folderId });
+      showBanner("success", folderId ? `Moved to "${folderName}".` : "Removed from folder.");
+      loadFiles();
+    } catch (err) {
+      showBanner("error", err.response?.data?.detail || "Could not move file");
     }
   };
 
@@ -246,6 +263,10 @@ export default function Files() {
                   { label: "Download", action: () => handleDownload(f.id, f.filename) },
                   { label: "Share", action: () => { setShareTarget(f); setOpenMenuId(null); } },
                   { label: "Rename", action: () => handleRename(f.id, f.filename) },
+                  {
+                    label: "Move to folder",
+                    action: () => setMoveMenuId(moveMenuId === f.id ? null : f.id),
+                  },
                   { label: "Delete", action: () => handleDelete(f.id, f.filename), danger: true },
                 ].map((item) => (
                   <button
@@ -266,6 +287,33 @@ export default function Files() {
                     {item.label}
                   </button>
                 ))}
+
+                {moveMenuId === f.id && (
+                  <div style={{ borderTop: "1px solid var(--border)", maxHeight: 160, overflowY: "auto" }}>
+                    {folders.length === 0 && (
+                      <div style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>
+                        No folders yet — create one on the Folders page.
+                      </div>
+                    )}
+                    {f.folder_id && (
+                      <button
+                        onClick={() => handleMove(f.id, null, null)}
+                        style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 14px", background: "none", border: "none", fontSize: 12, color: "var(--text-muted)", cursor: "pointer" }}
+                      >
+                        Remove from folder
+                      </button>
+                    )}
+                    {folders.map((folder) => (
+                      <button
+                        key={folder.id}
+                        onClick={() => handleMove(f.id, folder.id, folder.name)}
+                        style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 14px", background: "none", border: "none", fontSize: 12, color: "var(--text)", cursor: "pointer" }}
+                      >
+                        📁 {folder.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
