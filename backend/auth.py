@@ -16,7 +16,7 @@ from passlib.context import CryptContext
 from jose import jwt
 
 from database import get_db
-from models import User
+from models import User, ActivityLog
 from schemas import (
     UserRegister,
     UserResponse,
@@ -108,7 +108,27 @@ def login_user(
         .first()
     )
 
+    # ------------------------------------------------------------
+    # FAILED LOGIN - UNKNOWN EMAIL
+    #
+    # Do not store the password or authentication token.
+    # There is no known user_id to associate with this event.
+    # ------------------------------------------------------------
     if not user:
+        failed_log = ActivityLog(
+            user_id=None,
+            user_email=user_data.email,
+            action="authentication_failed",
+            method="POST",
+            path="/auth/login",
+            status_code=401,
+            ip_address=None,
+            response_time_ms=None
+        )
+
+        db.add(failed_log)
+        db.commit()
+
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password"
@@ -119,12 +139,38 @@ def login_user(
         user.password_hash
     )
 
+    # ------------------------------------------------------------
+    # FAILED LOGIN - WRONG PASSWORD
+    #
+    # The email belongs to a known user, so associate the event
+    # with that user's UUID. This allows the monitoring dashboard
+    # to display the security event for the logged-in account.
+    #
+    # Never store the submitted password.
+    # ------------------------------------------------------------
     if not password_valid:
+        failed_log = ActivityLog(
+            user_id=user.id,
+            user_email=user.email,
+            action="authentication_failed",
+            method="POST",
+            path="/auth/login",
+            status_code=401,
+            ip_address=None,
+            response_time_ms=None
+        )
+
+        db.add(failed_log)
+        db.commit()
+
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password"
         )
 
+    # ------------------------------------------------------------
+    # SUCCESSFUL LOGIN
+    # ------------------------------------------------------------
     token_data = {
         "sub": str(user.id),
         "email": user.email

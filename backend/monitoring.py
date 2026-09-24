@@ -117,6 +117,13 @@ def get_security_alerts(
 
     alerts = []
 
+    # --------------------------------------------------------
+    # FAILED AUTHENTICATION
+    #
+    # A single failed authentication attempt is treated as a
+    # security event so it can be demonstrated and monitored
+    # immediately from the dashboard.
+    # --------------------------------------------------------
     failed_auth = [
         log
         for log in logs
@@ -124,17 +131,20 @@ def get_security_alerts(
         and log.status_code in (401, 403)
     ]
 
-    if len(failed_auth) >= 3:
+    if len(failed_auth) >= 1:
         alerts.append({
             "type": "authentication_failure",
             "severity": "high",
             "message": (
                 f"{len(failed_auth)} failed authentication "
-                "attempts detected in the last 24 hours."
+                "attempt(s) detected in the last 24 hours."
             ),
             "count": len(failed_auth),
         })
 
+    # --------------------------------------------------------
+    # FORBIDDEN REQUESTS
+    # --------------------------------------------------------
     forbidden_requests = [
         log
         for log in logs
@@ -152,6 +162,9 @@ def get_security_alerts(
             "count": len(forbidden_requests),
         })
 
+    # --------------------------------------------------------
+    # SERVER ERRORS
+    # --------------------------------------------------------
     server_errors = [
         log
         for log in logs
@@ -169,6 +182,9 @@ def get_security_alerts(
             "count": len(server_errors),
         })
 
+    # --------------------------------------------------------
+    # HIGH API ACTIVITY
+    # --------------------------------------------------------
     if len(logs) >= 200:
         alerts.append({
             "type": "high_activity",
@@ -215,6 +231,9 @@ def get_notifications(
 
     notifications = []
 
+    # --------------------------------------------------------
+    # FAILED REQUEST NOTIFICATION
+    # --------------------------------------------------------
     failed_requests = [
         log
         for log in logs
@@ -235,6 +254,9 @@ def get_notifications(
             "read": False,
         })
 
+    # --------------------------------------------------------
+    # AUTHENTICATION WARNING
+    # --------------------------------------------------------
     failed_auth = [
         log
         for log in logs
@@ -256,6 +278,9 @@ def get_notifications(
             "read": False,
         })
 
+    # --------------------------------------------------------
+    # HIGH DOWNLOAD ACTIVITY
+    # --------------------------------------------------------
     downloads = [
         log
         for log in logs
@@ -277,6 +302,9 @@ def get_notifications(
             "read": False,
         })
 
+    # --------------------------------------------------------
+    # NO SECURITY EVENTS
+    # --------------------------------------------------------
     if not notifications:
         notifications.append({
             "type": "system",
@@ -491,6 +519,9 @@ def suspicious_activity(
 
     suspicious_events = []
 
+    # --------------------------------------------------------
+    # MULTIPLE IP ADDRESSES
+    # --------------------------------------------------------
     ip_addresses = {
         log.ip_address
         for log in logs
@@ -507,6 +538,9 @@ def suspicious_activity(
             "ip_count": len(ip_addresses),
         })
 
+    # --------------------------------------------------------
+    # REPEATED FAILURES
+    # --------------------------------------------------------
     failed_requests = [
         log
         for log in logs
@@ -523,6 +557,9 @@ def suspicious_activity(
             "count": len(failed_requests),
         })
 
+    # --------------------------------------------------------
+    # HIGH DOWNLOAD VOLUME
+    # --------------------------------------------------------
     downloads = [
         log
         for log in logs
