@@ -36,6 +36,8 @@ class FileResponse(BaseModel):
     storage_path: str
     size_bytes: int
     uploaded_at: datetime | None = None
+    encryption_version: str | None = None
+    key_version: str | None = None
 
     class Config:
         from_attributes = True
@@ -45,6 +47,7 @@ class FileShareCreate(BaseModel):
     file_id: UUID
     shared_with_email: EmailStr
     permission: str = "view"
+    expires_at: datetime | None = None
 
 
 class FileShareResponse(BaseModel):
@@ -53,6 +56,7 @@ class FileShareResponse(BaseModel):
     shared_with_email: EmailStr
     permission: str | None = None
     created_at: datetime | None = None
+    expires_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -63,6 +67,7 @@ class SharedFileResponse(BaseModel):
     file_id: UUID
     filename: str
     owner_id: UUID
-    shared_with_email: EmailStr
+    shared_with_email: str
     permission: str | None = None
     created_at: datetime | None = None
+    expires_at: datetime | None = None

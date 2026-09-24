@@ -6,7 +6,8 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     String,
-    BigInteger
+    BigInteger,
+    Integer,
 )
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -101,6 +102,18 @@ class File(Base):
         nullable=False
     )
 
+    encryption_version = Column(
+        String,
+        nullable=False,
+        default="aes-256-gcm-v1"
+    )
+
+    key_version = Column(
+        String,
+        nullable=False,
+        default="v1"
+    )
+
 
 class FileShare(Base):
     __tablename__ = "file_shares"
@@ -132,4 +145,121 @@ class FileShare(Base):
     created_at = Column(
         DateTime,
         default=datetime.utcnow
+    )
+
+    expires_at = Column(
+        DateTime,
+        nullable=True
+    )
+
+
+class TemporaryLink(Base):
+    __tablename__ = "temporary_links"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+
+    file_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("files.id"),
+        nullable=False,
+        index=True
+    )
+
+    owner_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True
+    )
+
+    token_hash = Column(
+        String,
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+    expires_at = Column(
+        DateTime,
+        nullable=False
+    )
+
+
+class ActivityLog(Base):
+    """
+    Milestone 3 activity/audit log.
+
+    Records API activity without storing sensitive
+    Authorization headers or temporary-link tokens.
+    """
+
+    __tablename__ = "activity_logs"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=True,
+        index=True
+    )
+
+    user_email = Column(
+        String,
+        nullable=True,
+        index=True
+    )
+
+    action = Column(
+        String,
+        nullable=False,
+        index=True
+    )
+
+    method = Column(
+        String,
+        nullable=False
+    )
+
+    path = Column(
+        String,
+        nullable=False
+    )
+
+    status_code = Column(
+        Integer,
+        nullable=False,
+        index=True
+    )
+
+    ip_address = Column(
+        String,
+        nullable=True,
+        index=True
+    )
+
+    response_time_ms = Column(
+        Integer,
+        nullable=True
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+        index=True
     )
