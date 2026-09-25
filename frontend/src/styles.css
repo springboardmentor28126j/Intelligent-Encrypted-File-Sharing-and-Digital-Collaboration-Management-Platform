@@ -123,3 +123,16 @@ button.center-link{border:0;background:none;cursor:pointer;width:100%;font:inher
   .notification-page-actions{margin-left:auto}
 }
 
+/* Activity Export & Date Filter Toolbar */
+.activity-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px;flex-wrap:wrap}
+.export-btn-content{display:inline-flex;align-items:center;gap:6px}
+.activity-toolbar{display:flex;flex-direction:column;gap:14px;margin-bottom:20px}
+.activity-search-box{max-width:100%;min-width:100%}
+.activity-filter-group{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.date-filter-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.date-input-label{display:flex;align-items:center;gap:6px;font-size:13px;color:#576861;font-weight:600;margin:0}
+.date-input-label input[type="date"]{padding:7px 10px;font-size:12px;border-radius:6px}
+.clear-filters-btn{margin:0;padding:8px 12px;font-size:12px}
+.activity-loading{padding:30px;text-align:center;color:#697872;font-size:14px}
+
+

@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
@@ -13,14 +14,31 @@ from . import models
 from .routers import activity, auth, dashboard, files, folders, notifications, secure_share_links, shares, users
 from .redis_client import redis_conn
 
-# Initialize DB tables & schema helpers
-Base.metadata.create_all(bind=engine)
-ensure_file_storage_columns()
-ensure_activity_log_columns()
-ensure_user_mfa_columns()
-ensure_notifications_table()
 
-app = FastAPI(title="TrustShare API", description="Milestone 1 secure file-sharing API")
+def init_db_schema():
+    """Initializes tables and applies schema updates cleanly."""
+    try:
+        Base.metadata.create_all(bind=engine)
+        ensure_file_storage_columns()
+        ensure_activity_log_columns()
+        ensure_user_mfa_columns()
+        ensure_notifications_table()
+    except Exception as exc:
+        print(f"[Warning] DB initialization error (verify PostgreSQL status): {exc}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize DB tables & schema helpers on server startup
+    init_db_schema()
+    yield
+
+
+app = FastAPI(
+    title="TrustShare API",
+    description="Milestone 1 secure file-sharing API",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
