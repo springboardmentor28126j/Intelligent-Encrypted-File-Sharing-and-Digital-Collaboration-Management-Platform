@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Form, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from starlette.requests import Request
 
 from ..config import settings
 from ..database import get_db
@@ -25,11 +26,16 @@ from ..schemas.auth import (
 )
 from ..services.activity_service import log_activity
 from ..services.email_service import send_password_reset_otp
-from ..services.notification_service import create_notification
 from ..services.mfa_service import (
     build_provisioning_uri,
     generate_mfa_secret,
     verify_totp_code,
+)
+from ..services.notification_service import create_notification
+from ..services.security_service import (
+    check_login_lockout,
+    record_failed_login,
+    reset_failed_login,
 )
 from ..utils.dependencies import get_current_user
 from ..utils.security import (
@@ -47,6 +53,16 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+
+
+def _extract_client_ip(request: Request) -> tuple[str, str | None]:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        ip = forwarded.split(",")[0].strip()
+    else:
+        ip = request.client.host if request.client else "Unknown"
+    ua = request.headers.get("user-agent")
+    return ip, ua
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
@@ -74,10 +90,34 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(data: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == data.email.lower()).first()
+def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    email = data.email.lower().strip()
+    ip_address, user_agent = _extract_client_ip(request)
+
+    # 1. Check for active lockout
+    is_locked, lockout_msg, remaining_seconds = check_login_lockout(email)
+    if is_locked:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "message": lockout_msg,
+                "retry_after_seconds": remaining_seconds,
+            },
+        )
+
+    user = db.query(User).filter(User.email == email).first()
 
     if not user or not verify_password(data.password, user.password_hash):
+        record_failed_login(db, email, ip_address, user_agent)
+        is_locked_now, msg_now, remaining_now = check_login_lockout(email)
+        if is_locked_now:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "message": msg_now,
+                    "retry_after_seconds": remaining_now,
+                },
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -85,12 +125,24 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
 
     if user.mfa_enabled:
         if not verify_totp_code(user.mfa_secret, data.totp_code):
+            record_failed_login(db, email, ip_address, user_agent)
+            is_locked_now, msg_now, remaining_now = check_login_lockout(email)
+            if is_locked_now:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail={
+                        "message": msg_now,
+                        "retry_after_seconds": remaining_now,
+                    },
+                )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or missing MFA code",
             )
 
-    log_activity(db, user, "login", "Logged in")
+    # Reset failure counter on successful login
+    reset_failed_login(email)
+    log_activity(db, user, "login", "Logged in", ip_address=ip_address, user_agent=user_agent)
 
     return {
         "access_token": create_access_token(user.id),
@@ -100,18 +152,37 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/token")
 def token(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     totp_code: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
-    user = db.query(User).filter(
-        User.email == form_data.username.lower()
-    ).first()
+    email = form_data.username.lower().strip()
+    ip_address, user_agent = _extract_client_ip(request)
 
-    if not user or not verify_password(
-        form_data.password,
-        user.password_hash
-    ):
+    is_locked, lockout_msg, remaining_seconds = check_login_lockout(email)
+    if is_locked:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "message": lockout_msg,
+                "retry_after_seconds": remaining_seconds,
+            },
+        )
+
+    user = db.query(User).filter(User.email == email).first()
+
+    if not user or not verify_password(form_data.password, user.password_hash):
+        record_failed_login(db, email, ip_address, user_agent)
+        is_locked_now, msg_now, remaining_now = check_login_lockout(email)
+        if is_locked_now:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "message": msg_now,
+                    "retry_after_seconds": remaining_now,
+                },
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -119,12 +190,23 @@ def token(
 
     if user.mfa_enabled:
         if not verify_totp_code(user.mfa_secret, totp_code):
+            record_failed_login(db, email, ip_address, user_agent)
+            is_locked_now, msg_now, remaining_now = check_login_lockout(email)
+            if is_locked_now:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail={
+                        "message": msg_now,
+                        "retry_after_seconds": remaining_now,
+                    },
+                )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or missing MFA code",
             )
 
-    log_activity(db, user, "login", "Logged in through OAuth2")
+    reset_failed_login(email)
+    log_activity(db, user, "login", "Logged in through OAuth2", ip_address=ip_address, user_agent=user_agent)
 
     return {
         "access_token": create_access_token(user.id),

@@ -139,6 +139,8 @@ export default function Security() {
   const [disableCode, setDisableCode] = useState('')
   const [disableError, setDisableError] = useState('')
   const [disableBusy, setDisableBusy] = useState(false)
+  const [securityThreats, setSecurityThreats] = useState([])
+  const [threatsLoading, setThreatsLoading] = useState(true)
 
   const applyStatus = useCallback((enabled) => {
     setMfaEnabled(enabled)
@@ -173,6 +175,23 @@ export default function Security() {
       .finally(() => {
         if (active) setLoading(false)
       })
+
+    api.get('/notifications?limit=50')
+      .then(({ data }) => {
+        if (active && data && data.notifications) {
+          const alerts = data.notifications.filter(
+            (n) => n.type === 'security_alert' || n.type === 'link_expired'
+          )
+          setSecurityThreats(alerts)
+        }
+      })
+      .catch(() => {
+        // Ignore background fetch error
+      })
+      .finally(() => {
+        if (active) setThreatsLoading(false)
+      })
+
     return () => {
       active = false
     }
@@ -344,6 +363,65 @@ export default function Security() {
             {setupBusy ? 'Preparing setup...' : 'Enable MFA'}
           </button>
         ) : null}
+      </div>
+
+      <div className="mfa-panel" style={{ marginTop: '28px', paddingTop: '20px', borderTop: '1px solid #edf0ec' }}>
+        <div className="mfa-status-row" style={{ marginBottom: '12px' }}>
+          <div>
+            <h3>Security Log & Recent Threats</h3>
+            <p className="muted">Review recent account security alerts, suspicious logins, and access warnings.</p>
+          </div>
+          <span className={`status-badge ${securityThreats.length > 0 ? 'disabled' : 'enabled'}`}>
+            {securityThreats.length > 0 ? `${securityThreats.length} Alert(s)` : 'Secure'}
+          </span>
+        </div>
+
+        {threatsLoading ? (
+          <p className="muted">Loading security logs...</p>
+        ) : securityThreats.length === 0 ? (
+          <div className="notice success" style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>✓</span> No security threats or suspicious activity detected on your account.
+          </div>
+        ) : (
+          <div className="security-threats-list" style={{ display: 'grid', gap: '10px', marginTop: '12px' }}>
+            {securityThreats.map((threat) => (
+              <div
+                key={threat.id}
+                className="security-threat-card"
+                style={{
+                  padding: '12px 16px',
+                  background: '#fdf5f4',
+                  border: '1px solid #f5d3cd',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                }}
+              >
+                <span style={{ fontSize: '18px', flexShrink: 0, marginTop: '2px' }}>⚠️</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', marginBottom: '3px' }}>
+                    <strong style={{ fontSize: '13px', color: '#b84332', fontWeight: 700 }}>
+                      {threat.title}
+                    </strong>
+                    <small style={{ fontSize: '11px', color: '#8a9992', whiteSpace: 'nowrap' }}>
+                      {new Date(threat.created_at.endsWith('Z') ? threat.created_at : `${threat.created_at}Z`).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true,
+                      })}
+                    </small>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#4a5c54', lineHeight: 1.4 }}>
+                    {threat.message}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       {setupOpen ? (
         <SetupModal

@@ -82,7 +82,7 @@ class SecureShareLinkTests(unittest.TestCase):
             item = SimpleNamespace(id=12, owner_id=owner.id, file_path=str(path), storage_backend=None, storage_key=None, original_filename="report.txt", file_type="text/plain", encryption=SimpleNamespace(**metadata_for_storage(encrypted)))
             token = secrets.token_urlsafe(32)
             link = SimpleNamespace(id=1, file_id=item.id, revoked_at=None, token_hash=hash_share_token(token), expires_at=None, max_downloads=None, download_count=0)
-            db = SimpleNamespace(query=lambda model: Query(link), get=lambda model, file_id: item if model == File else owner, commit=lambda: None)
+            db = SimpleNamespace(query=lambda model: Query(link), get=lambda model, file_id: item if model == File else owner, commit=lambda: None, add=lambda record: None, refresh=lambda record: None)
 
             response = access_share_link(token, db)
 
