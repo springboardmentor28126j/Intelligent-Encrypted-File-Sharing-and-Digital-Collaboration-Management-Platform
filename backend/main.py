@@ -105,6 +105,15 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Invalid email or password")
 
     token = auth.create_access_token({"sub": db_user.email})
+    if db_user.mfa_enabled:
+        otp_code = secrets.token_hex(3)
+        try:
+            redis_client.set(f"mfa_login:{db_user.email}", otp_code, ex=300)
+        except Exception:
+            pass
+        send_email(db_user.email, "TrustShare — Login Verification Code",
+                f"Your login verification code is: {otp_code}\nThis code expires in 5 minutes.")
+        return {"mfa_required": True, "email": db_user.email, "message": "Verification code sent to your email"}
 
     try:
         redis_client.delete(f"failed_login:{user.email}")
@@ -469,3 +478,175 @@ def share_link_info(share_token: str, db: Session = Depends(get_db)):
         "is_expired": is_expired,
         "shared_by": share.created_by
     }
+@app.get("/analytics")
+def get_analytics(email: str, role: str, db: Session = Depends(get_db)):
+    """Storage & usage analytics — admin sees everything, standard user sees their own."""
+    if role == "admin":
+        files = db.query(models.FileRecord).all()
+    else:
+        files = db.query(models.FileRecord).filter(models.FileRecord.owner_email == email).all()
+
+    total_files = len(files)
+    total_storage_bytes = sum(f.file_size or 0 for f in files)
+
+    type_breakdown = {}
+    for f in files:
+        ext = os.path.splitext(f.filename)[1].lower().replace(".", "") or "other"
+        type_breakdown[ext] = type_breakdown.get(ext, 0) + 1
+
+    uploader_breakdown = {}
+    for f in files:
+        uploader_breakdown[f.owner_email] = uploader_breakdown.get(f.owner_email, 0) + 1
+    top_uploaders = sorted(uploader_breakdown.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    try:
+        total_uploads = activity_logs.count_documents({"action": "file_upload"})
+        total_downloads = activity_logs.count_documents({"action": "file_download"})
+        total_shares = activity_logs.count_documents({"action": "share_link_created"})
+        suspicious_count = activity_logs.count_documents({"action": "suspicious_activity"})
+    except Exception:
+        total_uploads = total_downloads = total_shares = suspicious_count = 0
+
+    return {
+        "total_files": total_files,
+        "total_storage_bytes": total_storage_bytes,
+        "type_breakdown": type_breakdown,
+        "top_uploaders": [{"email": e, "count": c} for e, c in top_uploaders],
+        "total_uploads": total_uploads,
+        "total_downloads": total_downloads,
+        "total_shares": total_shares,
+        "suspicious_count": suspicious_count,
+    }
+@app.post("/mfa/enable-request")
+def mfa_enable_request(payload: dict, db: Session = Depends(get_db)):
+    """Step 1 of enabling MFA — send a verification code to confirm the user owns this email."""
+    email = payload.get("email")
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    code = secrets.token_hex(3)  # 6-char code
+    try:
+        redis_client.set(f"mfa_setup:{email}", code, ex=600)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Could not generate code, try again")
+
+    send_email(email, "TrustShare — Enable Two-Factor Authentication",
+               f"Your verification code to enable 2FA is: {code}\nThis code expires in 10 minutes.")
+
+    return {"message": "Verification code sent to your email"}
+
+
+@app.post("/mfa/enable-confirm")
+def mfa_enable_confirm(payload: dict, db: Session = Depends(get_db)):
+    """Step 2 — verify the code and actually turn MFA on."""
+    email = payload.get("email")
+    code = payload.get("code")
+
+    try:
+        stored_code = redis_client.get(f"mfa_setup:{email}")
+    except Exception:
+        stored_code = None
+
+    if not stored_code or stored_code != code:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+
+    user = db.query(models.User).filter(models.User.email == email).first()
+    user.mfa_enabled = True
+    db.commit()
+
+    try:
+        redis_client.delete(f"mfa_setup:{email}")
+    except Exception:
+        pass
+
+    log_activity("mfa_enabled", "N/A", email)
+    return {"message": "Two-factor authentication enabled successfully"}
+
+
+@app.post("/mfa/disable")
+def mfa_disable(payload: dict, db: Session = Depends(get_db)):
+    email = payload.get("email")
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.mfa_enabled = False
+    db.commit()
+
+    log_activity("mfa_disabled", "N/A", email)
+    return {"message": "Two-factor authentication disabled"}
+
+
+@app.post("/verify-mfa")
+def verify_mfa(payload: dict, db: Session = Depends(get_db)):
+    """Step 2 of login when MFA is enabled — verify the OTP and issue the real token."""
+    email = payload.get("email")
+    code = payload.get("code")
+
+    try:
+        stored_code = redis_client.get(f"mfa_login:{email}")
+    except Exception:
+        stored_code = None
+
+    if not stored_code or stored_code != code:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+
+    db_user = db.query(models.User).filter(models.User.email == email).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    token = auth.create_access_token({"sub": db_user.email})
+
+    try:
+        redis_client.delete(f"mfa_login:{email}")
+        redis_client.incr(f"login_count:{db_user.email}")
+        redis_client.set(f"session:{db_user.email}", token, ex=3600)
+    except Exception as e:
+        print(f"Redis caching failed (non-critical): {e}")
+
+    return {"access_token": token, "token_type": "bearer", "role": db_user.role, "name": db_user.name}
+@app.get("/report")
+def get_report(email: str, role: str, days: int = 7):
+    """Generate a security/activity report summary for the last N days."""
+    since = datetime.utcnow() - timedelta(days=days)
+
+    try:
+        query = {"timestamp": {"$gte": since}}
+        if role != "admin":
+            query["performed_by"] = email
+
+        logs = list(activity_logs.find(query).sort("timestamp", -1))
+
+        summary = {
+            "file_upload": 0,
+            "file_download": 0,
+            "file_delete": 0,
+            "share_link_created": 0,
+            "shared_file_access": 0,
+            "suspicious_activity": 0,
+        }
+        suspicious_details = []
+
+        for log in logs:
+            action = log.get("action", "other")
+            if action in summary:
+                summary[action] += 1
+            if action == "suspicious_activity":
+                suspicious_details.append({
+                    "performed_by": log.get("performed_by"),
+                    "reason": log.get("reason", ""),
+                    "timestamp": log.get("timestamp").isoformat() if log.get("timestamp") else "",
+                })
+
+        return {
+            "period_days": days,
+            "generated_at": datetime.utcnow().isoformat(),
+            "generated_by": email,
+            "total_events": len(logs),
+            "summary": summary,
+            "suspicious_details": suspicious_details,
+        }
+    except Exception as e:
+        print(f"Report generation failed: {e}")
+        raise HTTPException(status_code=500, detail="Could not generate report")
