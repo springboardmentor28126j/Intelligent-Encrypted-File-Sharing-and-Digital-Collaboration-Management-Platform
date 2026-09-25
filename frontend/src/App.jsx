@@ -11,6 +11,7 @@ import Security from './pages/Security'
 import SharedWithMe from './pages/SharedWithMe'
 import UploadFile from './pages/UploadFile'
 import PublicShare from './pages/PublicShare' // 1. Import new page
+import Notifications from './pages/Notifications'
 
 function AppRoutes() {
   return (
@@ -36,6 +37,7 @@ function AppRoutes() {
                 <Route path="/files/upload" element={<UploadFile />} />
                 <Route path="/files/:id" element={<FileDetails />} />
                 <Route path="/shared-with-me" element={<SharedWithMe />} />
+                <Route path="/notifications" element={<Notifications />} />
                 <Route path="/folders" element={<Folders />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/security" element={<Security />} />

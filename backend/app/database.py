@@ -91,6 +91,31 @@ def ensure_schema_compatibility():
             _add_column_if_missing(connection, "activity_logs", logs, "user_agent", "user_agent VARCHAR(255)")
 
 
+def ensure_notifications_table():
+    inspector = inspect(engine)
+    table_names = inspector.get_table_names()
+    if "notifications" not in table_names:
+        from .models.notification import Notification
+        Notification.__table__.create(bind=engine, checkfirst=True)
+    else:
+        notifications_cols = _table_columns("notifications")
+        with engine.begin() as connection:
+            _add_column_if_missing(connection, "notifications", notifications_cols, "user_id", "user_id INTEGER NOT NULL DEFAULT 1")
+            _add_column_if_missing(connection, "notifications", notifications_cols, "type", "type VARCHAR(50) NOT NULL DEFAULT 'system'")
+            _add_column_if_missing(connection, "notifications", notifications_cols, "notification_type", "notification_type VARCHAR(50)")
+            _add_column_if_missing(connection, "notifications", notifications_cols, "title", "title VARCHAR(120) NOT NULL DEFAULT ''")
+            _add_column_if_missing(connection, "notifications", notifications_cols, "message", "message TEXT NOT NULL DEFAULT ''")
+            _add_column_if_missing(connection, "notifications", notifications_cols, "is_read", "is_read BOOLEAN NOT NULL DEFAULT FALSE")
+            _add_column_if_missing(connection, "notifications", notifications_cols, "created_at", "created_at TIMESTAMP DEFAULT NOW()")
+
+            if "notification_type" in notifications_cols:
+                connection.execute(text("UPDATE notifications SET type = notification_type WHERE (type IS NULL OR type = '' OR type = 'system') AND notification_type IS NOT NULL"))
+                connection.execute(text("UPDATE notifications SET notification_type = type WHERE notification_type IS NULL AND type IS NOT NULL"))
+
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_user_id ON notifications (user_id);"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_is_read ON notifications (is_read);"))
+
+
 def ensure_user_mfa_columns():
     with engine.begin() as connection:
         connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;"))
@@ -100,6 +125,7 @@ def ensure_user_mfa_columns():
 def ensure_file_storage_columns():
     ensure_schema_compatibility()
     ensure_user_mfa_columns()
+    ensure_notifications_table()
 
 # In backend/app/database.py inside ensure_file_storage_columns or a new helper:
 def ensure_activity_log_columns():

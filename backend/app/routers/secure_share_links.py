@@ -16,6 +16,7 @@ from ..models.file import file_display_name, file_display_type, file_is_deleted
 from ..schemas.secure_share_link import SecureShareLinkCreate, SecureShareLinkResponse
 from ..services.activity_service import log_activity
 from ..services.encryption_service import EncryptionConfigurationError
+from ..services.notification_service import create_notification
 from ..services.file_delivery import (
     StorageConfigurationError,
     StorageError,
@@ -129,6 +130,13 @@ def access_share_link(token: str, db: Session = Depends(get_db)):
                 f"Attempted access to expired secure link for '{file_display_name(item)}'",
                 item.id
             )
+            create_notification(
+                db=db,
+                user_id=owner.id,
+                type="link_expired",
+                title="Link expired",
+                message=f"Attempted access to expired secure link for '{file_display_name(item)}'.",
+            )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secure link is invalid")
 
     # 3. Download Limit check (Log event for owner)
@@ -138,6 +146,13 @@ def access_share_link(token: str, db: Session = Depends(get_db)):
                 db, owner, "download_limit_exceeded",
                 f"Download limit ({link.max_downloads}) reached on secure link for '{file_display_name(item)}'",
                 item.id
+            )
+            create_notification(
+                db=db,
+                user_id=owner.id,
+                type="security_alert",
+                title="Download limit reached",
+                message=f"Download limit ({link.max_downloads}) reached on secure link for '{file_display_name(item)}'.",
             )
         raise HTTPException(status_code=status.HTTP_410_GONE, detail="Download limit reached for this link")
 
@@ -162,6 +177,13 @@ def access_share_link(token: str, db: Session = Depends(get_db)):
             db, owner, "share_link_download",
             f"File '{file_display_name(item)}' was downloaded via secure link {count_display}",
             item.id
+        )
+        create_notification(
+            db=db,
+            user_id=owner.id,
+            type="download",
+            title="File downloaded",
+            message=f"'{file_display_name(item)}' was downloaded.",
         )
 
     filename = quote(Path(file_display_name(item)).name)

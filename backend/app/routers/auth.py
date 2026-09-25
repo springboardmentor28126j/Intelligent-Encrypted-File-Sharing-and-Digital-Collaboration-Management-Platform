@@ -25,6 +25,7 @@ from ..schemas.auth import (
 )
 from ..services.activity_service import log_activity
 from ..services.email_service import send_password_reset_otp
+from ..services.notification_service import create_notification
 from ..services.mfa_service import (
     build_provisioning_uri,
     generate_mfa_secret,
@@ -185,6 +186,13 @@ def mfa_enable(
     current_user.mfa_enabled = True
     db.commit()
     log_activity(db, current_user, "mfa_enable", "Enabled authenticator MFA")
+    create_notification(
+        db=db,
+        user_id=current_user.id,
+        type="security_alert",
+        title="Two-Factor Authentication Enabled",
+        message="Two-factor authentication (MFA) was enabled for your account.",
+    )
     return {"mfa_enabled": True}
 
 
@@ -206,6 +214,13 @@ def mfa_disable(
     current_user.mfa_secret = None
     db.commit()
     log_activity(db, current_user, "mfa_disable", "Disabled authenticator MFA")
+    create_notification(
+        db=db,
+        user_id=current_user.id,
+        type="security_alert",
+        title="Two-Factor Authentication Disabled",
+        message="Two-factor authentication (MFA) was disabled for your account.",
+    )
     return {"mfa_enabled": False}
 
 
@@ -348,6 +363,13 @@ def reset_password(
 
     user.password_hash = hash_password(data.new_password)
     db.commit()
+    create_notification(
+        db=db,
+        user_id=user.id,
+        type="security_alert",
+        title="Password Reset Successful",
+        message="Your account password was successfully reset.",
+    )
 
     return {
         "message": "Password reset successfully"

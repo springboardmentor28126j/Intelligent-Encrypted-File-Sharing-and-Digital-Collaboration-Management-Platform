@@ -15,6 +15,7 @@ from ..schemas.file import FileRename, FileResponse
 from ..services.activity_service import log_activity, log_download_notification
 from ..services.encryption_service import EncryptionConfigurationError, decrypt_file_data, metadata_for_storage
 from ..services.file_service import prepare_encrypted_upload
+from ..services.notification_service import create_notification
 from ..services.storage_service import StorageConfigurationError, StorageError, StorageObjectNotFoundError, get_storage_service
 from ..utils.dependencies import get_current_user
 
@@ -239,6 +240,13 @@ def download_file(file_id: int, current_user: User = Depends(get_current_user), 
             owner = db.get(User, item.owner_id)
             if owner:
                 log_download_notification(db, owner, current_user, file_display_name(item), item.id)
+                create_notification(
+                    db=db,
+                    user_id=item.owner_id,
+                    type="download",
+                    title="File downloaded",
+                    message=f"'{file_display_name(item)}' was downloaded.",
+                )
         log_activity(db, current_user, "download", f"Downloaded {file_display_name(item)}", item.id)
         filename = quote(Path(file_display_name(item)).name)
         return Response(content=content, media_type=file_display_type(item), headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"})
@@ -247,6 +255,13 @@ def download_file(file_id: int, current_user: User = Depends(get_current_user), 
         owner = db.get(User, item.owner_id)
         if owner:
             log_download_notification(db, owner, current_user, file_display_name(item), item.id)
+            create_notification(
+                db=db,
+                user_id=item.owner_id,
+                type="download",
+                title="File downloaded",
+                message=f"'{file_display_name(item)}' was downloaded.",
+            )
 
     log_activity(db, current_user, "download", f"Downloaded {file_display_name(item)}", item.id)
     if item_storage_backend:

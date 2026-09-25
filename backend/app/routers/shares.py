@@ -7,6 +7,8 @@ from ..models import File, FileShare, User
 from ..models.file import file_display_name, file_is_deleted
 from ..schemas.file_share import FileShareCreate, FileShareResponse, FileShareUpdate
 from ..services.activity_service import log_activity
+from ..services.email_service import send_notification_email
+from ..services.notification_service import create_notification
 from ..utils.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/files", tags=["File Shares"])
@@ -66,6 +68,13 @@ def share_file(file_id: int, data: FileShareCreate, current_user: User = Depends
             db.commit()
             db.refresh(existing)
             log_activity(db, current_user, "share_update", f"Updated {target_user.email} access to {permission} for {file_display_name(item)}", item.id)
+            create_notification(
+                db=db,
+                user_id=target_user.id,
+                type="file_share",
+                title="File share updated",
+                message=f"{current_user.name} updated your permissions for '{file_display_name(item)}' to {permission}.",
+            )
             first_share = existing if first_share is None else first_share
             continue
 
@@ -83,6 +92,18 @@ def share_file(file_id: int, data: FileShareCreate, current_user: User = Depends
         db.commit()
         db.refresh(share)
         log_activity(db, current_user, "share", f"Shared {file_display_name(item)} with {target_user.email} as {permission}", item.id)
+        create_notification(
+            db=db,
+            user_id=target_user.id,
+            type="file_share",
+            title="New file shared",
+            message=f"{current_user.name} shared '{file_display_name(item)}' with you.",
+        )
+        send_notification_email(
+            recipient=target_user.email,
+            subject_or_message="New file shared with you - TrustShare",
+            message=f"{current_user.name} shared '{file_display_name(item)}' with you on TrustShare.",
+        )
         if first_share is None:
             first_share = share
 

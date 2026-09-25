@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import NotificationBell from './NotificationBell'
+
+import Sidebar from './layout/Sidebar'
 
 export function formatBytes(bytes) {
   if (!bytes || bytes === 0) return '0 B'
@@ -20,16 +23,18 @@ export function Layout({ children }) {
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
-  const links = [
-    ['/dashboard', 'Overview'],
-    ['/files', 'My files'],
-    ['/files/upload', 'Upload file'],
-    ['/shared-with-me', 'Shared with me'],
-    ['/folders', 'Folders'],
-    ['/activity', 'Activity'],
-    ['/profile', 'Profile'],
-    ['/security', 'Security']
-  ]
+
+  const pageTitles = {
+    '/dashboard': 'Overview',
+    '/files': 'My files',
+    '/files/upload': 'Upload file',
+    '/shared-with-me': 'Shared with me',
+    '/notifications': 'Notifications',
+    '/folders': 'Folders',
+    '/activity': 'Activity',
+    '/profile': 'Profile',
+    '/security': 'Security',
+  }
 
   useEffect(() => { 
     function closeMenu(event) { 
@@ -47,38 +52,29 @@ export function Layout({ children }) {
 
   return (
     <div className="app-shell">
-      <aside>
-        <Link className="brand" to="/dashboard">
-          <span className="brand-mark">T</span> TrustShare
-        </Link>
-        <p className="eyebrow">PERSONAL WORKSPACE</p>
-        <nav>
-          {links.map(([path, label]) => (
-            <Link className={location.pathname === path ? 'active' : ''} key={path} to={path}>
-              {label}
-            </Link>
-          ))}
-        </nav>
-      </aside>
+      <Sidebar />
       <main>
         <header>
           <div>
             <span className="eyebrow">SECURE FILE SHARING</span>
-            <h1>{links.find(([path]) => location.pathname === path)?.[1] || 'File details'}</h1>
+            <h1>{pageTitles[location.pathname] || 'File details'}</h1>
           </div>
-          <div className="profile-menu" ref={menuRef}>
-            <button className="avatar" aria-label="Open profile menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
-              {user?.name?.[0] || 'U'}
-            </button>
-            {menuOpen && (
-              <div className="profile-popover">
-                <strong>{user?.name}</strong>
-                <small>{user?.email}</small>
-                <Link to="/profile" onClick={() => setMenuOpen(false)}>Profile</Link>
-                <Link to="/security" onClick={() => setMenuOpen(false)}>Security</Link>
-                <button onClick={signOut}>Log out</button>
-              </div>
-            )}
+          <div className="header-actions">
+            <NotificationBell />
+            <div className="profile-menu" ref={menuRef}>
+              <button className="avatar" aria-label="Open profile menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
+                {user?.name?.[0] || 'U'}
+              </button>
+              {menuOpen && (
+                <div className="profile-popover">
+                  <strong>{user?.name}</strong>
+                  <small>{user?.email}</small>
+                  <Link to="/profile" onClick={() => setMenuOpen(false)}>Profile</Link>
+                  <Link to="/security" onClick={() => setMenuOpen(false)}>Security</Link>
+                  <button onClick={signOut}>Log out</button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         {children}

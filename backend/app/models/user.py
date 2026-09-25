@@ -21,3 +21,4 @@ class User(Base):
     folders = relationship("Folder", back_populates="owner", cascade="all, delete-orphan")
     files = relationship("File", back_populates="owner", cascade="all, delete-orphan")
     file_shares_received = relationship("FileShare", foreign_keys="FileShare.shared_with_user_id", back_populates="shared_with_user", cascade="all, delete-orphan")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")

@@ -9,7 +9,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from app import config
-from app.models import SecureShareLink
+from app.models import File, SecureShareLink
 from app.routers.secure_share_links import access_share_link, create_share_link, hash_share_token, revoke_share_link
 from app.services.encryption_service import encrypt_file_data, metadata_for_storage
 
@@ -51,7 +51,7 @@ class SecureShareLinkTests(unittest.TestCase):
             def refresh(self, value):
                 value.created_at = value.created_at or __import__("datetime").datetime.utcnow()
 
-        response = create_share_link(12, owner, Db())
+        response = create_share_link(12, None, owner, Db())
         link = records[0]
         token = response["share_url"].rsplit("/", 1)[-1]
 
@@ -59,7 +59,7 @@ class SecureShareLinkTests(unittest.TestCase):
         self.assertEqual(link.token_hash, hash_share_token(token))
         self.assertNotEqual(link.token_hash, token)
         self.assertNotIn(token, link.token_hash)
-        self.assertTrue(response["share_url"].startswith(config.settings.share_link_base_url + "/"))
+        self.assertTrue(response["share_url"].startswith(config.settings.frontend_origin.rstrip("/") + "/share/"))
 
     def test_non_owner_cannot_create_link(self):
         owner = SimpleNamespace(id=7)
@@ -68,12 +68,12 @@ class SecureShareLinkTests(unittest.TestCase):
         db = SimpleNamespace(get=lambda model, file_id: item)
 
         with self.assertRaises(HTTPException) as error:
-            create_share_link(12, other_user, db)
+            create_share_link(12, None, other_user, db)
 
         self.assertEqual(error.exception.status_code, 403)
 
     def test_valid_link_returns_original_encrypted_file_content(self):
-        owner = SimpleNamespace(id=7)
+        owner = SimpleNamespace(id=7, name="Owner", email="owner@example.com")
         plaintext = b"secure shared content"
         encrypted = encrypt_file_data(plaintext)
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -81,8 +81,8 @@ class SecureShareLinkTests(unittest.TestCase):
             path.write_bytes(encrypted.ciphertext)
             item = SimpleNamespace(id=12, owner_id=owner.id, file_path=str(path), storage_backend=None, storage_key=None, original_filename="report.txt", file_type="text/plain", encryption=SimpleNamespace(**metadata_for_storage(encrypted)))
             token = secrets.token_urlsafe(32)
-            link = SimpleNamespace(id=1, file_id=item.id, revoked_at=None, token_hash=hash_share_token(token))
-            db = SimpleNamespace(query=lambda model: Query(link), get=lambda model, file_id: item)
+            link = SimpleNamespace(id=1, file_id=item.id, revoked_at=None, token_hash=hash_share_token(token), expires_at=None, max_downloads=None, download_count=0)
+            db = SimpleNamespace(query=lambda model: Query(link), get=lambda model, file_id: item if model == File else owner, commit=lambda: None)
 
             response = access_share_link(token, db)
 
