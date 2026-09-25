@@ -2,7 +2,7 @@ from redis_client import redis_client
 from mongo import activity_logs
 from datetime import datetime, timedelta
 from fastapi import UploadFile, File, Form
-from fastapi.responses import FileResponse, Response  # FIX: Response was missing — download_file needs it
+from fastapi.responses import FileResponse, Response
 import os
 import secrets
 import secrets as pysecrets
@@ -16,6 +16,7 @@ import schemas
 import auth
 import encryption  # AES-256-GCM encrypt/decrypt helpers (Milestone 2)
 from storage_client import upload_to_storage, download_from_storage, delete_from_storage
+from email_service import send_email
 
 Base.metadata.create_all(bind=engine)
 
@@ -37,11 +38,7 @@ def get_db():
         db.close()
 
 
-# NEW: single helper so every action logs with the SAME field names.
-# Extra keyword args (share_token, recipient_email, etc.) are still included
-# for that specific action, but every entry always has action/filename/
-# performed_by/timestamp so the Activity Log page can display and filter
-# them consistently.
+# Single helper so every action logs with the SAME field names.
 def log_activity(action: str, filename: str, performed_by: str, **extra):
     try:
         entry = {
@@ -78,12 +75,39 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
 @app.post("/login")
 def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
+
     if not db_user or not auth.verify_password(user.password, db_user.password):
+        try:
+            fail_key = f"failed_login:{user.email}"
+            fail_count = redis_client.incr(fail_key)
+            redis_client.expire(fail_key, 900)
+
+            if fail_count >= 3:
+                # FIX: these were incorrectly nested — log_activity(send_email(...))
+                # meant send_email's True/False return value was being passed in as
+                # the "performed_by" argument, and log_activity was never actually
+                # called with the right data. Now they run as two separate calls.
+                log_activity(
+                    "suspicious_activity",
+                    "N/A",
+                    user.email,
+                    reason=f"{fail_count} failed login attempts within 15 minutes"
+                )
+                send_email(
+                    user.email,
+                    "TrustShare — Security Alert",
+                    f"We detected {fail_count} failed login attempts on your account within the last 15 minutes. "
+                    f"If this wasn't you, consider resetting your password immediately."
+                )
+        except Exception as e:
+            print(f"Redis failed-login tracking error (non-critical): {e}")
+
         raise HTTPException(status_code=400, detail="Invalid email or password")
 
     token = auth.create_access_token({"sub": db_user.email})
 
     try:
+        redis_client.delete(f"failed_login:{user.email}")
         redis_client.incr(f"login_count:{db_user.email}")
         redis_client.set(f"session:{db_user.email}", token, ex=3600)
     except Exception as e:
@@ -171,7 +195,28 @@ def delete_file(file_id: int, email: str, role: str, db: Session = Depends(get_d
     db.delete(record)
     db.commit()
 
-    # FIX: delete was never logged before — now it is, same as every other action
+    # NEW: rapid-delete detection — same 2-minute window pattern as downloads/logins
+    try:
+        delete_key = f"delete_count:{email}"
+        delete_count = redis_client.incr(delete_key)
+        redis_client.expire(delete_key, 120)
+
+        if delete_count == 5:  # fire once, right when it crosses the threshold
+            log_activity(
+                "suspicious_activity",
+                "N/A",
+                email,
+                reason=f"{delete_count} files deleted within 2 minutes — possible malicious activity"
+            )
+            send_email(
+                email,
+                "TrustShare — Security Alert",
+                f"We detected {delete_count} file deletions on your account within 2 minutes. "
+                f"If this wasn't you, please review your account activity immediately."
+            )
+    except Exception as e:
+        print(f"Redis delete tracking error (non-critical): {e}")
+
     log_activity("file_delete", filename, email)
 
     return {"message": "File deleted successfully"}
@@ -200,7 +245,39 @@ def download_file(file_id: int, email: str, role: str, db: Session = Depends(get
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to decrypt file — data may be corrupted")
 
+    # Rapid-download detection — same pattern as failed-login tracking
+    try:
+        download_key = f"download_count:{email}"
+        download_count = redis_client.incr(download_key)
+        redis_client.expire(download_key, 120)  # 2-minute rolling window
+
+        if download_count == 3:  # only fire once, right when it crosses the threshold
+            log_activity(
+                "suspicious_activity",
+                "N/A",
+                email,
+                reason=f"{download_count} file downloads within 2 minutes — possible data exfiltration"
+            )
+            send_email(
+                email,
+                "TrustShare — Security Alert",
+                f"We detected {download_count} file downloads on your account within 2 minutes. "
+                f"If this wasn't you, please review your account activity immediately."
+            )
+    except Exception as e:
+        print(f"Redis download tracking error (non-critical): {e}")
+
     log_activity("file_download", record.filename, email)
+
+    # Notify the file owner whenever someone else (e.g. an admin) accesses their file
+    if record.owner_email != email:
+        send_email(
+            record.owner_email,
+            "TrustShare — Your file was accessed",
+            f"Your file '{record.filename}' was downloaded by {email} (role: {role}) "
+            f"on {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}.\n\n"
+            f"If you don't recognize this activity, please review your account."
+        )
 
     return Response(
         content=decrypted_bytes,
@@ -209,8 +286,8 @@ def download_file(file_id: int, email: str, role: str, db: Session = Depends(get
     )
 
 
-# NEW: the Activity Log tab now calls this instead of reusing the /files list.
-# Standard users see only activity tied to their own actions/files; admins see everything.
+# The Activity Log tab calls this. Standard users see only their own activity;
+# admins see everything.
 @app.get("/activity-log")
 def get_activity_log(email: str, role: str):
     try:
@@ -241,14 +318,20 @@ def forgot_password(payload: dict, db: Session = Depends(get_db)):
     token = secrets.token_hex(4)
 
     try:
-        redis_client.set(f"reset_token:{token}", email, ex=600)
+        redis_client.set(f"reset_token:{token}", email, ex=300)  # 5 minutes
     except Exception as e:
         raise HTTPException(status_code=500, detail="Could not generate reset token, try again")
 
+    reset_link_text = f"Your TrustShare password reset code is: {token}\nThis code expires in 5 minutes."
+    send_email(email, "TrustShare — Password Reset Code", reset_link_text)
+
+    # NOTE: reset_token is no longer needed by the frontend now that email
+    # delivery works, but it's left in the response as a fallback in case
+    # email sending fails silently. It is not displayed on screen anymore.
     return {
-        "message": "Reset token generated (dev mode)",
+        "message": "Reset code sent to your email",
         "reset_token": token,
-        "expires_in": "10 minutes"
+        "expires_in": "5 minutes"
     }
 
 
@@ -355,8 +438,6 @@ def access_shared_file(share_token: str, db: Session = Depends(get_db)):
 
     decrypted_bytes = encryption.decrypt_file_bytes(encrypted_bytes, key)
 
-    # FIX: use the recipient's email (not the share_token) as performed_by,
-    # so it lines up with every other log entry and can be filtered the same way.
     log_activity(
         "shared_file_access",
         record.filename,

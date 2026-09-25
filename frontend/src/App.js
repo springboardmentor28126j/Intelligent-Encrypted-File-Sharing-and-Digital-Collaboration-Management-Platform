@@ -25,7 +25,7 @@ function App() {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [expiryHours, setExpiryHours] = useState(24);
   const [shareResultLink, setShareResultLink] = useState('');
-  const [activityLogs, setActivityLogs] = useState([]); // NEW: real activity log from backend
+  const [activityLogs, setActivityLogs] = useState([]);
 
   useEffect(() => {
     if (loggedIn) {
@@ -34,7 +34,6 @@ function App() {
     // eslint-disable-next-line
   }, [loggedIn]);
 
-  // NEW: fetch activity log whenever the Activity Log tab is opened
   useEffect(() => {
     if (loggedIn && activeTab === 'activity') {
       fetchActivityLog();
@@ -55,7 +54,6 @@ function App() {
     }
   };
 
-  // NEW: pulls upload/download/delete/share events from the backend
   const fetchActivityLog = async () => {
     try {
       const userEmail = localStorage.getItem('email');
@@ -246,7 +244,7 @@ function App() {
     return '📁';
   };
 
-  // NEW: friendly label + icon per action type, for the Activity Log tab
+  // Friendly label + icon per action type
   const getActionLabel = (action) => {
     switch (action) {
       case 'file_upload': return 'uploaded';
@@ -254,6 +252,7 @@ function App() {
       case 'file_delete': return 'deleted';
       case 'share_link_created': return 'created a share link for';
       case 'shared_file_access': return 'accessed via share link';
+      case 'suspicious_activity': return 'triggered a suspicious activity alert';
       default: return action;
     }
   };
@@ -265,6 +264,7 @@ function App() {
       case 'file_delete': return '🗑️';
       case 'share_link_created': return '🔗';
       case 'shared_file_access': return '📤';
+      case 'suspicious_activity': return '⚠️';
       default: return '📄';
     }
   };
@@ -288,6 +288,9 @@ function App() {
   const filteredFiles = files.filter((f) =>
     f.filename.toLowerCase().includes(search.toLowerCase())
   );
+
+  // NEW: count of suspicious activity entries, for the alert banner
+  const suspiciousCount = activityLogs.filter((log) => log.action === 'suspicious_activity').length;
 
   // ---------- LOGIN / SIGNUP PAGE ----------
   if (!loggedIn) {
@@ -336,12 +339,6 @@ function App() {
                 <>
                   <h2>Reset password</h2>
                   <p className="subtitle">Enter the code and your new password</p>
-                  {generatedToken && (
-                    <div className="dev-note">
-                      <strong>Dev mode:</strong> Your reset code:
-                      <div className="token-box mono">{generatedToken}</div>
-                    </div>
-                  )}
                   <form onSubmit={handleResetPassword}>
                     <div className="field-group">
                       <label>Reset code</label>
@@ -477,6 +474,9 @@ function App() {
           onClick={() => setActiveTab('activity')}
         >
           📊 Activity Log
+          {suspiciousCount > 0 && activeTab !== 'activity' && (
+            <span className="nav-badge">{suspiciousCount}</span>
+          )}
         </div>
         <div
           className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
@@ -614,25 +614,44 @@ function App() {
               <button className="btn-logout" onClick={handleLogout}>Log out</button>
             </div>
 
+            {suspiciousCount > 0 && (
+              <div className="alert-banner">
+                ⚠️ {suspiciousCount} suspicious {suspiciousCount === 1 ? 'activity' : 'activities'} detected — review below
+              </div>
+            )}
+
             <div className="card">
               <h3>Recent activity</h3>
               {activityLogs.length === 0 ? (
                 <div className="empty-state">No activity yet — upload, download, share, or delete a file to see it here.</div>
               ) : (
-                activityLogs.map((log) => (
-                  <div className="activity-item" key={log._id}>
-                    <div className="activity-dot">{getActionIcon(log.action)}</div>
-                    <div>
-                      <div className="activity-text">
-                        <span className="mono">{log.performed_by}</span> {getActionLabel(log.action)} <span className="mono">{log.filename}</span>
-                        {log.recipient_email && (
-                          <> with <span className="mono">{log.recipient_email}</span></>
+                activityLogs.map((log) => {
+                  const isSuspicious = log.action === 'suspicious_activity';
+                  return (
+                    <div
+                      className={`activity-item ${isSuspicious ? 'activity-alert' : ''}`}
+                      key={log._id}
+                    >
+                      <div className="activity-dot">{getActionIcon(log.action)}</div>
+                      <div>
+                        {isSuspicious ? (
+                          <div className="activity-text">
+                            <span className="mono">{log.performed_by}</span> {getActionLabel(log.action)}
+                            {log.reason && <div className="activity-reason">{log.reason}</div>}
+                          </div>
+                        ) : (
+                          <div className="activity-text">
+                            <span className="mono">{log.performed_by}</span> {getActionLabel(log.action)} <span className="mono">{log.filename}</span>
+                            {log.recipient_email && (
+                              <> with <span className="mono">{log.recipient_email}</span></>
+                            )}
+                          </div>
                         )}
+                        <div className="activity-time">{formatTime(log.timestamp)}</div>
                       </div>
-                      <div className="activity-time">{formatTime(log.timestamp)}</div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </>
