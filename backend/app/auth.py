@@ -1,4 +1,6 @@
 import os
+import secrets
+import hashlib
 
 from datetime import datetime, timedelta, timezone
 
@@ -9,12 +11,14 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal
-from .models import User
+from .models import User, PasswordResetToken
 
 
+# Load environment variables
 load_dotenv()
 
 
+# JWT configuration
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 
 if not SECRET_KEY:
@@ -27,6 +31,10 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 security = HTTPBearer()
 
+
+# ============================================================
+# JWT ACCESS TOKEN
+# ============================================================
 
 def create_access_token(user_id: int):
     expire = datetime.now(timezone.utc) + timedelta(
@@ -44,6 +52,10 @@ def create_access_token(user_id: int):
         algorithm=ALGORITHM
     )
 
+
+# ============================================================
+# GET CURRENT USER
+# ============================================================
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security)
@@ -100,6 +112,10 @@ def get_current_user(
         db.close()
 
 
+# ============================================================
+# ADMIN ACCESS
+# ============================================================
+
 def require_admin(
     current_user: User = Depends(get_current_user)
 ):
@@ -110,3 +126,115 @@ def require_admin(
         )
 
     return current_user
+
+
+# ============================================================
+# CREATE PASSWORD RESET TOKEN
+# ============================================================
+
+def create_password_reset_token(user_id: int):
+    """
+    Create a secure password-reset token.
+
+    Only the SHA-256 hash is stored in the database.
+    The raw token is returned so it can be sent by email.
+    The token expires after 30 minutes.
+    """
+
+    token = secrets.token_urlsafe(32)
+
+    token_hash = hashlib.sha256(
+        token.encode("utf-8")
+    ).hexdigest()
+
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        minutes=30
+    )
+
+    db: Session = SessionLocal()
+
+    try:
+        # Invalidate previous unused reset tokens
+        db.query(PasswordResetToken).filter(
+            PasswordResetToken.user_id == user_id,
+            PasswordResetToken.used == False
+        ).update({
+            PasswordResetToken.used: True
+        })
+
+        reset_token = PasswordResetToken(
+            user_id=user_id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+            used=False,
+            created_at=datetime.now(timezone.utc)
+        )
+
+        db.add(reset_token)
+        db.commit()
+
+        return token
+
+    except Exception:
+        db.rollback()
+        raise
+
+    finally:
+        db.close()
+
+
+# ============================================================
+# VERIFY PASSWORD RESET TOKEN
+# ============================================================
+
+def verify_password_reset_token(token: str):
+    """
+    Validate a password-reset token.
+
+    Returns the token ID and user ID if valid.
+    Returns None if the token is invalid, expired, or already used.
+    """
+
+    token_hash = hashlib.sha256(
+        token.encode("utf-8")
+    ).hexdigest()
+
+    db: Session = SessionLocal()
+
+    try:
+        reset_token = (
+            db.query(PasswordResetToken)
+            .filter(
+                PasswordResetToken.token_hash == token_hash,
+                PasswordResetToken.used == False
+            )
+            .first()
+        )
+
+        if not reset_token:
+            return None
+
+        # Get current UTC time
+        now = datetime.now(timezone.utc)
+
+        # Handle timezone-naive database timestamps
+        expires_at = reset_token.expires_at
+
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(
+                tzinfo=timezone.utc
+            )
+
+        # Check whether token has expired
+        if expires_at <= now:
+            reset_token.used = True
+            db.commit()
+            return None
+
+        return {
+            "token_id": reset_token.id,
+            "user_id": reset_token.user_id
+        }
+
+    finally:
+        db.close()

@@ -1,6 +1,106 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import "./Dashboard.css";
+
+function Icon({ name, size = 20 }) {
+  const paths = {
+    dashboard: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+        <rect x="14" y="14" width="7" height="7" rx="1.5" />
+      </>
+    ),
+    folder: (
+      <>
+        <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z" />
+      </>
+    ),
+    upload: (
+      <>
+        <path d="M12 16V4" />
+        <path d="M7 9l5-5 5 5" />
+        <path d="M5 20h14" />
+      </>
+    ),
+    share: (
+      <>
+        <circle cx="6" cy="12" r="2.5" />
+        <circle cx="18" cy="6" r="2.5" />
+        <circle cx="18" cy="18" r="2.5" />
+        <path d="M8.3 10.8l7.4-3.7M8.3 13.2l7.4 3.7" />
+      </>
+    ),
+    shield: (
+      <>
+        <path d="M12 3l7 3v5c0 4.7-2.8 7.9-7 10-4.2-2.1-7-5.3-7-10V6z" />
+        <path d="M9 12l2 2 4-4" />
+      </>
+    ),
+    lock: (
+      <>
+        <rect x="5" y="10" width="14" height="10" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </>
+    ),
+    file: (
+      <>
+        <path d="M6 3h8l4 4v14H6z" />
+        <path d="M14 3v5h4M9 13h6M9 17h6" />
+      </>
+    ),
+    clock: (
+      <>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7v5l3 2" />
+      </>
+    ),
+    check: (
+      <path d="M5 12l4 4L19 6" />
+    ),
+    arrow: (
+      <>
+        <path d="M5 12h14" />
+        <path d="M13 6l6 6-6 6" />
+      </>
+    ),
+    logout: (
+      <>
+        <path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4" />
+        <path d="M14 8l4 4-4 4" />
+        <path d="M18 12H9" />
+      </>
+    ),
+    plus: (
+      <>
+        <path d="M12 5v14M5 12h14" />
+      </>
+    ),
+    menu: (
+      <>
+        <path d="M4 7h16M4 12h16M4 17h16" />
+      </>
+    ),
+  };
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -8,6 +108,7 @@ function Dashboard() {
   const [files, setFiles] = useState([]);
   const [sharedFiles, setSharedFiles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const user = JSON.parse(localStorage.getItem("user"));
   const token = localStorage.getItem("access_token");
@@ -26,15 +127,27 @@ function Dashboard() {
           },
         };
 
-        const [filesResponse, sharedResponse] = await Promise.all([
-          axios.get("http://127.0.0.1:8000/files/", config),
-          axios.get("http://127.0.0.1:8000/share/received", config),
-        ]);
+        const [filesResponse, sharedResponse] =
+          await Promise.all([
+            axios.get(
+              "http://127.0.0.1:8000/files/",
+              config
+            ),
+            axios.get(
+              "http://127.0.0.1:8000/share/received",
+              config
+            ),
+          ]);
 
         setFiles(filesResponse.data.files || []);
-        setSharedFiles(sharedResponse.data.files || []);
+        setSharedFiles(
+          sharedResponse.data.files || []
+        );
       } catch (error) {
-        console.error("Dashboard loading failed:", error);
+        console.error(
+          "Dashboard loading failed:",
+          error
+        );
 
         if (error.response?.status === 401) {
           localStorage.removeItem("access_token");
@@ -55,7 +168,14 @@ function Dashboard() {
     navigate("/login");
   };
 
-  const encryptedFiles = files.filter((file) => file.encrypted);
+  const encryptedFiles = files.filter(
+    (file) => file.encrypted
+  );
+
+  const totalSize = files.reduce(
+    (total, file) => total + (file.size || 0),
+    0
+  );
 
   const formatSize = (bytes) => {
     if (!bytes || bytes <= 0) return "0 KB";
@@ -68,914 +188,220 @@ function Dashboard() {
       return `${(bytes / 1024).toFixed(1)} KB`;
     }
 
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    return `${(
+      bytes /
+      (1024 * 1024 * 1024)
+    ).toFixed(1)} GB`;
+  };
+
+  const getFileType = (filename = "") => {
+    const extension =
+      filename.split(".").pop()?.toLowerCase();
+
+    const types = {
+      pdf: "PDF",
+      doc: "DOC",
+      docx: "DOC",
+      xls: "XLS",
+      xlsx: "XLS",
+      ppt: "PPT",
+      pptx: "PPT",
+      csv: "CSV",
+      zip: "ZIP",
+      jpg: "IMG",
+      jpeg: "IMG",
+      png: "IMG",
+    };
+
+    return types[extension] || "FILE";
+  };
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
   };
 
   return (
-    <div className="ts-dashboard">
-
-      <style>{`
-        * {
-          box-sizing: border-box;
-        }
-
-        .ts-dashboard {
-          min-height: 100vh;
-          display: flex;
-          background:
-            radial-gradient(
-              circle at 80% 0%,
-              rgba(99, 102, 241, 0.12),
-              transparent 30%
-            ),
-            linear-gradient(
-              135deg,
-              #f8fafc 0%,
-              #eef2ff 100%
-            );
-          color: #172033;
-          font-family:
-            Inter,
-            system-ui,
-            -apple-system,
-            BlinkMacSystemFont,
-            "Segoe UI",
-            sans-serif;
-        }
-
-        /* =========================
-           SIDEBAR
-        ========================= */
-
-        .ts-sidebar {
-          width: 250px;
-          min-height: 100vh;
-          background: #111827;
-          color: white;
-          padding: 25px 18px;
-          display: flex;
-          flex-direction: column;
-          position: sticky;
-          top: 0;
-          height: 100vh;
-        }
-
-        .ts-brand {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 5px 10px 35px;
-        }
-
-        .ts-logo {
-          width: 42px;
-          height: 42px;
-          border-radius: 13px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 21px;
-          font-weight: 800;
-          background: linear-gradient(
-            135deg,
-            #6366f1,
-            #8b5cf6
-          );
-          box-shadow:
-            0 8px 25px rgba(99, 102, 241, 0.35);
-        }
-
-        .ts-brand h2 {
-          margin: 0;
-          font-size: 21px;
-          letter-spacing: -0.5px;
-        }
-
-        .ts-brand small {
-          display: block;
-          color: #94a3b8;
-          font-size: 10px;
-          margin-top: 2px;
-        }
-
-        .ts-nav {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .ts-nav button,
-        .ts-logout {
-          border: 0;
-          background: transparent;
-          color: #cbd5e1;
-          text-align: left;
-          padding: 13px 14px;
-          border-radius: 10px;
-          font-size: 14px;
-          cursor: pointer;
-          transition: 0.2s ease;
-        }
-
-        .ts-nav button:hover,
-        .ts-nav button.ts-active {
-          background: rgba(255, 255, 255, 0.09);
-          color: white;
-          transform: translateX(2px);
-        }
-
-        .ts-nav button.ts-active {
-          box-shadow:
-            inset 3px 0 0 #818cf8;
-        }
-
-        .ts-sidebar-bottom {
-          margin-top: auto;
-        }
-
-        .ts-security-mini {
-          padding: 15px;
-          border-radius: 14px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          margin-bottom: 12px;
-        }
-
-        .ts-security-mini-title {
-          font-size: 12px;
-          color: #94a3b8;
-          margin-bottom: 7px;
-        }
-
-        .ts-security-mini-status {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 13px;
-          font-weight: 600;
-        }
-
-        .ts-green-dot {
-          width: 8px;
-          height: 8px;
-          background: #22c55e;
-          border-radius: 50%;
-          box-shadow:
-            0 0 10px rgba(34, 197, 94, 0.7);
-        }
-
-        .ts-logout {
-          width: 100%;
-        }
-
-        .ts-logout:hover {
-          background: rgba(239, 68, 68, 0.12);
-          color: #fca5a5;
-        }
-
-        /* =========================
-           MAIN
-        ========================= */
-
-        .ts-main {
-          flex: 1;
-          min-width: 0;
-          padding: 35px;
-        }
-
-        .ts-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 20px;
-          margin-bottom: 30px;
-        }
-
-        .ts-header h1 {
-          margin: 0;
-          font-size: clamp(25px, 3vw, 34px);
-          letter-spacing: -1px;
-        }
-
-        .ts-header p {
-          margin: 8px 0 0;
-          color: #64748b;
-          font-size: 14px;
-        }
-
-        /* =========================
-           PROFILE
-        ========================= */
-
-        .ts-profile {
-          display: flex;
-          align-items: center;
-          gap: 11px;
-          background: rgba(255, 255, 255, 0.85);
-          border: 1px solid #e2e8f0;
-          padding: 8px 13px 8px 8px;
-          border-radius: 40px;
-          white-space: nowrap;
-          cursor: pointer;
-          transition: 0.2s ease;
-        }
-
-        .ts-profile:hover {
-          border-color: #c7d2fe;
-          background: white;
-          transform: translateY(-1px);
-          box-shadow:
-            0 8px 20px rgba(15, 23, 42, 0.08);
-        }
-
-        .ts-avatar {
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-weight: 700;
-          background: linear-gradient(
-            135deg,
-            #6366f1,
-            #8b5cf6
-          );
-        }
-
-        .ts-profile-name {
-          font-size: 13px;
-          font-weight: 600;
-        }
-
-        .ts-profile-email {
-          font-size: 10px;
-          color: #64748b;
-          margin-top: 2px;
-        }
-
-        .ts-profile-logout {
-          margin-left: 4px;
-          font-size: 13px;
-          color: #64748b;
-          transition: 0.2s ease;
-        }
-
-        .ts-profile:hover .ts-profile-logout {
-          color: #ef4444;
-        }
-
-        /* =========================
-           HERO
-        ========================= */
-
-        .ts-hero {
-          background:
-            linear-gradient(
-              135deg,
-              #312e81,
-              #4f46e5 55%,
-              #7c3aed
-            );
-          border-radius: 22px;
-          padding: 28px;
-          color: white;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 20px;
-          overflow: hidden;
-          position: relative;
-          margin-bottom: 24px;
-          box-shadow:
-            0 15px 35px rgba(79, 70, 229, 0.20);
-        }
-
-        .ts-hero::after {
-          content: "";
-          position: absolute;
-          width: 230px;
-          height: 230px;
-          border-radius: 50%;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          right: 80px;
-          top: -110px;
-        }
-
-        .ts-hero-content {
-          position: relative;
-          z-index: 1;
-        }
-
-        .ts-hero-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-          background: rgba(255, 255, 255, 0.12);
-          border: 1px solid rgba(255, 255, 255, 0.16);
-          padding: 6px 10px;
-          border-radius: 20px;
-          font-size: 11px;
-          margin-bottom: 12px;
-        }
-
-        .ts-hero h2 {
-          margin: 0;
-          font-size: 24px;
-        }
-
-        .ts-hero p {
-          margin: 7px 0 0;
-          color: #ddd6fe;
-          font-size: 13px;
-        }
-
-        .ts-hero-lock {
-          width: 80px;
-          height: 80px;
-          border-radius: 24px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 38px;
-          background: rgba(255, 255, 255, 0.11);
-          border: 1px solid rgba(255, 255, 255, 0.16);
-          position: relative;
-          z-index: 1;
-        }
-
-        /* =========================
-           STATS
-        ========================= */
-
-        .ts-stats {
-          display: grid;
-          grid-template-columns:
-            repeat(4, minmax(0, 1fr));
-          gap: 15px;
-          margin-bottom: 24px;
-        }
-
-        .ts-stat {
-          background: rgba(255, 255, 255, 0.85);
-          border: 1px solid #e2e8f0;
-          border-radius: 17px;
-          padding: 19px;
-          cursor: pointer;
-          transition: 0.2s ease;
-        }
-
-        .ts-stat:hover {
-          transform: translateY(-3px);
-          border-color: #c7d2fe;
-          box-shadow:
-            0 12px 25px rgba(15, 23, 42, 0.07);
-        }
-
-        .ts-stat-top {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .ts-stat-icon {
-          width: 38px;
-          height: 38px;
-          border-radius: 11px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 18px;
-          background: #eef2ff;
-        }
-
-        .ts-stat-label {
-          color: #64748b;
-          font-size: 12px;
-          margin: 14px 0 4px;
-        }
-
-        .ts-stat-value {
-          font-size: 25px;
-          font-weight: 750;
-          letter-spacing: -0.7px;
-        }
-
-        .ts-stat-note {
-          color: #16a34a;
-          font-size: 10px;
-          margin-top: 5px;
-        }
-
-        /* =========================
-           CONTENT
-        ========================= */
-
-        .ts-content-grid {
-          display: grid;
-          grid-template-columns:
-            minmax(0, 1.55fr)
-            minmax(280px, 0.9fr);
-          gap: 20px;
-        }
-
-        .ts-panel {
-          background: rgba(255, 255, 255, 0.86);
-          border: 1px solid #e2e8f0;
-          border-radius: 19px;
-          overflow: hidden;
-        }
-
-        .ts-panel-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 19px 20px;
-          border-bottom: 1px solid #eef2f7;
-        }
-
-        .ts-panel-header h3 {
-          margin: 0;
-          font-size: 16px;
-        }
-
-        .ts-panel-header p {
-          margin: 4px 0 0;
-          font-size: 11px;
-          color: #64748b;
-        }
-
-        .ts-view-all {
-          border: 0;
-          background: #eef2ff;
-          color: #4f46e5;
-          padding: 7px 11px;
-          border-radius: 8px;
-          font-size: 11px;
-          font-weight: 600;
-          cursor: pointer;
-        }
-
-        .ts-view-all:hover {
-          background: #e0e7ff;
-        }
-
-        /* =========================
-           FILES
-        ========================= */
-
-        .ts-file-list {
-          padding: 7px 10px 12px;
-        }
-
-        .ts-file {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px 10px;
-          border-radius: 12px;
-          transition: 0.18s ease;
-        }
-
-        .ts-file:hover {
-          background: #f8fafc;
-        }
-
-        .ts-file-icon {
-          width: 40px;
-          height: 40px;
-          border-radius: 11px;
-          background: #f1f5f9;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 19px;
-          flex-shrink: 0;
-        }
-
-        .ts-file-info {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .ts-file-name {
-          font-size: 13px;
-          font-weight: 650;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .ts-file-meta {
-          font-size: 10px;
-          color: #64748b;
-          margin-top: 4px;
-        }
-
-        .ts-encrypted-pill {
-          font-size: 9px;
-          padding: 5px 8px;
-          border-radius: 20px;
-          background: #ecfdf5;
-          color: #15803d;
-          white-space: nowrap;
-        }
-
-        /* =========================
-           EMPTY STATE
-        ========================= */
-
-        .ts-empty {
-          text-align: center;
-          padding: 35px 20px;
-        }
-
-        .ts-empty-icon {
-          font-size: 35px;
-          margin-bottom: 10px;
-        }
-
-        .ts-empty h4 {
-          margin: 0;
-          font-size: 14px;
-        }
-
-        .ts-empty p {
-          color: #64748b;
-          font-size: 11px;
-          margin: 6px 0 15px;
-        }
-
-        .ts-primary {
-          border: 0;
-          background: #4f46e5;
-          color: white;
-          padding: 10px 15px;
-          border-radius: 9px;
-          font-size: 12px;
-          font-weight: 600;
-          cursor: pointer;
-        }
-
-        .ts-primary:hover {
-          background: #4338ca;
-        }
-
-        /* =========================
-           QUICK ACTIONS
-        ========================= */
-
-        .ts-actions {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-          padding: 18px;
-        }
-
-        .ts-action {
-          border: 1px solid #e2e8f0;
-          background: #fff;
-          border-radius: 13px;
-          padding: 15px 12px;
-          text-align: left;
-          cursor: pointer;
-          transition: 0.2s ease;
-        }
-
-        .ts-action:hover {
-          border-color: #c7d2fe;
-          background: #f8faff;
-          transform: translateY(-2px);
-        }
-
-        .ts-action-icon {
-          font-size: 22px;
-          display: block;
-          margin-bottom: 8px;
-        }
-
-        .ts-action-title {
-          font-size: 12px;
-          font-weight: 700;
-        }
-
-        .ts-action-sub {
-          display: block;
-          font-size: 9px;
-          color: #64748b;
-          margin-top: 3px;
-        }
-
-        /* =========================
-           SECURITY PANEL
-        ========================= */
-
-        .ts-security-panel {
-          margin-top: 14px;
-          padding: 17px;
-          border-radius: 14px;
-          background:
-            linear-gradient(
-              135deg,
-              #ecfdf5,
-              #f0fdf4
-            );
-          border: 1px solid #bbf7d0;
-        }
-
-        .ts-security-title {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 13px;
-          font-weight: 700;
-          color: #166534;
-        }
-
-        .ts-security-panel p {
-          color: #166534;
-          font-size: 10px;
-          line-height: 1.5;
-          margin: 8px 0 0;
-        }
-
-        .ts-security-list {
-          margin-top: 12px;
-          display: grid;
-          gap: 7px;
-        }
-
-        .ts-security-item {
-          display: flex;
-          justify-content: space-between;
-          font-size: 10px;
-          color: #166534;
-        }
-
-        .ts-check {
-          font-weight: 800;
-        }
-
-        /* =========================
-           LOADING
-        ========================= */
-
-        .ts-loading {
-          padding: 50px;
-          text-align: center;
-          color: #64748b;
-        }
-
-        /* =========================
-           RESPONSIVE
-        ========================= */
-
-        @media (max-width: 1000px) {
-
-          .ts-stats {
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .ts-content-grid {
-            grid-template-columns: 1fr;
-          }
-
-        }
-
-        @media (max-width: 760px) {
-
-          .ts-dashboard {
-            display: block;
-          }
-
-          .ts-sidebar {
-            width: 100%;
-            min-height: auto;
-            height: auto;
-            position: relative;
-            padding: 14px;
-          }
-
-          .ts-brand {
-            padding-bottom: 15px;
-          }
-
-          .ts-nav {
-            flex-direction: row;
-            overflow-x: auto;
-          }
-
-          .ts-nav button {
-            white-space: nowrap;
-          }
-
-          .ts-sidebar-bottom {
-            display: none;
-          }
-
-          .ts-main {
-            padding: 20px 15px;
-          }
-
-          .ts-header {
-            align-items: flex-start;
-          }
-
-          .ts-profile {
-            display: none;
-          }
-
-          .ts-hero {
-            padding: 22px;
-          }
-
-          .ts-hero-lock {
-            width: 58px;
-            height: 58px;
-            font-size: 27px;
-          }
-
-        }
-
-        @media (max-width: 500px) {
-
-          .ts-stats {
-            grid-template-columns: 1fr 1fr;
-            gap: 9px;
-          }
-
-          .ts-stat {
-            padding: 14px;
-          }
-
-          .ts-stat-value {
-            font-size: 21px;
-          }
-
-          .ts-hero h2 {
-            font-size: 19px;
-          }
-
-          .ts-actions {
-            grid-template-columns: 1fr 1fr;
-          }
-
-          .ts-encrypted-pill {
-            display: none;
-          }
-
-        }
-
-      `}</style>
-
-      {/* =========================
-          SIDEBAR
-      ========================= */}
-
-      <aside className="ts-sidebar">
-
-        <div className="ts-brand">
-
-          <div className="ts-logo">
-            T
-          </div>
-
-          <div>
-            <h2>TrustShare</h2>
-            <small>
-              SECURE COLLABORATION
-            </small>
-          </div>
-
-        </div>
-
-        <nav className="ts-nav">
-
-          <button
-            className="ts-active"
-            onClick={() => navigate("/dashboard")}
-          >
-            🏠 Dashboard
-          </button>
-
-          <button
-            onClick={() => navigate("/files")}
-          >
-            📁 My Files
-          </button>
-
-          <button
-            onClick={() => navigate("/upload")}
-          >
-            ⬆️ Upload File
-          </button>
-
-          <button
-            onClick={() => navigate("/shared")}
-          >
-            🔗 Shared Files
-          </button>
-
-        </nav>
-
-        <div className="ts-sidebar-bottom">
-
-          <div className="ts-security-mini">
-
-            <div className="ts-security-mini-title">
-              SECURITY STATUS
-            </div>
-
-            <div className="ts-security-mini-status">
-
-              <span className="ts-green-dot"></span>
-
-              System Protected
-
-            </div>
-
-          </div>
-
-          <button
-            className="ts-logout"
-            onClick={handleLogout}
-          >
-            ↪ Logout
-          </button>
-
-        </div>
-
-      </aside>
-
-      {/* =========================
-          MAIN
-      ========================= */}
-
-      <main className="ts-main">
-
-        {/* HEADER */}
-
-        <header className="ts-header">
-
-          <div>
-
-            <h1>
-              Welcome back,{" "}
-              {user?.username || "User"} 👋
-            </h1>
-
-            <p>
-              Your secure workspace is ready.
-              Manage, protect and share your files.
-            </p>
-
-          </div>
-
-          {/* CLICKABLE PROFILE */}
-
-          <div
-            className="ts-profile"
-            onClick={handleLogout}
-            title="Click to logout"
-          >
-
-            <div className="ts-avatar">
-
-              {(user?.username || "U")
-                .charAt(0)
-                .toUpperCase()}
-
+    <div className="dashboard-page">
+
+      {/* MOBILE OVERLAY */}
+
+      {sidebarOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* SIDEBAR */}
+
+      <aside
+        className={`dashboard-sidebar ${
+          sidebarOpen ? "sidebar-open" : ""
+        }`}
+      >
+        <div className="sidebar-top">
+
+          <div className="dashboard-brand">
+            <div className="dashboard-logo">
+              <Icon name="shield" size={22} />
             </div>
 
             <div>
-
-              <div className="ts-profile-name">
-                {user?.username || "User"}
+              <div className="brand-name">
+                TrustShare
               </div>
 
-              <div className="ts-profile-email">
-                {user?.email || "user@example.com"}
+              <div className="brand-subtitle">
+                SECURE COLLABORATION
               </div>
+            </div>
+          </div>
 
+          <nav className="dashboard-nav">
+
+            <button
+              className="nav-item active"
+              onClick={() =>
+                navigate("/dashboard")
+              }
+            >
+              <Icon name="dashboard" />
+              <span>Dashboard</span>
+            </button>
+
+            <button
+              className="nav-item"
+              onClick={() => navigate("/files")}
+            >
+              <Icon name="folder" />
+              <span>My Files</span>
+            </button>
+
+            <button
+              className="nav-item"
+              onClick={() => navigate("/upload")}
+            >
+              <Icon name="upload" />
+              <span>Upload File</span>
+            </button>
+
+            <button
+              className="nav-item"
+              onClick={() => navigate("/shared")}
+            >
+              <Icon name="share" />
+              <span>Shared Files</span>
+            </button>
+
+          </nav>
+        </div>
+
+        <div className="sidebar-bottom">
+
+          <div className="sidebar-security">
+            <div className="security-mini-icon">
+              <Icon name="shield" size={17} />
             </div>
 
-            <span className="ts-profile-logout">
-              ↪
-            </span>
+            <div>
+              <div className="security-mini-label">
+                SECURITY STATUS
+              </div>
+
+              <div className="security-mini-status">
+                <span className="online-dot" />
+                Protected
+              </div>
+            </div>
+          </div>
+
+          <button
+            className="logout-button"
+            onClick={handleLogout}
+          >
+            <Icon name="logout" size={18} />
+            <span>Sign out</span>
+          </button>
+
+        </div>
+      </aside>
+
+      {/* MAIN */}
+
+      <main className="dashboard-main">
+
+        {/* TOP BAR */}
+
+        <header className="dashboard-header">
+
+          <button
+            className="mobile-menu"
+            onClick={() =>
+              setSidebarOpen(!sidebarOpen)
+            }
+          >
+            <Icon name="menu" size={21} />
+          </button>
+
+          <div className="header-copy">
+            <div className="header-eyebrow">
+              SECURE WORKSPACE
+            </div>
+
+            <h1>
+              {getGreeting()},{" "}
+              {user?.username || "User"}
+            </h1>
+
+            <p>
+              Manage your files, sharing and
+              security from one place.
+            </p>
+          </div>
+
+          <div className="header-profile">
+
+            <div className="profile-avatar">
+              {(user?.username || "U")
+                .charAt(0)
+                .toUpperCase()}
+            </div>
+
+            <div className="profile-details">
+              <strong>
+                {user?.username || "User"}
+              </strong>
+
+              <span>
+                {user?.email ||
+                  "user@example.com"}
+              </span>
+            </div>
 
           </div>
 
         </header>
 
-        {/* =========================
-            CONTENT
-        ========================= */}
-
         {loading ? (
 
-          <div className="ts-panel ts-loading">
-            🔐 Securing your workspace...
+          <div className="dashboard-loading">
+            <div className="loading-spinner" />
+
+            <strong>
+              Securing your workspace
+            </strong>
+
+            <span>
+              Loading your encrypted files...
+            </span>
           </div>
 
         ) : (
@@ -984,234 +410,258 @@ function Dashboard() {
 
             {/* SECURITY HERO */}
 
-            <section className="ts-hero">
+            <section className="security-hero">
 
-              <div className="ts-hero-content">
+              <div className="hero-content">
 
-                <div className="ts-hero-badge">
-
-                  <span>●</span>
-
-                  PROTECTION ACTIVE
-
+                <div className="hero-status">
+                  <span className="hero-status-dot" />
+                  Protection active
                 </div>
 
                 <h2>
-                  Your files are protected 🔐
+                  Your files are protected.
                 </h2>
 
                 <p>
-                  AES-256-GCM encryption ·
-                  Secure cloud storage ·
-                  Controlled access
+                  Files uploaded to TrustShare
+                  are encrypted before cloud
+                  storage.
                 </p>
+
+                <div className="hero-features">
+
+                  <span>
+                    <Icon name="lock" size={14} />
+                    AES-256-GCM
+                  </span>
+
+                  <span>
+                    <Icon name="shield" size={14} />
+                    Secure storage
+                  </span>
+
+                  <span>
+                    <Icon name="share" size={14} />
+                    Controlled access
+                  </span>
+
+                </div>
 
               </div>
 
-              <div className="ts-hero-lock">
-                🔒
+              <div className="hero-visual">
+
+                <div className="hero-ring ring-one" />
+                <div className="hero-ring ring-two" />
+
+                <div className="hero-lock">
+                  <Icon name="lock" size={34} />
+                </div>
+
               </div>
 
             </section>
 
             {/* STATS */}
 
-            <section className="ts-stats">
+            <section className="dashboard-stats">
 
               <div
-                className="ts-stat"
+                className="stat-card"
                 onClick={() => navigate("/files")}
               >
-
-                <div className="ts-stat-top">
-                  <span className="ts-stat-icon">
-                    📁
-                  </span>
+                <div className="stat-icon">
+                  <Icon name="folder" />
                 </div>
 
-                <div className="ts-stat-label">
+                <div className="stat-label">
                   TOTAL FILES
                 </div>
 
-                <div className="ts-stat-value">
+                <div className="stat-value">
                   {files.length}
                 </div>
 
-                <div className="ts-stat-note">
-                  Your uploaded files
+                <div className="stat-note">
+                  Files in your workspace
                 </div>
-
               </div>
 
               <div
-                className="ts-stat"
-                onClick={() => navigate("/shared")}
+                className="stat-card"
+                onClick={() =>
+                  navigate("/shared")
+                }
               >
-
-                <div className="ts-stat-top">
-                  <span className="ts-stat-icon">
-                    🔗
-                  </span>
+                <div className="stat-icon">
+                  <Icon name="share" />
                 </div>
 
-                <div className="ts-stat-label">
+                <div className="stat-label">
                   SHARED WITH YOU
                 </div>
 
-                <div className="ts-stat-value">
+                <div className="stat-value">
                   {sharedFiles.length}
                 </div>
 
-                <div className="ts-stat-note">
-                  Active shared files
+                <div className="stat-note">
+                  Available shared files
                 </div>
-
               </div>
 
-              <div className="ts-stat">
-
-                <div className="ts-stat-top">
-                  <span className="ts-stat-icon">
-                    🔐
-                  </span>
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <Icon name="lock" />
                 </div>
 
-                <div className="ts-stat-label">
+                <div className="stat-label">
                   ENCRYPTED FILES
                 </div>
 
-                <div className="ts-stat-value">
+                <div className="stat-value">
                   {encryptedFiles.length}
                 </div>
 
-                <div className="ts-stat-note">
+                <div className="stat-note">
                   AES-256-GCM protected
                 </div>
-
               </div>
 
-              <div className="ts-stat">
-
-                <div className="ts-stat-top">
-                  <span className="ts-stat-icon">
-                    🛡️
-                  </span>
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <Icon name="folder" />
                 </div>
 
-                <div className="ts-stat-label">
-                  SECURITY
+                <div className="stat-label">
+                  STORAGE USED
                 </div>
 
-                <div className="ts-stat-value">
-                  Active
+                <div className="stat-value storage-value">
+                  {formatSize(totalSize)}
                 </div>
 
-                <div className="ts-stat-note">
-                  ✓ Protection enabled
+                <div className="stat-note">
+                  Across your files
                 </div>
-
               </div>
 
             </section>
 
-            {/* CONTENT GRID */}
+            {/* MAIN GRID */}
 
-            <section className="ts-content-grid">
+            <section className="dashboard-grid">
 
               {/* RECENT FILES */}
 
-              <div className="ts-panel">
+              <div className="dashboard-panel files-panel">
 
-                <div className="ts-panel-header">
+                <div className="panel-header">
 
                   <div>
+                    <div className="panel-title">
+                      Recent files
+                    </div>
 
-                    <h3>
-                      Recent Files
-                    </h3>
-
-                    <p>
-                      Your latest encrypted files
-                    </p>
-
+                    <div className="panel-subtitle">
+                      Your latest files in TrustShare
+                    </div>
                   </div>
 
                   <button
-                    className="ts-view-all"
-                    onClick={() => navigate("/files")}
+                    className="view-button"
+                    onClick={() =>
+                      navigate("/files")
+                    }
                   >
-                    View all →
+                    View all
+                    <Icon name="arrow" size={14} />
                   </button>
 
                 </div>
 
                 {files.length === 0 ? (
 
-                  <div className="ts-empty">
+                  <div className="empty-files">
 
-                    <div className="ts-empty-icon">
-                      📂
+                    <div className="empty-file-icon">
+                      <Icon name="folder" size={27} />
                     </div>
 
-                    <h4>
-                      No files yet
-                    </h4>
+                    <h3>
+                      Your workspace is empty
+                    </h3>
 
                     <p>
-                      Upload your first file
-                      to start using TrustShare.
+                      Upload your first file and
+                      TrustShare will encrypt it
+                      before storage.
                     </p>
 
                     <button
-                      className="ts-primary"
-                      onClick={() => navigate("/upload")}
+                      className="primary-button"
+                      onClick={() =>
+                        navigate("/upload")
+                      }
                     >
-                      ⬆ Upload File
+                      <Icon name="upload" size={16} />
+                      Upload your first file
                     </button>
 
                   </div>
 
                 ) : (
 
-                  <div className="ts-file-list">
+                  <div className="file-list">
 
                     {files
                       .slice(0, 5)
                       .map((file, index) => (
 
                         <div
-                          className="ts-file"
+                          className="file-row"
                           key={
                             file.storage_path ||
+                            file.filename ||
                             index
                           }
                         >
 
-                          <div className="ts-file-icon">
-                            📄
+                          <div className="file-type">
+                            {getFileType(
+                              file.filename
+                            )}
                           </div>
 
-                          <div className="ts-file-info">
+                          <div className="file-details">
 
-                            <div className="ts-file-name">
+                            <div className="file-name">
                               {file.filename}
                             </div>
 
-                            <div className="ts-file-meta">
+                            <div className="file-meta">
                               {formatSize(file.size)}
-                              {" · "}
-                              Uploaded file
+                              <span>•</span>
+                              Recently uploaded
                             </div>
 
                           </div>
 
                           {file.encrypted && (
-
-                            <span className="ts-encrypted-pill">
-                              🔐 Encrypted
-                            </span>
-
+                            <div className="encrypted-badge">
+                              <Icon
+                                name="lock"
+                                size={11}
+                              />
+                              Encrypted
+                            </div>
                           )}
+
+                          <Icon
+                            name="arrow"
+                            size={15}
+                          />
 
                         </div>
 
@@ -1223,173 +673,194 @@ function Dashboard() {
 
               </div>
 
-              {/* RIGHT COLUMN */}
+              {/* RIGHT SIDE */}
 
-              <div>
+              <div className="dashboard-right">
 
                 {/* QUICK ACTIONS */}
 
-                <div className="ts-panel">
+                <div className="dashboard-panel">
 
-                  <div className="ts-panel-header">
+                  <div className="panel-header">
 
                     <div>
+                      <div className="panel-title">
+                        Quick actions
+                      </div>
 
-                      <h3>
-                        Quick Actions
-                      </h3>
-
-                      <p>
+                      <div className="panel-subtitle">
                         Jump into your workspace
-                      </p>
-
+                      </div>
                     </div>
 
                   </div>
 
-                  <div className="ts-actions">
+                  <div className="quick-actions">
 
                     <button
-                      className="ts-action"
+                      className="quick-action primary-action"
                       onClick={() =>
                         navigate("/upload")
                       }
                     >
+                      <div className="quick-icon">
+                        <Icon
+                          name="upload"
+                          size={19}
+                        />
+                      </div>
 
-                      <span className="ts-action-icon">
-                        ⬆️
-                      </span>
+                      <div>
+                        <strong>
+                          Upload file
+                        </strong>
 
-                      <span className="ts-action-title">
-                        Upload
-                      </span>
+                        <span>
+                          Encrypt & store
+                        </span>
+                      </div>
 
-                      <span className="ts-action-sub">
-                        Encrypt a new file
-                      </span>
-
+                      <Icon
+                        name="arrow"
+                        size={14}
+                      />
                     </button>
 
                     <button
-                      className="ts-action"
+                      className="quick-action"
                       onClick={() =>
                         navigate("/files")
                       }
                     >
+                      <div className="quick-icon">
+                        <Icon
+                          name="folder"
+                          size={19}
+                        />
+                      </div>
 
-                      <span className="ts-action-icon">
-                        📁
-                      </span>
+                      <div>
+                        <strong>
+                          My files
+                        </strong>
 
-                      <span className="ts-action-title">
-                        My Files
-                      </span>
+                        <span>
+                          Manage your files
+                        </span>
+                      </div>
 
-                      <span className="ts-action-sub">
-                        Manage your files
-                      </span>
-
+                      <Icon
+                        name="arrow"
+                        size={14}
+                      />
                     </button>
 
                     <button
-                      className="ts-action"
+                      className="quick-action"
                       onClick={() =>
                         navigate("/shared")
                       }
                     >
+                      <div className="quick-icon">
+                        <Icon
+                          name="share"
+                          size={19}
+                        />
+                      </div>
 
-                      <span className="ts-action-icon">
-                        🔗
-                      </span>
+                      <div>
+                        <strong>
+                          Shared files
+                        </strong>
 
-                      <span className="ts-action-title">
-                        Shared
-                      </span>
+                        <span>
+                          Files shared with you
+                        </span>
+                      </div>
 
-                      <span className="ts-action-sub">
-                        View shared files
-                      </span>
-
-                    </button>
-
-                    <button
-                      className="ts-action"
-                      onClick={() =>
-                        navigate("/upload")
-                      }
-                    >
-
-                      <span className="ts-action-icon">
-                        🛡️
-                      </span>
-
-                      <span className="ts-action-title">
-                        Secure Upload
-                      </span>
-
-                      <span className="ts-action-sub">
-                        AES-256 protected
-                      </span>
-
+                      <Icon
+                        name="arrow"
+                        size={14}
+                      />
                     </button>
 
                   </div>
 
                 </div>
 
-                {/* SECURITY PANEL */}
+                {/* SECURITY CARD */}
 
-                <div className="ts-security-panel">
+                <div className="security-card">
 
-                  <div className="ts-security-title">
-                    🛡️ TrustShare Security
+                  <div className="security-card-header">
+
+                    <div className="security-card-icon">
+                      <Icon
+                        name="shield"
+                        size={20}
+                      />
+                    </div>
+
+                    <div>
+                      <strong>
+                        Security status
+                      </strong>
+
+                      <span>
+                        Your workspace is protected
+                      </span>
+                    </div>
+
+                    <div className="protected-pill">
+                      Protected
+                    </div>
+
                   </div>
 
-                  <p>
-                    Your uploaded files are encrypted
-                    before being stored in cloud storage.
-                  </p>
+                  <div className="security-checks">
 
-                  <div className="ts-security-list">
-
-                    <div className="ts-security-item">
+                    <div>
                       <span>
-                        AES-256-GCM Encryption
+                        AES-256-GCM encryption
                       </span>
 
-                      <span className="ts-check">
-                        ✓
-                      </span>
+                      <Icon
+                        name="check"
+                        size={15}
+                      />
                     </div>
 
-                    <div className="ts-security-item">
+                    <div>
                       <span>
-                        Encrypted Cloud Storage
+                        Encrypted cloud storage
                       </span>
 
-                      <span className="ts-check">
-                        ✓
-                      </span>
+                      <Icon
+                        name="check"
+                        size={15}
+                      />
                     </div>
 
-                    <div className="ts-security-item">
+                    <div>
                       <span>
-                        Access Control
+                        Controlled file access
                       </span>
 
-                      <span className="ts-check">
-                        ✓
-                      </span>
+                      <Icon
+                        name="check"
+                        size={15}
+                      />
                     </div>
 
-                    <div className="ts-security-item">
+                    <div>
                       <span>
-                        Share Expiration
+                        Share expiration
                       </span>
 
-                      <span className="ts-check">
-                        ✓
-                      </span>
+                      <Icon
+                        name="check"
+                        size={15}
+                      />
                     </div>
 
                   </div>
@@ -1401,11 +872,9 @@ function Dashboard() {
             </section>
 
           </>
-
         )}
 
       </main>
-
     </div>
   );
 }

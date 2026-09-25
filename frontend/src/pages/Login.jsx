@@ -724,15 +724,21 @@ function Login() {
             </div>
           )}
 
-          <div className="ts-register">
+<div className="ts-register">
 
-            Don't have a TrustShare account?{" "}
+   <div style={{ marginBottom: "12px" }}>
+    <Link to="/forgot-password">
+      Forgot Password?
+    </Link>
+  </div>
 
-            <Link to="/register">
-              Create one
-            </Link>
+  Don't have a TrustShare account?{" "}
 
-          </div>
+  <Link to="/register">
+    Create one
+  </Link>
+
+</div>
 
           <div className="ts-login-security">
 

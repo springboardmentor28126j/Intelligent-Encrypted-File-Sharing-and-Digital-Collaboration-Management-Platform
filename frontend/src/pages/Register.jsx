@@ -1,21 +1,187 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
+import "./Register.css";
 
 function Register() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const [errors, setErrors] = useState({
+    username: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
 
   const navigate = useNavigate();
+
+  // ------------------------------------------------------------
+  // PASSWORD RULES
+  // ------------------------------------------------------------
+
+  const passwordRules = useMemo(
+    () => ({
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      number: /[0-9]/.test(password),
+      special: /[^A-Za-z0-9]/.test(password),
+    }),
+    [password]
+  );
+
+  const passwordScore = Object.values(passwordRules).filter(Boolean).length;
+
+  const passwordStrength =
+    password.length === 0
+      ? ""
+      : passwordScore <= 1
+      ? "Weak"
+      : passwordScore === 2
+      ? "Fair"
+      : passwordScore === 3
+      ? "Good"
+      : "Strong";
+
+  // ------------------------------------------------------------
+  // VALIDATION
+  // ------------------------------------------------------------
+
+  const validateUsername = (value) => {
+    if (!value.trim()) {
+      return "Username is required";
+    }
+
+    if (value.trim().length < 3) {
+      return "Username must contain at least 3 characters";
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(value.trim())) {
+      return "Use only letters, numbers, and underscores";
+    }
+
+    return "";
+  };
+
+  const validateEmail = (value) => {
+    if (!value.trim()) {
+      return "Email address is required";
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
+      return "Enter a valid email address";
+    }
+
+    return "";
+  };
+
+  const validatePassword = (value) => {
+    if (!value) {
+      return "Password is required";
+    }
+
+    if (value.length < 8) {
+      return "Password must contain at least 8 characters";
+    }
+
+    return "";
+  };
+
+  const validateConfirmPassword = (value) => {
+    if (!value) {
+      return "Please confirm your password";
+    }
+
+    if (value !== password) {
+      return "Passwords do not match";
+    }
+
+    return "";
+  };
+
+  // ------------------------------------------------------------
+  // LIVE VALIDATION
+  // ------------------------------------------------------------
+
+  useEffect(() => {
+    if (username) {
+      setErrors((prev) => ({
+        ...prev,
+        username: validateUsername(username),
+      }));
+    }
+  }, [username]);
+
+  useEffect(() => {
+    if (email) {
+      setErrors((prev) => ({
+        ...prev,
+        email: validateEmail(email),
+      }));
+    }
+  }, [email]);
+
+  useEffect(() => {
+    if (password) {
+      setErrors((prev) => ({
+        ...prev,
+        password: validatePassword(password),
+      }));
+    }
+
+    if (confirmPassword) {
+      setErrors((prev) => ({
+        ...prev,
+        confirmPassword: validateConfirmPassword(confirmPassword),
+      }));
+    }
+  }, [password]);
+
+  useEffect(() => {
+    if (confirmPassword) {
+      setErrors((prev) => ({
+        ...prev,
+        confirmPassword: validateConfirmPassword(confirmPassword),
+      }));
+    }
+  }, [confirmPassword]);
+
+  // ------------------------------------------------------------
+  // REGISTER
+  // ------------------------------------------------------------
 
   const handleRegister = async (e) => {
     e.preventDefault();
 
-    setMessage("");
+    const usernameError = validateUsername(username);
+    const emailError = validateEmail(email);
+    const passwordError = validatePassword(password);
+    const confirmError = validateConfirmPassword(confirmPassword);
+
+    setErrors({
+      username: usernameError,
+      email: emailError,
+      password: passwordError,
+      confirmPassword: confirmError,
+    });
+
+    if (
+      usernameError ||
+      emailError ||
+      passwordError ||
+      confirmError
+    ) {
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -28,676 +194,430 @@ function Register() {
         }
       );
 
-      setMessage(
-        response.data.message || "Account created successfully!"
-      );
+      console.log("REGISTER SUCCESS:", response.data);
+
+      setSuccess(true);
 
       setTimeout(() => {
         navigate("/login");
-      }, 1000);
-
+      }, 1800);
     } catch (error) {
       console.log("REGISTER ERROR:", error);
       console.log("SERVER RESPONSE:", error.response?.data);
 
-      setMessage(
+      const serverMessage =
         error.response?.data?.detail ||
-          "Registration failed"
-      );
+        "Registration failed. Please try again.";
+
+      setErrors((prev) => ({
+        ...prev,
+        email: serverMessage,
+      }));
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="ts-register-page">
+  // ------------------------------------------------------------
+  // SUCCESS SCREEN
+  // ------------------------------------------------------------
 
-      <style>{`
-        * {
-          box-sizing: border-box;
-        }
-
-        .ts-register-page {
-          min-height: 100vh;
-          display: flex;
-          background:
-            radial-gradient(
-              circle at 15% 20%,
-              rgba(99,102,241,0.20),
-              transparent 30%
-            ),
-            radial-gradient(
-              circle at 85% 80%,
-              rgba(124,58,237,0.18),
-              transparent 30%
-            ),
-            #f8fafc;
-          font-family:
-            Inter,
-            system-ui,
-            -apple-system,
-            BlinkMacSystemFont,
-            "Segoe UI",
-            sans-serif;
-          color: #172033;
-        }
-
-        /* LEFT PANEL */
-
-        .ts-register-visual {
-          width: 50%;
-          min-height: 100vh;
-          background:
-            radial-gradient(
-              circle at 80% 15%,
-              rgba(139,92,246,0.35),
-              transparent 28%
-            ),
-            linear-gradient(
-              145deg,
-              #111827,
-              #1e1b4b 55%,
-              #312e81
-            );
-          color: white;
-          padding: 55px;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          position: relative;
-          overflow: hidden;
-        }
-
-        .ts-register-visual::before {
-          content: "";
-          position: absolute;
-          width: 360px;
-          height: 360px;
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 50%;
-          right: -130px;
-          top: 80px;
-        }
-
-        .ts-register-visual::after {
-          content: "";
-          position: absolute;
-          width: 260px;
-          height: 260px;
-          border: 1px solid rgba(255,255,255,0.06);
-          border-radius: 50%;
-          left: -120px;
-          bottom: 80px;
-        }
-
-        .ts-register-brand {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          position: relative;
-          z-index: 1;
-        }
-
-        .ts-register-logo {
-          width: 48px;
-          height: 48px;
-          border-radius: 15px;
-          background:
-            linear-gradient(
-              135deg,
-              #6366f1,
-              #8b5cf6
-            );
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 24px;
-          font-weight: 800;
-          box-shadow:
-            0 12px 30px rgba(99,102,241,0.35);
-        }
-
-        .ts-register-brand-name {
-          font-size: 24px;
-          font-weight: 750;
-          letter-spacing: -0.7px;
-        }
-
-        .ts-register-brand-subtitle {
-          color: #a5b4fc;
-          font-size: 9px;
-          letter-spacing: 1.5px;
-          margin-top: 2px;
-        }
-
-        .ts-register-main {
-          position: relative;
-          z-index: 1;
-          margin-top: auto;
-          margin-bottom: auto;
-          padding: 70px 0;
-        }
-
-        .ts-register-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-          padding: 7px 11px;
-          border-radius: 30px;
-          background: rgba(255,255,255,0.08);
-          border: 1px solid rgba(255,255,255,0.12);
-          color: #c4b5fd;
-          font-size: 10px;
-          letter-spacing: 0.7px;
-          margin-bottom: 20px;
-        }
-
-        .ts-register-pulse {
-          width: 7px;
-          height: 7px;
-          border-radius: 50%;
-          background: #22c55e;
-          box-shadow:
-            0 0 0 5px rgba(34,197,94,0.10),
-            0 0 14px rgba(34,197,94,0.7);
-        }
-
-        .ts-register-main h2 {
-          font-size: clamp(34px, 4vw, 54px);
-          line-height: 1.08;
-          letter-spacing: -2px;
-          margin: 0;
-          max-width: 500px;
-        }
-
-        .ts-register-gradient {
-          color: #a5b4fc;
-        }
-
-        .ts-register-description {
-          margin-top: 20px;
-          color: #cbd5e1;
-          font-size: 14px;
-          line-height: 1.7;
-          max-width: 450px;
-        }
-
-        /* BENEFITS */
-
-        .ts-benefits {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 11px;
-          margin-top: 30px;
-          max-width: 480px;
-        }
-
-        .ts-benefit {
-          padding: 14px;
-          border-radius: 14px;
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.08);
-          backdrop-filter: blur(8px);
-        }
-
-        .ts-benefit-icon {
-          font-size: 20px;
-          margin-bottom: 7px;
-        }
-
-        .ts-benefit-title {
-          font-size: 11px;
-          font-weight: 700;
-        }
-
-        .ts-benefit-text {
-          color: #94a3b8;
-          font-size: 9px;
-          margin-top: 3px;
-        }
-
-        .ts-register-footer {
-          position: relative;
-          z-index: 1;
-          color: #64748b;
-          font-size: 10px;
-        }
-
-        /* FORM SIDE */
-
-        .ts-register-form-side {
-          width: 50%;
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 35px;
-        }
-
-        .ts-register-card {
-          width: 100%;
-          max-width: 430px;
-        }
-
-        .ts-mobile-register-brand {
-          display: none;
-        }
-
-        .ts-register-heading {
-          margin-bottom: 27px;
-        }
-
-        .ts-register-heading h1 {
-          margin: 0;
-          font-size: 30px;
-          letter-spacing: -1px;
-        }
-
-        .ts-register-heading p {
-          color: #64748b;
-          font-size: 13px;
-          margin-top: 8px;
-        }
-
-        .ts-register-form {
-          display: flex;
-          flex-direction: column;
-          gap: 17px;
-        }
-
-        .ts-register-field {
-          display: flex;
-          flex-direction: column;
-          gap: 7px;
-        }
-
-        .ts-register-field label {
-          font-size: 12px;
-          font-weight: 650;
-          color: #334155;
-        }
-
-        .ts-register-input-wrapper {
-          position: relative;
-        }
-
-        .ts-register-input {
-          width: 100%;
-          height: 49px;
-          border: 1px solid #dbe1ea;
-          border-radius: 11px;
-          background: white;
-          padding: 0 14px;
-          font-size: 13px;
-          color: #172033;
-          outline: none;
-          transition: 0.2s ease;
-        }
-
-        .ts-register-input-password {
-          padding-right: 48px;
-        }
-
-        .ts-register-input:focus {
-          border-color: #6366f1;
-          box-shadow:
-            0 0 0 3px rgba(99,102,241,0.10);
-        }
-
-        .ts-register-input::placeholder {
-          color: #94a3b8;
-        }
-
-        .ts-password-toggle {
-          position: absolute;
-          right: 9px;
-          top: 7px;
-          height: 35px;
-          min-width: 35px;
-          border: 0;
-          border-radius: 8px;
-          background: transparent;
-          cursor: pointer;
-          font-size: 15px;
-        }
-
-        .ts-password-toggle:hover {
-          background: #f1f5f9;
-        }
-
-        .ts-register-button {
-          height: 50px;
-          border: 0;
-          border-radius: 11px;
-          background:
-            linear-gradient(
-              135deg,
-              #4f46e5,
-              #7c3aed
-            );
-          color: white;
-          font-size: 13px;
-          font-weight: 700;
-          cursor: pointer;
-          box-shadow:
-            0 10px 22px rgba(79,70,229,0.20);
-          transition: 0.2s ease;
-          margin-top: 5px;
-        }
-
-        .ts-register-button:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow:
-            0 14px 28px rgba(79,70,229,0.27);
-        }
-
-        .ts-register-button:disabled {
-          opacity: 0.7;
-          cursor: not-allowed;
-        }
-
-        .ts-register-message {
-          margin-top: 17px;
-          padding: 11px 13px;
-          border-radius: 10px;
-          background: #fef2f2;
-          border: 1px solid #fecaca;
-          color: #b91c1c;
-          font-size: 11px;
-          text-align: center;
-        }
-
-        .ts-register-success {
-          background: #ecfdf5;
-          border-color: #bbf7d0;
-          color: #15803d;
-        }
-
-        .ts-login-link {
-          text-align: center;
-          margin-top: 24px;
-          color: #64748b;
-          font-size: 12px;
-        }
-
-        .ts-login-link a {
-          color: #4f46e5;
-          font-weight: 700;
-          text-decoration: none;
-        }
-
-        .ts-login-link a:hover {
-          text-decoration: underline;
-        }
-
-        .ts-register-security {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 7px;
-          margin-top: 24px;
-          color: #64748b;
-          font-size: 10px;
-        }
-
-        .ts-register-security span {
-          color: #16a34a;
-        }
-
-        @media (max-width: 850px) {
-
-          .ts-register-visual {
-            display: none;
-          }
-
-          .ts-register-form-side {
-            width: 100%;
-            min-height: 100vh;
-            padding: 25px;
-          }
-
-          .ts-mobile-register-brand {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 40px;
-          }
-
-        }
-
-        @media (max-width: 450px) {
-
-          .ts-register-form-side {
-            padding: 20px;
-          }
-
-          .ts-register-heading h1 {
-            font-size: 26px;
-          }
-
-        }
-      `}</style>
-
-      {/* LEFT PANEL */}
-
-      <section className="ts-register-visual">
-
-        <div className="ts-register-brand">
-
-          <div className="ts-register-logo">
-            T
+  if (success) {
+    return (
+      <div className="register-page">
+        <div className="register-success">
+          <div className="success-circle">
+            <svg
+              viewBox="0 0 52 52"
+              className="success-check"
+            >
+              <path
+                d="M14 27l8 8 17-18"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </div>
 
-          <div>
-            <div className="ts-register-brand-name">
-              TrustShare
-            </div>
+          <h1>Account created</h1>
 
-            <div className="ts-register-brand-subtitle">
-              SECURE COLLABORATION
-            </div>
-          </div>
-
-        </div>
-
-        <div className="ts-register-main">
-
-          <div className="ts-register-badge">
-            <span className="ts-register-pulse"></span>
-            BUILD YOUR SECURE WORKSPACE
-          </div>
-
-          <h2>
-            Create your
+          <p>
+            Your TrustShare workspace is ready.
             <br />
-            <span className="ts-register-gradient">
-              secure space.
-            </span>
-          </h2>
-
-          <p className="ts-register-description">
-            Join TrustShare and manage your files with encryption,
-            controlled sharing and secure cloud storage.
+            Redirecting you to sign in...
           </p>
 
-          <div className="ts-benefits">
-
-            <div className="ts-benefit">
-              <div className="ts-benefit-icon">
-                🔐
-              </div>
-
-              <div className="ts-benefit-title">
-                Private by Design
-              </div>
-
-              <div className="ts-benefit-text">
-                Encryption protects your files
-              </div>
-            </div>
-
-            <div className="ts-benefit">
-              <div className="ts-benefit-icon">
-                ☁️
-              </div>
-
-              <div className="ts-benefit-title">
-                Cloud Storage
-              </div>
-
-              <div className="ts-benefit-text">
-                Access files from your workspace
-              </div>
-            </div>
-
-            <div className="ts-benefit">
-              <div className="ts-benefit-icon">
-                👥
-              </div>
-
-              <div className="ts-benefit-title">
-                Smart Sharing
-              </div>
-
-              <div className="ts-benefit-text">
-                Control who can access files
-              </div>
-            </div>
-
-            <div className="ts-benefit">
-              <div className="ts-benefit-icon">
-                🛡️
-              </div>
-
-              <div className="ts-benefit-title">
-                Secure Access
-              </div>
-
-              <div className="ts-benefit-text">
-                Protected authentication
-              </div>
-            </div>
-
+          <div className="success-loader">
+            <span></span>
           </div>
-
         </div>
+      </div>
+    );
+  }
 
-        <div className="ts-register-footer">
-          TrustShare · Intelligent Encrypted File Sharing
-        </div>
+  return (
+    <div className="register-page">
+      <div className="register-orb register-orb-one"></div>
+      <div className="register-orb register-orb-two"></div>
 
-      </section>
+      <div className="register-shell">
 
-      {/* REGISTER FORM */}
+        {/* ------------------------------------------------ */}
+        {/* LEFT INFORMATION PANEL */}
+        {/* ------------------------------------------------ */}
 
-      <section className="ts-register-form-side">
+        <section className="register-intro">
 
-        <div className="ts-register-card">
+          <Link to="/login" className="register-brand">
+            <span className="brand-mark">
+              <svg viewBox="0 0 32 32">
+                <path
+                  d="M16 3L27 7v8c0 7-4.5 11.5-11 14C9.5 26.5 5 22 5 15V7l11-4z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
 
-          <div className="ts-mobile-register-brand">
+                <path
+                  d="M11 16l3 3 7-8"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
 
-            <div className="ts-register-brand">
+            <span>TrustShare</span>
+          </Link>
 
-              <div className="ts-register-logo">
-                T
-              </div>
+          <div className="intro-content">
 
-              <div>
-                <div className="ts-register-brand-name">
-                  TrustShare
-                </div>
-
-                <div className="ts-register-brand-subtitle">
-                  SECURE COLLABORATION
-                </div>
-              </div>
-
+            <div className="intro-badge">
+              <span className="badge-dot"></span>
+              Secure workspace
             </div>
-
-          </div>
-
-          <div className="ts-register-heading">
 
             <h1>
-              Create your account ✨
+              Your files.
+              <br />
+              Your control.
             </h1>
 
             <p>
-              Set up your secure TrustShare workspace.
+              Create a secure workspace where your files
+              stay protected and collaboration stays simple.
             </p>
 
+            <div className="benefit-list">
+
+              <div className="benefit-item">
+                <div className="benefit-icon">
+                  <svg viewBox="0 0 24 24">
+                    <path
+                      d="M12 3l7 3v5c0 4.5-2.8 7.4-7 9-4.2-1.6-7-4.5-7-9V6l7-3z"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    />
+                    <path
+                      d="M9 12l2 2 4-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+
+                <div>
+                  <strong>Built for security</strong>
+                  <span>
+                    Encryption-focused file protection
+                  </span>
+                </div>
+              </div>
+
+              <div className="benefit-item">
+                <div className="benefit-icon">
+                  <svg viewBox="0 0 24 24">
+                    <path
+                      d="M4 7h16M4 12h16M4 17h10"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+
+                <div>
+                  <strong>Simple collaboration</strong>
+                  <span>
+                    Share files without unnecessary complexity
+                  </span>
+                </div>
+              </div>
+
+              <div className="benefit-item">
+                <div className="benefit-icon">
+                  <svg viewBox="0 0 24 24">
+                    <path
+                      d="M12 4v16M5 9l7-5 7 5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M6 20h12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+
+                <div>
+                  <strong>Controlled access</strong>
+                  <span>
+                    Keep ownership over who can access files
+                  </span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div className="intro-footer">
+            <span>TrustShare</span>
+            <span>•</span>
+            <span>Secure collaboration platform</span>
+          </div>
+
+        </section>
+
+        {/* ------------------------------------------------ */}
+        {/* FORM PANEL */}
+        {/* ------------------------------------------------ */}
+
+        <section className="register-form-panel">
+
+          <div className="form-header">
+            <span className="form-eyebrow">
+              GET STARTED
+            </span>
+
+            <h2>Create your account</h2>
+
+            <p>
+              Set up your secure TrustShare workspace in
+              less than a minute.
+            </p>
           </div>
 
           <form
-            className="ts-register-form"
             onSubmit={handleRegister}
+            className="register-form"
+            noValidate
           >
 
-            <div className="ts-register-field">
+            {/* USERNAME */}
 
+            <div className="field-group">
               <label htmlFor="username">
                 Username
               </label>
 
-              <input
-                id="username"
-                className="ts-register-input"
-                type="text"
-                placeholder="Choose a username"
-                value={username}
-                onChange={(e) =>
-                  setUsername(e.target.value)
-                }
-                autoComplete="username"
-                required
-              />
+              <div
+                className={`input-wrapper ${
+                  errors.username ? "input-error" : ""
+                } ${
+                  username && !errors.username
+                    ? "input-success"
+                    : ""
+                }`}
+              >
+                <svg viewBox="0 0 24 24">
+                  <circle
+                    cx="12"
+                    cy="8"
+                    r="3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  />
 
+                  <path
+                    d="M5 20c.7-3.5 3-5.2 7-5.2s6.3 1.7 7 5.2"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
+
+                <input
+                  id="username"
+                  type="text"
+                  placeholder="Choose a username"
+                  value={username}
+                  onChange={(e) =>
+                    setUsername(e.target.value)
+                  }
+                  autoComplete="username"
+                />
+
+                {username && !errors.username && (
+                  <span className="valid-icon">✓</span>
+                )}
+              </div>
+
+              {errors.username && (
+                <span className="field-error">
+                  {errors.username}
+                </span>
+              )}
+
+              {username && !errors.username && (
+                <span className="field-hint success-hint">
+                  Username format looks good
+                </span>
+              )}
             </div>
 
-            <div className="ts-register-field">
+            {/* EMAIL */}
 
-              <label htmlFor="register-email">
+            <div className="field-group">
+              <label htmlFor="email">
                 Email address
               </label>
 
-              <input
-                id="register-email"
-                className="ts-register-input"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) =>
-                  setEmail(e.target.value)
-                }
-                autoComplete="email"
-                required
-              />
+              <div
+                className={`input-wrapper ${
+                  errors.email ? "input-error" : ""
+                } ${
+                  email && !errors.email
+                    ? "input-success"
+                    : ""
+                }`}
+              >
+                <svg viewBox="0 0 24 24">
+                  <rect
+                    x="3"
+                    y="5"
+                    width="18"
+                    height="14"
+                    rx="2"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  />
 
-            </div>
-
-            <div className="ts-register-field">
-
-              <label htmlFor="register-password">
-                Password
-              </label>
-
-              <div className="ts-register-input-wrapper">
+                  <path
+                    d="M4 7l8 6 8-6"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  />
+                </svg>
 
                 <input
-                  id="register-password"
-                  className="ts-register-input ts-register-input-password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Create a password"
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) =>
+                    setEmail(e.target.value)
+                  }
+                  autoComplete="email"
+                />
+
+                {email && !errors.email && (
+                  <span className="valid-icon">✓</span>
+                )}
+              </div>
+
+              {errors.email && (
+                <span className="field-error">
+                  {errors.email}
+                </span>
+              )}
+            </div>
+
+            {/* PASSWORD */}
+
+            <div className="field-group">
+              <div className="label-row">
+                <label htmlFor="password">
+                  Password
+                </label>
+
+                {password && (
+                  <span
+                    className={`strength-label strength-${passwordStrength.toLowerCase()}`}
+                  >
+                    {passwordStrength}
+                  </span>
+                )}
+              </div>
+
+              <div
+                className={`input-wrapper ${
+                  errors.password ? "input-error" : ""
+                } ${
+                  password &&
+                  !errors.password &&
+                  passwordScore === 4
+                    ? "input-success"
+                    : ""
+                }`}
+              >
+                <svg viewBox="0 0 24 24">
+                  <rect
+                    x="5"
+                    y="10"
+                    width="14"
+                    height="10"
+                    rx="2"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  />
+
+                  <path
+                    d="M8 10V7a4 4 0 018 0v3"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
+
+                <input
+                  id="password"
+                  type={
+                    showPassword
+                      ? "text"
+                      : "password"
+                  }
+                  placeholder="Create a strong password"
                   value={password}
                   onChange={(e) =>
                     setPassword(e.target.value)
                   }
                   autoComplete="new-password"
-                  required
                 />
 
                 <button
                   type="button"
-                  className="ts-password-toggle"
+                  className="password-toggle"
                   onClick={() =>
                     setShowPassword(!showPassword)
                   }
@@ -707,60 +627,232 @@ function Register() {
                       : "Show password"
                   }
                 >
-                  {showPassword ? "🙈" : "👁️"}
+                  {showPassword ? "Hide" : "Show"}
                 </button>
-
               </div>
 
+              {password && (
+                <div className="strength-section">
+
+                  <div className="strength-bars">
+                    {[1, 2, 3, 4].map((level) => (
+                      <span
+                        key={level}
+                        className={
+                          level <= passwordScore
+                            ? `strength-fill strength-${passwordStrength.toLowerCase()}`
+                            : ""
+                        }
+                      ></span>
+                    ))}
+                  </div>
+
+                  <div className="password-rules">
+
+                    <span
+                      className={
+                        passwordRules.length
+                          ? "rule-valid"
+                          : ""
+                      }
+                    >
+                      {passwordRules.length ? "✓" : "○"}
+                      8+ characters
+                    </span>
+
+                    <span
+                      className={
+                        passwordRules.uppercase
+                          ? "rule-valid"
+                          : ""
+                      }
+                    >
+                      {passwordRules.uppercase
+                        ? "✓"
+                        : "○"}
+                      Uppercase
+                    </span>
+
+                    <span
+                      className={
+                        passwordRules.number
+                          ? "rule-valid"
+                          : ""
+                      }
+                    >
+                      {passwordRules.number
+                        ? "✓"
+                        : "○"}
+                      Number
+                    </span>
+
+                    <span
+                      className={
+                        passwordRules.special
+                          ? "rule-valid"
+                          : ""
+                      }
+                    >
+                      {passwordRules.special
+                        ? "✓"
+                        : "○"}
+                      Special character
+                    </span>
+
+                  </div>
+                </div>
+              )}
+
+              {errors.password && (
+                <span className="field-error">
+                  {errors.password}
+                </span>
+              )}
             </div>
 
+            {/* CONFIRM PASSWORD */}
+
+            <div className="field-group">
+              <label htmlFor="confirmPassword">
+                Confirm password
+              </label>
+
+              <div
+                className={`input-wrapper ${
+                  errors.confirmPassword
+                    ? "input-error"
+                    : ""
+                } ${
+                  confirmPassword &&
+                  !errors.confirmPassword
+                    ? "input-success"
+                    : ""
+                }`}
+              >
+                <svg viewBox="0 0 24 24">
+                  <rect
+                    x="5"
+                    y="10"
+                    width="14"
+                    height="10"
+                    rx="2"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  />
+
+                  <path
+                    d="M8 10V7a4 4 0 018 0v3"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
+
+                <input
+                  id="confirmPassword"
+                  type={
+                    showConfirmPassword
+                      ? "text"
+                      : "password"
+                  }
+                  placeholder="Re-enter your password"
+                  value={confirmPassword}
+                  onChange={(e) =>
+                    setConfirmPassword(e.target.value)
+                  }
+                  autoComplete="new-password"
+                />
+
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() =>
+                    setShowConfirmPassword(
+                      !showConfirmPassword
+                    )
+                  }
+                  aria-label={
+                    showConfirmPassword
+                      ? "Hide password"
+                      : "Show password"
+                  }
+                >
+                  {showConfirmPassword
+                    ? "Hide"
+                    : "Show"}
+                </button>
+              </div>
+
+              {confirmPassword &&
+                !errors.confirmPassword && (
+                  <span className="field-hint success-hint">
+                    ✓ Passwords match
+                  </span>
+                )}
+
+              {errors.confirmPassword && (
+                <span className="field-error">
+                  {errors.confirmPassword}
+                </span>
+              )}
+            </div>
+
+            {/* SUBMIT */}
+
             <button
-              className="ts-register-button"
               type="submit"
+              className="register-button"
               disabled={loading}
             >
-              {loading
-                ? "🔐 Creating account..."
-                : "Create Account →"}
+              {loading ? (
+                <>
+                  <span className="button-spinner"></span>
+                  Creating account...
+                </>
+              ) : (
+                <>
+                  Create secure account
+                  <span className="button-arrow">→</span>
+                </>
+              )}
             </button>
 
           </form>
 
-          {message && (
-            <div
-              className={`ts-register-message ${
-                message.toLowerCase().includes("success") ||
-                message.toLowerCase().includes("created")
-                  ? "ts-register-success"
-                  : ""
-              }`}
-            >
-              {message}
-            </div>
-          )}
-
-          <div className="ts-login-link">
-
-            Already have a TrustShare account?{" "}
-
+          <div className="login-prompt">
+            Already have a TrustShare account?
             <Link to="/login">
               Sign in
             </Link>
-
           </div>
 
-          <div className="ts-register-security">
+          <div className="security-note">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M12 3l7 3v5c0 4.5-2.8 7.4-7 9-4.2-1.6-7-4.5-7-9V6l7-3z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+              />
 
-            <span>●</span>
+              <path
+                d="M9 12l2 2 4-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              />
+            </svg>
 
-            Secure registration · Protected workspace
-
+            Your account information is securely
+            transmitted to TrustShare.
           </div>
 
-        </div>
+        </section>
 
-      </section>
-
+      </div>
     </div>
   );
 }
