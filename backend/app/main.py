@@ -6,9 +6,15 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 
-
 from .database import SessionLocal
-from .models import User, PasswordResetToken
+from .models import (
+    User,
+    PasswordResetToken,
+    ActivityLog,
+    File,
+    AuditLog,
+    SecurityAlert,
+)
 from .auth import (
     create_access_token,
     get_current_user,
@@ -16,7 +22,11 @@ from .auth import (
     create_password_reset_token,
     verify_password_reset_token,
 )
-from .monitoring import log_activity
+from .monitoring import (
+    log_activity,
+    create_security_alert,
+    create_notification,
+)
 from .email_service import send_password_reset_email
 from .file_routes import router as file_router
 from .share_routes import router as share_router
@@ -277,6 +287,7 @@ def reset_password(
             )
 
         # Make sure token has not been used
+
         if db_token.used:
             raise HTTPException(
                 status_code=400,
@@ -334,6 +345,10 @@ def login(
             .first()
         )
 
+        # -------------------------
+        # User not found
+        # -------------------------
+
         if not existing_user:
             raise HTTPException(
                 status_code=401,
@@ -358,6 +373,62 @@ def login(
             user.password,
             existing_user.password_hash,
         ):
+
+            # -------------------------
+            # Record failed login
+            # -------------------------
+
+            log_activity(
+                db=db,
+                user_id=existing_user.id,
+                action="LOGIN_FAILED",
+                description="Failed login attempt",
+                status="FAILED",
+                details="Invalid password",
+            )
+
+            # -------------------------
+            # Check previous failed logins
+            # -------------------------
+
+            previous_failures = (
+                db.query(ActivityLog)
+                .filter(
+                    ActivityLog.user_id == existing_user.id,
+                    ActivityLog.action == "LOGIN_FAILED",
+                )
+                .count()
+            )
+
+            # The current failed login is already
+            # included in the count after log_activity().
+            # Trigger alert when there are 3 or more.
+
+            if previous_failures >= 3:
+
+                create_security_alert(
+                    db=db,
+                    user_id=existing_user.id,
+                    alert_type="MULTIPLE_FAILED_LOGINS",
+                    description=(
+                        "Multiple failed login attempts "
+                        "detected for this account."
+                    ),
+                    severity="HIGH",
+                )
+                create_notification(
+                    db=db,
+                    user_id=existing_user.id,
+                    title="Security Alert",
+                    message=(
+                      "Multiple failed login attempts "
+                      "were detected on your account."
+                   ),
+                     notification_type="SECURITY",
+             )    
+
+            db.commit()
+
             raise HTTPException(
                 status_code=401,
                 detail="Invalid email or password",
@@ -370,6 +441,11 @@ def login(
         token = create_access_token(
             existing_user.id
         )
+
+        # -------------------------
+        # Record successful login
+        # -------------------------
+
         log_activity(
             db=db,
             user_id=existing_user.id,
@@ -378,6 +454,7 @@ def login(
             status="SUCCESS",
             details="Successful password authentication",
         )
+
         db.commit()
 
         return {
@@ -426,3 +503,132 @@ def admin_dashboard(
         "admin": current_user.name,
         "role": current_user.role,
     }
+
+@app.get("/analytics/storage")
+def storage_analytics(
+    current_user=Depends(get_current_user),
+):
+    db: Session = SessionLocal()
+
+    try:
+        files = (
+            db.query(File)
+            .filter(
+                File.owner_id == current_user.id,
+                File.is_deleted == False,
+            )
+            .all()
+        )
+
+        total_files = len(files)
+        encrypted_files = sum(
+            1 for file in files
+            if file.is_encrypted
+        )
+
+        total_storage = sum(
+            file.size or 0
+            for file in files
+        )
+
+        file_types = {}
+
+        for file in files:
+            content_type = (
+                file.content_type
+                or "Unknown"
+            )
+
+            file_types[content_type] = (
+                file_types.get(content_type, 0) + 1
+            )
+
+        return {
+            "total_files": total_files,
+            "encrypted_files": encrypted_files,
+            "total_storage_bytes": total_storage,
+            "file_types": file_types,
+        }
+
+    finally:
+        db.close()
+
+@app.get("/reports/activity")
+def activity_security_report(
+    current_user=Depends(get_current_user),
+):
+    db: Session = SessionLocal()
+
+    try:
+        activities = (
+            db.query(ActivityLog)
+            .filter(
+                ActivityLog.user_id == current_user.id
+            )
+            .order_by(
+                ActivityLog.created_at.desc()
+            )
+            .limit(50)
+            .all()
+        )
+
+        alerts = (
+            db.query(SecurityAlert)
+            .filter(
+                SecurityAlert.user_id == current_user.id
+            )
+            .order_by(
+                SecurityAlert.created_at.desc()
+            )
+            .limit(20)
+            .all()
+        )
+
+        return {
+            "activity_summary": {
+                "total_activities": len(activities),
+                "successful_logins": sum(
+                    1 for item in activities
+                    if item.action == "LOGIN_SUCCESS"
+                ),
+                "failed_logins": sum(
+                    1 for item in activities
+                    if item.action == "LOGIN_FAILED"
+                ),
+                "uploads": sum(
+                    1 for item in activities
+                    if item.action == "FILE_UPLOAD"
+                ),
+                "downloads": sum(
+                    1 for item in activities
+                    if item.action == "FILE_DOWNLOAD"
+                ),
+                "deletions": sum(
+                    1 for item in activities
+                    if item.action == "FILE_DELETE"
+                ),
+            },
+            "security_alerts": [
+                {
+                    "id": alert.id,
+                    "type": alert.alert_type,
+                    "severity": alert.severity,
+                    "description": alert.description,
+                    "created_at": alert.created_at,
+                    "resolved": alert.resolved,
+                }
+                for alert in alerts
+            ],
+            "recent_activity": [
+                {
+                    "id": item.id,
+                    "action": item.action,
+                    "description": item.description,
+                    "created_at": item.created_at,
+                }
+                for item in activities[:10]
+            ],
+        }
+
+    finally:
+        db.close()

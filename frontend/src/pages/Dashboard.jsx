@@ -107,6 +107,7 @@ function Dashboard() {
 
   const [files, setFiles] = useState([]);
   const [sharedFiles, setSharedFiles] = useState([]);
+  const [storageAnalytics, setStorageAnalytics] = useState({});
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -127,7 +128,11 @@ function Dashboard() {
           },
         };
 
-        const [filesResponse, sharedResponse] =
+        const [
+              filesResponse,
+              sharedResponse,
+              analyticsResponse,
+          ]=
           await Promise.all([
             axios.get(
               "http://127.0.0.1:8000/files/",
@@ -137,11 +142,18 @@ function Dashboard() {
               "http://127.0.0.1:8000/share/received",
               config
             ),
+            axios.get(
+              "http://127.0.0.1:8000/analytics/storage",
+              config
+            )
           ]);
 
         setFiles(filesResponse.data.files || []);
         setSharedFiles(
           sharedResponse.data.files || []
+        );
+        setStorageAnalytics(
+          analyticsResponse.data || {}
         );
       } catch (error) {
         console.error(
@@ -480,7 +492,7 @@ function Dashboard() {
                 </div>
 
                 <div className="stat-value">
-                  {files.length}
+                  {storageAnalytics.total_files || 0}
                 </div>
 
                 <div className="stat-note">
@@ -521,7 +533,7 @@ function Dashboard() {
                 </div>
 
                 <div className="stat-value">
-                  {encryptedFiles.length}
+                  {storageAnalytics.encrypted_files || 0}
                 </div>
 
                 <div className="stat-note">
@@ -539,13 +551,15 @@ function Dashboard() {
                 </div>
 
                 <div className="stat-value storage-value">
-                  {formatSize(totalSize)}
+                  {formatSize(
+                     storageAnalytics.total_storage_bytes || 0
+            )}
                 </div>
 
                 <div className="stat-note">
                   Across your files
                 </div>
-              </div>
+              </div> 
 
             </section>
 
