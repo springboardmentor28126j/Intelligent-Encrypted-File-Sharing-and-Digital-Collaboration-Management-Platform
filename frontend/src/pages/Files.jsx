@@ -110,7 +110,56 @@ function Files() {
       setDownloading("");
     }
   };
+  const handleDelete = async (file) => {
+    if (!token) {
+      navigate("/login");
+      return;
+    }
 
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${file.filename}"?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await axios.delete(
+        `http://127.0.0.1:8000/files/${encodeURI(file.storage_path)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      setFiles((currentFiles) =>
+        currentFiles.filter(
+          (item) =>
+            item.storage_path !== file.storage_path
+        )
+      );
+
+      alert("File deleted successfully.");
+    } catch (err) {
+      console.error("Delete failed:", err);
+
+      if (err.response?.status === 401) {
+        alert(
+          "Your login session has expired. Please login again."
+        );
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+        navigate("/login");
+      } else {
+        alert(
+          err.response?.data?.detail ||
+            "Failed to delete the file."
+        );
+      }
+    }
+  };
   const handleShare = async (file) => {
     if (!token) {
       navigate("/login");
@@ -1563,6 +1612,13 @@ function Files() {
                           : "🔗 Share"}
                       </button>
 
+                      <button
+                           className="ts-action"
+                           onClick={() => handleDelete(file)}
+                           disabled={isDownloading || isSharing}
+                          >
+                          🗑 Delete
+                      </button>
                     </div>
 
                   </div>

@@ -1,5 +1,12 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, UploadFile, File as UploadFileType, Depends, HTTPException
+
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File as UploadFileType,
+    Depends,
+    HTTPException,
+)
 from fastapi.responses import Response
 from pathlib import Path
 import uuid
@@ -15,8 +22,10 @@ from .cloud_storage import (
     upload_encrypted_file,
     download_encrypted_file,
     delete_encrypted_file,
-    SUPABASE_BUCKET
+    SUPABASE_BUCKET,
 )
+from .monitoring import log_activity
+
 
 router = APIRouter(prefix="/files", tags=["Files"])
 
@@ -26,12 +35,12 @@ MAX_FILE_SIZE = 50 * 1024 * 1024
 @router.post("/upload")
 def upload_file(
     file: UploadFile = UploadFileType(...),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
     if not file.filename:
         raise HTTPException(
             status_code=400,
-            detail="No file selected"
+            detail="No file selected",
         )
 
     safe_filename = Path(file.filename).name
@@ -40,13 +49,13 @@ def upload_file(
     if not file_data:
         raise HTTPException(
             status_code=400,
-            detail="Uploaded file is empty"
+            detail="Uploaded file is empty",
         )
 
     if len(file_data) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=413,
-            detail="File size exceeds the 50 MB limit"
+            detail="File size exceeds the 50 MB limit",
         )
 
     # Generate unique storage filename
@@ -65,12 +74,12 @@ def upload_file(
     try:
         upload_encrypted_file(
             storage_path,
-            encrypted_file_data
+            encrypted_file_data,
         )
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Cloud upload failed: {str(e)}"
+            detail=f"Cloud upload failed: {str(e)}",
         )
 
     # Calculate SHA-256 hash of original file
@@ -102,12 +111,24 @@ def upload_file(
             stored_filename=f"{file_uuid}_{safe_filename}",
             file_size=len(file_data),
             file_type=file.content_type or "application/octet-stream",
-            version=1
+            version=1,
         )
 
         db.add(new_file)
         db.commit()
         db.refresh(new_file)
+
+        # Record successful upload activity
+        log_activity(
+            db=db,
+            user_id=current_user.id,
+            action="FILE_UPLOAD",
+            description=f"Uploaded file: {safe_filename}",
+            file_id=new_file.id,
+            status="SUCCESS",
+            details="Encrypted upload using AES-256-GCM to Supabase Storage",
+        )
+        db.commit()
 
         return {
             "message": "File encrypted and uploaded to cloud successfully",
@@ -117,7 +138,7 @@ def upload_file(
             "bucket": SUPABASE_BUCKET,
             "encryption": "AES-256-GCM",
             "storage": "Supabase Storage",
-            "uploaded_by": current_user.name
+            "uploaded_by": current_user.name,
         }
 
     except Exception as e:
@@ -131,7 +152,7 @@ def upload_file(
 
         raise HTTPException(
             status_code=500,
-            detail=f"File metadata database save failed: {str(e)}"
+            detail=f"File metadata database save failed: {str(e)}",
         )
 
     finally:
@@ -140,7 +161,7 @@ def upload_file(
 
 @router.get("/")
 def list_files(
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
     db: Session = SessionLocal()
 
@@ -149,7 +170,7 @@ def list_files(
             db.query(DBFile)
             .filter(
                 DBFile.owner_id == current_user.id,
-                DBFile.is_deleted == False
+                DBFile.is_deleted == False,
             )
             .order_by(DBFile.created_at.desc())
             .all()
@@ -158,17 +179,19 @@ def list_files(
         files = []
 
         for db_file in db_files:
-            files.append({
-                "file_id": db_file.id,
-                "filename": db_file.filename,
-                "storage_path": db_file.storage_path,
-                "size": db_file.size,
-                "encrypted": db_file.is_encrypted,
-                "storage": db_file.storage_backend
-            })
+            files.append(
+                {
+                    "file_id": db_file.id,
+                    "filename": db_file.filename,
+                    "storage_path": db_file.storage_path,
+                    "size": db_file.size,
+                    "encrypted": db_file.is_encrypted,
+                    "storage": db_file.storage_backend,
+                }
+            )
 
         return {
-            "files": files
+            "files": files,
         }
 
     finally:
@@ -178,14 +201,14 @@ def list_files(
 @router.get("/download/{filename:path}")
 def download_file(
     filename: str,
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
     safe_path = Path(filename)
 
     if safe_path.is_absolute() or ".." in safe_path.parts:
         raise HTTPException(
             status_code=400,
-            detail="Invalid file path"
+            detail="Invalid file path",
         )
 
     if not filename.startswith(f"user_{current_user.id}/"):
@@ -199,7 +222,7 @@ def download_file(
             .filter(
                 DBFile.owner_id == current_user.id,
                 DBFile.storage_path == filename,
-                DBFile.is_deleted == False
+                DBFile.is_deleted == False,
             )
             .first()
         )
@@ -207,7 +230,7 @@ def download_file(
         if not db_file:
             raise HTTPException(
                 status_code=404,
-                detail="File record not found"
+                detail="File record not found",
             )
 
         try:
@@ -215,13 +238,13 @@ def download_file(
         except Exception:
             raise HTTPException(
                 status_code=404,
-                detail="Encrypted file not found"
+                detail="Encrypted file not found",
             )
 
         if len(encrypted_file_data) < 13:
             raise HTTPException(
                 status_code=500,
-                detail="Invalid encrypted file"
+                detail="Invalid encrypted file",
             )
 
         nonce = encrypted_file_data[:12]
@@ -230,12 +253,12 @@ def download_file(
         try:
             decrypted_data = decrypt_file(
                 nonce,
-                encrypted_data
+                encrypted_data,
             )
         except Exception:
             raise HTTPException(
                 status_code=500,
-                detail="File decryption failed"
+                detail="File decryption failed",
             )
 
         # Update download count
@@ -251,6 +274,18 @@ def download_file(
             or Path(filename).name
         )
 
+        # Record successful download activity
+        log_activity(
+            db=db,
+            user_id=current_user.id,
+            action="FILE_DOWNLOAD",
+            description=f"Downloaded file: {original_filename}",
+            file_id=db_file.id,
+            status="SUCCESS",
+            details="File decrypted and downloaded successfully",
+        )
+        db.commit()
+
         return Response(
             content=decrypted_data,
             media_type=db_file.content_type
@@ -258,7 +293,7 @@ def download_file(
             headers={
                 "Content-Disposition":
                     f'attachment; filename="{original_filename}"'
-            }
+            },
         )
 
     finally:
@@ -268,14 +303,14 @@ def download_file(
 @router.delete("/{filename:path}")
 def delete_file(
     filename: str,
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
     safe_path = Path(filename)
 
     if safe_path.is_absolute() or ".." in safe_path.parts:
         raise HTTPException(
             status_code=400,
-            detail="Invalid file path"
+            detail="Invalid file path",
         )
 
     expected_prefix = f"user_{current_user.id}/"
@@ -283,7 +318,7 @@ def delete_file(
     if not filename.startswith(expected_prefix):
         raise HTTPException(
             status_code=403,
-            detail="You do not have permission to delete this file"
+            detail="You do not have permission to delete this file",
         )
 
     db = SessionLocal()
@@ -294,7 +329,7 @@ def delete_file(
             .filter(
                 DBFile.owner_id == current_user.id,
                 DBFile.storage_path == filename,
-                DBFile.is_deleted == False
+                DBFile.is_deleted == False,
             )
             .first()
         )
@@ -302,7 +337,7 @@ def delete_file(
         if not db_file:
             raise HTTPException(
                 status_code=404,
-                detail="File record not found"
+                detail="File record not found",
             )
 
         try:
@@ -310,7 +345,7 @@ def delete_file(
         except Exception:
             raise HTTPException(
                 status_code=404,
-                detail="Cloud file not found"
+                detail="Cloud file not found",
             )
 
         # Soft delete in shared database
@@ -319,10 +354,22 @@ def delete_file(
 
         db.commit()
 
+        # Record successful deletion activity
+        log_activity(
+            db=db,
+            user_id=current_user.id,
+            action="FILE_DELETE",
+            description=f"Deleted file: {db_file.filename}",
+            file_id=db_file.id,
+            status="SUCCESS",
+            details="Encrypted cloud file deleted and database record soft-deleted",
+        )
+        db.commit()
+
         return {
             "message": "Encrypted cloud file deleted successfully",
             "file_id": db_file.id,
-            "storage_path": filename
+            "storage_path": filename,
         }
 
     finally:

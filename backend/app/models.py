@@ -269,3 +269,172 @@ class PasswordResetToken(Base):
         DateTime,
         nullable=False
     )
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=True
+    )
+
+    action = Column(
+        String(100),
+        nullable=False
+    )
+
+    file_id = Column(
+        Integer,
+        ForeignKey("files.id"),
+        nullable=True
+    )
+
+    ip_address = Column(
+        String(45),
+        nullable=True
+    )
+
+    timestamp = Column(
+        DateTime,
+        nullable=False
+    )
+
+    details = Column(
+        String,
+        nullable=True
+    )
+
+    status = Column(
+        String(50),
+        nullable=False
+    )
+
+    user_agent = Column(
+        String(255),
+        nullable=True
+    )
+
+
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False
+    )
+
+    action = Column(
+        String(40),
+        nullable=False
+    )
+
+    file_id = Column(
+        Integer,
+        ForeignKey("files.id"),
+        nullable=True
+    )
+
+    description = Column(
+        String,
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime,
+        nullable=False
+    )
+
+    ip_address = Column(
+        String(45),
+        nullable=True
+    )
+
+    user_agent = Column(
+        String(255),
+        nullable=True
+    )
+
+
+class SecurityAlert(Base):
+    __tablename__ = "security_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=True
+    )
+
+    alert_type = Column(
+        String(100),
+        nullable=False
+    )
+
+    severity = Column(
+        String(20),
+        nullable=True
+    )
+
+    description = Column(
+        String,
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime,
+        nullable=True
+    )
+
+    resolved = Column(
+        Boolean,
+        nullable=True
+    )
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False
+    )
+
+    title = Column(
+        String(200),
+        nullable=False
+    )
+
+    message = Column(
+        String,
+        nullable=False
+    )
+
+    notification_type = Column(
+        String(50),
+        nullable=True
+    )
+
+    is_read = Column(
+        Boolean,
+        nullable=True
+    )
+
+    created_at = Column(
+        DateTime,
+        nullable=True
+    )
+
+    type = Column(
+        String(50),
+        nullable=False
+    )

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 
+
 from .database import SessionLocal
 from .models import User, PasswordResetToken
 from .auth import (
@@ -15,6 +16,7 @@ from .auth import (
     create_password_reset_token,
     verify_password_reset_token,
 )
+from .monitoring import log_activity
 from .email_service import send_password_reset_email
 from .file_routes import router as file_router
 from .share_routes import router as share_router
@@ -368,6 +370,15 @@ def login(
         token = create_access_token(
             existing_user.id
         )
+        log_activity(
+            db=db,
+            user_id=existing_user.id,
+            action="LOGIN_SUCCESS",
+            description="User logged in successfully",
+            status="SUCCESS",
+            details="Successful password authentication",
+        )
+        db.commit()
 
         return {
             "message": "Login successful",
