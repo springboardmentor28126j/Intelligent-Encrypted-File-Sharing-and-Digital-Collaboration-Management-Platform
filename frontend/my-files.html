@@ -856,6 +856,81 @@
         }
 
         /* =====================================================
+           TEMPORARY LINK SETTINGS
+        ===================================================== */
+
+        .temporary-settings-box {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 22px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+        }
+
+        .temporary-settings-box h3 {
+            color: #312e81;
+            font-size: 17px;
+            margin-bottom: 6px;
+        }
+
+        .temporary-settings-box p {
+            color: #64748b;
+            font-size: 12px;
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+
+        .temporary-settings-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .temporary-settings-field label {
+            display: block;
+            color: #475569;
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .temporary-settings-field select,
+        .temporary-settings-field input {
+            width: 100%;
+            padding: 10px 11px;
+            border: 1px solid #cbd5e1;
+            border-radius: 9px;
+            font-size: 12px;
+            background: #f8fafc;
+        }
+
+        .temporary-settings-field small {
+            display: block;
+            color: #94a3b8;
+            margin-top: 5px;
+            font-size: 10px;
+            line-height: 1.4;
+        }
+
+        .temporary-link-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 10px 0 14px;
+        }
+
+        .temporary-link-badge {
+            background: #eef2ff;
+            color: #4f46e5;
+            border: 1px solid #c7d2fe;
+            border-radius: 999px;
+            padding: 5px 9px;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        /* =====================================================
            TEMPORARY LINK BOX
         ===================================================== */
 
@@ -1301,6 +1376,44 @@
 
 
         <!-- =================================================
+             TEMPORARY LINK SETTINGS
+        ================================================== -->
+
+        <div class="temporary-settings-box">
+
+            <h3>🔗 Temporary Link Settings</h3>
+
+            <p>Choose whether the link should open the file for viewing or allow downloading. You can also set the expiration time and maximum downloads.</p>
+
+            <div class="temporary-settings-grid">
+
+                <div class="temporary-settings-field">
+                    <label for="tempAccessLevel">Access Permission</label>
+                    <select id="tempAccessLevel" onchange="updateTemporaryLimitState()">
+                        <option value="view">View</option>
+                        <option value="download">Download</option>
+                    </select>
+                    <small>View opens the file in the browser. Download allows downloading.</small>
+                </div>
+
+                <div class="temporary-settings-field">
+                    <label for="tempExpiresInHours">Expires In (hours)</label>
+                    <input id="tempExpiresInHours" type="number" min="1" value="12">
+                    <small>Example: 12 means the link expires after 12 hours.</small>
+                </div>
+
+                <div class="temporary-settings-field">
+                    <label for="tempMaxDownloads">Maximum Downloads</label>
+                    <input id="tempMaxDownloads" type="number" min="1" placeholder="Unlimited">
+                    <small id="tempMaxDownloadsHelp">Used when Download permission is selected.</small>
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
              TEMPORARY LINK
         ================================================== -->
 
@@ -1325,6 +1438,9 @@
                 class="temporary-url"
             >
             </div>
+
+
+            <div id="temporaryLinkMeta" class="temporary-link-meta"></div>
 
 
             <p
@@ -2541,142 +2657,170 @@
                     "access_token"
                 );
 
-
             if (!token) {
-
-                window.location.href =
-                    "login.html";
-
+                window.location.href = "login.html";
                 return;
-
             }
 
+            const accessLevel =
+                document.getElementById(
+                    "tempAccessLevel"
+                ).value;
+
+            const expiresInHours =
+                parseInt(
+                    document.getElementById(
+                        "tempExpiresInHours"
+                    ).value,
+                    10
+                );
+
+            const maxDownloadsInput =
+                document.getElementById(
+                    "tempMaxDownloads"
+                ).value.trim();
+
+            if (!expiresInHours || expiresInHours <= 0) {
+                alert("Expiration must be greater than zero.");
+                return;
+            }
+
+            let maxDownloads = "";
+
+            if (
+                accessLevel === "download" &&
+                maxDownloadsInput !== ""
+            ) {
+                maxDownloads = parseInt(
+                    maxDownloadsInput,
+                    10
+                );
+
+                if (!maxDownloads || maxDownloads <= 0) {
+                    alert("Maximum downloads must be greater than zero.");
+                    return;
+                }
+            }
 
             try {
 
-                button.disabled =
-                    true;
+                button.disabled = true;
+                button.innerText = "Creating...";
 
+                let url =
+                    "http://127.0.0.1:8000/create-temporary-link/"
+                    + encodeURIComponent(fileId)
+                    + "?access_level="
+                    + encodeURIComponent(accessLevel)
+                    + "&expires_in_hours="
+                    + encodeURIComponent(expiresInHours);
 
-                button.innerText =
-                    "Creating...";
-
+                if (maxDownloads !== "") {
+                    url +=
+                        "&max_downloads="
+                        + encodeURIComponent(maxDownloads);
+                }
 
                 const response =
                     await fetch(
-                        "http://127.0.0.1:8000/create-temporary-link/"
-                        + encodeURIComponent(
-                            fileId
-                        ),
+                        url,
                         {
                             method: "POST",
-
                             headers: {
-
                                 "Authorization":
                                     "Bearer " + token,
-
                                 "Accept":
                                     "application/json"
-
                             }
                         }
                     );
 
-
-                if (
-                    response.status === 401
-                ) {
-
+                if (response.status === 401) {
                     localStorage.clear();
-
-                    window.location.href =
-                        "login.html";
-
+                    window.location.href = "login.html";
                     return;
-
                 }
 
+                const data = await response.json();
 
-                const data =
-                    await response.json();
-
-
-                if (
-                    response.ok
-                ) {
+                if (response.ok) {
 
                     currentTemporaryLink =
                         "http://127.0.0.1:8000/temporary-download/"
                         + data.token;
-
-
-                    const expiryHours =
-                        data.expires_in_hours ||
-                        12;
-
-
-                    const expiryText =
-                        "This link expires in "
-                        + expiryHours
-                        + " hours.";
-
 
                     const linkBox =
                         document.getElementById(
                             "temporaryLinkBox"
                         );
 
-
                     const urlBox =
                         document.getElementById(
                             "temporaryUrl"
                         );
-
 
                     const expiryBox =
                         document.getElementById(
                             "expiryText"
                         );
 
+                    const metaBox =
+                        document.getElementById(
+                            "temporaryLinkMeta"
+                        );
 
                     urlBox.innerHTML =
                         "<a href=\""
-                        + escapeAttribute(
-                            currentTemporaryLink
-                        )
+                        + escapeAttribute(currentTemporaryLink)
                         + "\" target=\"_blank\">"
-                        + escapeHtml(
-                            currentTemporaryLink
-                        )
+                        + escapeHtml(currentTemporaryLink)
                         + "</a>";
 
+                    const expiryDate =
+                        data.expires_at
+                            ? new Date(data.expires_at)
+                            : null;
+
+                    const expiryText =
+                        expiryDate && !Number.isNaN(expiryDate.getTime())
+                            ? expiryDate.toLocaleString()
+                            : "Configured expiration";
 
                     expiryBox.innerText =
-                        "⏱ "
-                        + expiryText;
+                        "⏱ Expires: " + expiryText;
 
+                    metaBox.innerHTML =
+                        "<span class=\"temporary-link-badge\">🔐 Access: "
+                        + escapeHtml(
+                            data.access_level || accessLevel
+                        )
+                        + "</span>"
+                        + "<span class=\"temporary-link-badge\">🆔 Link ID: "
+                        + escapeHtml(
+                            data.link_id || "Generated"
+                        )
+                        + "</span>"
+                        + "<span class=\"temporary-link-badge\">⬇ Max downloads: "
+                        + escapeHtml(
+                            data.max_downloads ?? "Unlimited"
+                        )
+                        + "</span>";
 
-                    linkBox.style.display =
-                        "block";
-
-
+                    linkBox.style.display = "block";
                     linkBox.scrollIntoView({
                         behavior: "smooth",
                         block: "center"
                     });
 
-
                     alert(
                         "🔗 Temporary link created!\n\n"
-                        + "The link is valid for "
-                        + expiryHours
-                        + " hours."
+                        + "Access: "
+                        + (data.access_level || accessLevel)
+                        + "\nMax downloads: "
+                        + (data.max_downloads ?? "Unlimited")
                     );
 
-                }
-
-                else {
+                } else {
 
                     alert(
                         "Temporary link creation failed.\n\n"
@@ -2685,38 +2829,45 @@
                             "Unable to create temporary link."
                         )
                     );
-
                 }
 
+            } catch (error) {
+                console.error("Temporary link error:", error);
+                alert("Cannot connect to TrustShare server.");
+            } finally {
+                button.disabled = false;
+                button.innerText = "🔗 Temporary Link";
             }
+        }
 
 
-            catch (error) {
+        // ==================================================
+        // TEMPORARY LINK SETTINGS
+        // ==================================================
 
-                console.error(
-                    "Temporary link error:",
-                    error
-                );
+        function updateTemporaryLimitState() {
+            const accessLevel =
+                document.getElementById("tempAccessLevel").value;
 
+            const input =
+                document.getElementById("tempMaxDownloads");
 
-                alert(
-                    "Cannot connect to TrustShare server."
-                );
+            const help =
+                document.getElementById("tempMaxDownloadsHelp");
 
+            const isDownload =
+                accessLevel === "download";
+
+            input.disabled = !isDownload;
+
+            if (!isDownload) {
+                input.value = "";
+                help.innerText =
+                    "Not required for View access.";
+            } else {
+                help.innerText =
+                    "Optional. Leave empty for unlimited downloads.";
             }
-
-
-            finally {
-
-                button.disabled =
-                    false;
-
-
-                button.innerText =
-                    "⏱ Temporary Link";
-
-            }
-
         }
 
 
@@ -3303,6 +3454,9 @@
 
 
         // ==================================================
+        // Initialize temporary-link settings
+        updateTemporaryLimitState();
+
         // START PAGE
         // ==================================================
 

@@ -866,6 +866,173 @@
                 padding: 14px 10px;
             }
         }
+
+        /* =====================================================
+           MILESTONE 3 - ADMIN MONITORING
+        ===================================================== */
+
+        .m3-admin-section {
+            margin-top: 22px;
+        }
+
+        .m3-admin-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .m3-admin-heading h2 {
+            color: #312e81;
+            font-size: 19px;
+        }
+
+        .m3-admin-heading span {
+            color: #64748b;
+            font-size: 10px;
+        }
+
+        .m3-admin-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .m3-admin-stat {
+            background: rgba(255,255,255,0.96);
+            border: 1px solid #e5e7f0;
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: 0 7px 20px rgba(15,23,42,0.06);
+        }
+
+        .m3-admin-stat .m3-admin-icon {
+            font-size: 18px;
+            margin-bottom: 6px;
+        }
+
+        .m3-admin-stat strong {
+            display: block;
+            color: #312e81;
+            font-size: 20px;
+        }
+
+        .m3-admin-stat small {
+            color: #64748b;
+            font-size: 9px;
+        }
+
+        .m3-admin-grid-panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .m3-admin-panel {
+            background: rgba(255,255,255,0.96);
+            border: 1px solid #e5e7f0;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 7px 20px rgba(15,23,42,0.06);
+        }
+
+        .m3-admin-panel.full {
+            grid-column: 1 / -1;
+        }
+
+        .m3-admin-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .m3-admin-panel-header h3 {
+            color: #312e81;
+            font-size: 14px;
+        }
+
+        .m3-admin-btn {
+            border: none;
+            padding: 7px 10px;
+            border-radius: 8px;
+            background: #eef2ff;
+            color: #4f46e5;
+            font-size: 9px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .m3-admin-btn:hover {
+            background: #e0e7ff;
+        }
+
+        .m3-admin-table-wrap {
+            overflow-x: auto;
+        }
+
+        .m3-admin-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .m3-admin-table th,
+        .m3-admin-table td {
+            padding: 8px;
+            border-bottom: 1px solid #eef2f7;
+            text-align: left;
+            font-size: 9px;
+        }
+
+        .m3-admin-table th {
+            color: #4338ca;
+            font-size: 8px;
+            text-transform: uppercase;
+        }
+
+        .m3-admin-pill {
+            display: inline-block;
+            padding: 3px 7px;
+            border-radius: 999px;
+            background: #eef2ff;
+            color: #4f46e5;
+            font-weight: 700;
+        }
+
+        .m3-admin-alert {
+            border: 1px solid #fecaca;
+            background: #fff1f2;
+            color: #b91c1c;
+            border-radius: 10px;
+            padding: 10px;
+            font-size: 10px;
+            margin-bottom: 10px;
+        }
+
+        .m3-admin-empty {
+            color: #94a3b8;
+            font-size: 10px;
+            padding: 8px 0;
+        }
+
+        @media (max-width: 900px) {
+            .m3-admin-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 650px) {
+            .m3-admin-grid-panels {
+                grid-template-columns: 1fr;
+            }
+
+            .m3-admin-panel.full {
+                grid-column: auto;
+            }
+        }
+
     </style>
 </head>
 
@@ -1128,6 +1295,132 @@
                     There are currently no users
                     available to manage.
                 </p>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- ================= M3 MONITORING ================= -->
+
+        <section class="m3-admin-section">
+
+            <div class="m3-admin-heading">
+                <div>
+                    <h2>Monitoring, Reports & Analytics</h2>
+                    <span>Milestone 3 admin security and usage monitoring</span>
+                </div>
+
+                <button class="m3-admin-btn"
+                        onclick="m3LoadAdminData()">
+                    🔄 Refresh M3
+                </button>
+            </div>
+
+            <div class="m3-admin-grid">
+
+                <div class="m3-admin-stat">
+                    <div class="m3-admin-icon">📊</div>
+                    <strong id="m3AdminEvents">0</strong>
+                    <small>Activity Events (7 days)</small>
+                </div>
+
+                <div class="m3-admin-stat">
+                    <div class="m3-admin-icon">💾</div>
+                    <strong id="m3AdminStorage">0 MB</strong>
+                    <small>Platform Storage</small>
+                </div>
+
+                <div class="m3-admin-stat">
+                    <div class="m3-admin-icon">👥</div>
+                    <strong id="m3AdminActiveUsers">0</strong>
+                    <small>Active Users</small>
+                </div>
+
+                <div class="m3-admin-stat">
+                    <div class="m3-admin-icon">⚠️</div>
+                    <strong id="m3AdminSuspicious">0</strong>
+                    <small>Suspicious Users</small>
+                </div>
+
+            </div>
+
+            <div class="m3-admin-grid-panels">
+
+                <section class="m3-admin-panel">
+
+                    <div class="m3-admin-panel-header">
+                        <h3>🛡️ Security Report</h3>
+                        <span id="m3SecurityPeriod"
+                              class="m3-admin-pill">
+                            7 days
+                        </span>
+                    </div>
+
+                    <div id="m3SecuritySummary"
+                         class="m3-admin-empty">
+                        Loading...
+                    </div>
+
+                </section>
+
+                <section class="m3-admin-panel">
+
+                    <div class="m3-admin-panel-header">
+                        <h3>💾 Storage Report</h3>
+                    </div>
+
+                    <div id="m3StorageSummary"
+                         class="m3-admin-empty">
+                        Loading...
+                    </div>
+
+                </section>
+
+                <section class="m3-admin-panel full">
+
+                    <div class="m3-admin-panel-header">
+                        <h3>⚠️ Suspicious Activity</h3>
+                    </div>
+
+                    <div id="m3SuspiciousPanel">
+                        <div class="m3-admin-empty">Loading...</div>
+                    </div>
+
+                </section>
+
+                <section class="m3-admin-panel full">
+
+                    <div class="m3-admin-panel-header">
+                        <h3>📋 Recent Security Events</h3>
+                    </div>
+
+                    <div class="m3-admin-table-wrap">
+
+                        <table class="m3-admin-table">
+
+                            <thead>
+                                <tr>
+                                    <th>Action</th>
+                                    <th>User ID</th>
+                                    <th>Details</th>
+                                    <th>IP</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="m3AdminActivity">
+                                <tr>
+                                    <td colspan="5">Loading...</td>
+                                </tr>
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                </section>
 
             </div>
 
@@ -2164,6 +2457,435 @@
         ===================================================== */
 
         loadUsers();
+
+
+        /* =====================================================
+           MILESTONE 3 - ADMIN FRONTEND
+        ===================================================== */
+
+        async function m3AdminRead(response) {
+
+            const text =
+                await response.text();
+
+            if (!text) {
+                return {};
+            }
+
+            try {
+                return JSON.parse(text);
+            } catch {
+                return { detail: text };
+            }
+        }
+
+        function m3AdminFormatTime(value) {
+
+            if (!value) return "-";
+
+            try {
+                return new Date(value).toLocaleString();
+            } catch {
+                return String(value);
+            }
+        }
+
+        function m3AdminEscape(value) {
+
+            const div =
+                document.createElement("div");
+
+            div.textContent =
+                value == null
+                    ? ""
+                    : String(value);
+
+            return div.innerHTML;
+        }
+
+        async function m3LoadAdminData() {
+
+            if (!checkAdmin()) {
+                return;
+            }
+
+            const token =
+                getToken();
+
+            try {
+
+                const headers = {
+                    "Authorization":
+                        "Bearer " + token,
+                    "Accept":
+                        "application/json"
+                };
+
+                const [
+                    securityResponse,
+                    storageResponse,
+                    suspiciousResponse,
+                    activityResponse
+                ] = await Promise.all([
+                    fetch(
+                        API_BASE_URL +
+                        "/admin/reports/security?days=7",
+                        { headers }
+                    ),
+                    fetch(
+                        API_BASE_URL +
+                        "/admin/reports/storage",
+                        { headers }
+                    ),
+                    fetch(
+                        API_BASE_URL +
+                        "/admin/security/suspicious-activity?window_minutes=10",
+                        { headers }
+                    ),
+                    fetch(
+                        API_BASE_URL +
+                        "/admin/activity-logs",
+                        { headers }
+                    )
+                ]);
+
+                const security =
+                    await m3AdminRead(
+                        securityResponse
+                    );
+
+                const storage =
+                    await m3AdminRead(
+                        storageResponse
+                    );
+
+                const suspicious =
+                    await m3AdminRead(
+                        suspiciousResponse
+                    );
+
+                const activity =
+                    await m3AdminRead(
+                        activityResponse
+                    );
+
+                if (
+                    securityResponse.status === 401 ||
+                    securityResponse.status === 403 ||
+                    storageResponse.status === 401 ||
+                    storageResponse.status === 403
+                ) {
+
+                    alert(
+                        "Admin access denied."
+                    );
+
+                    window.location.href =
+                        "dashboard.html";
+
+                    return;
+                }
+
+                const securitySummary =
+                    security.summary || {};
+
+                const storageSummary =
+                    storage.summary || {};
+
+                const totalStorage =
+                    storageSummary.total_storage || {};
+
+                document.getElementById(
+                    "m3AdminEvents"
+                ).innerText =
+                    securitySummary.total_activity_events || 0;
+
+                document.getElementById(
+                    "m3AdminStorage"
+                ).innerText =
+                    Number(
+                        totalStorage.mb || 0
+                    ).toFixed(2) + " MB";
+
+                document.getElementById(
+                    "m3AdminActiveUsers"
+                ).innerText =
+                    securitySummary.active_users || 0;
+
+                document.getElementById(
+                    "m3AdminSuspicious"
+                ).innerText =
+                    suspicious.suspicious_users_count || 0;
+
+                m3RenderAdminSecurity(
+                    securitySummary
+                );
+
+                m3RenderAdminStorage(
+                    storage
+                );
+
+                m3RenderAdminSuspicious(
+                    suspicious
+                );
+
+                m3RenderAdminActivity(
+                    security.recent_security_events ||
+                    activity.logs ||
+                    []
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "M3 admin error:",
+                    error
+                );
+
+                document.getElementById(
+                    "m3SecuritySummary"
+                ).innerHTML =
+                    '<div class="m3-admin-empty">' +
+                    'Unable to load security report.' +
+                    '</div>';
+
+            }
+        }
+
+        function m3RenderAdminSecurity(summary) {
+
+            const output =
+                document.getElementById(
+                    "m3SecuritySummary"
+                );
+
+            output.innerHTML =
+                '<div class="m3-admin-empty">' +
+                    'Successful logins: ' +
+                    m3AdminEscape(
+                        summary.successful_logins || 0
+                    ) +
+                '</div>' +
+                '<div class="m3-admin-empty">' +
+                    'Failed logins: ' +
+                    m3AdminEscape(
+                        summary.failed_logins || 0
+                    ) +
+                '</div>' +
+                '<div class="m3-admin-empty">' +
+                    'File uploads: ' +
+                    m3AdminEscape(
+                        summary.file_uploads || 0
+                    ) +
+                '</div>' +
+                '<div class="m3-admin-empty">' +
+                    'File downloads: ' +
+                    m3AdminEscape(
+                        summary.file_downloads || 0
+                    ) +
+                '</div>' +
+                '<div class="m3-admin-empty">' +
+                    'Security notifications: ' +
+                    m3AdminEscape(
+                        summary.security_notifications || 0
+                    ) +
+                '</div>';
+        }
+
+        function m3RenderAdminStorage(data) {
+
+            const output =
+                document.getElementById(
+                    "m3StorageSummary"
+                );
+
+            const summary =
+                data.summary || {};
+
+            const total =
+                summary.total_storage || {};
+
+            const types =
+                data.by_content_type || [];
+
+            let html =
+                '<div class="m3-admin-empty">' +
+                    'Files: ' +
+                    m3AdminEscape(
+                        summary.total_files || 0
+                    ) +
+                '</div>' +
+                '<div class="m3-admin-empty">' +
+                    'Storage: ' +
+                    m3AdminEscape(
+                        Number(total.mb || 0).toFixed(2)
+                    ) +
+                    ' MB' +
+                '</div>' +
+                '<div class="m3-admin-empty">' +
+                    'Deleted files: ' +
+                    m3AdminEscape(
+                        summary.deleted_files || 0
+                    ) +
+                '</div>' +
+                '<div class="m3-admin-empty">' +
+                    'Versions: ' +
+                    m3AdminEscape(
+                        summary.file_versions || 0
+                    ) +
+                '</div>' +
+                '<div class="m3-admin-empty">' +
+                    'Top content types: ' +
+                    m3AdminEscape(
+                        types
+                            .slice(0, 3)
+                            .map(
+                                function(item) {
+                                    return (
+                                        item.content_type +
+                                        " (" +
+                                        item.file_count +
+                                        ")"
+                                    );
+                                }
+                            )
+                            .join(", ")
+                    ) +
+                '</div>';
+
+            output.innerHTML =
+                html;
+        }
+
+        function m3RenderAdminSuspicious(data) {
+
+            const output =
+                document.getElementById(
+                    "m3SuspiciousPanel"
+                );
+
+            const users =
+                data.suspicious_users || [];
+
+            if (!users.length) {
+
+                output.innerHTML =
+                    '<div class="m3-admin-empty">' +
+                    '✅ No suspicious activity detected ' +
+                    'in the last ' +
+                    m3AdminEscape(
+                        data.window_minutes || 10
+                    ) +
+                    ' minutes.' +
+                    '</div>';
+
+                return;
+            }
+
+            output.innerHTML =
+                users.map(
+                    function(user) {
+
+                        const reasons =
+                            (user.reasons || [])
+                                .map(
+                                    function(reason) {
+                                        return reason.type +
+                                            " (" +
+                                            reason.count +
+                                            ")";
+                                    }
+                                )
+                                .join(", ");
+
+                        return (
+                            '<div class="m3-admin-alert">' +
+                                '<strong>User:</strong> ' +
+                                m3AdminEscape(
+                                    user.user_id
+                                ) +
+                                '<br>' +
+                                '<strong>Reasons:</strong> ' +
+                                m3AdminEscape(reasons) +
+                            '</div>'
+                        );
+                    }
+                ).join("");
+        }
+
+        function m3RenderAdminActivity(logs) {
+
+            const tbody =
+                document.getElementById(
+                    "m3AdminActivity"
+                );
+
+            if (!logs.length) {
+                tbody.innerHTML =
+                    '<tr>' +
+                        '<td colspan="5">' +
+                        'No security events found.' +
+                        '</td>' +
+                    '</tr>';
+                return;
+            }
+
+            tbody.innerHTML =
+                logs.slice(0, 20)
+                    .map(
+                        function(log) {
+
+                            return (
+                                '<tr>' +
+                                    '<td>' +
+                                        '<span class="m3-admin-pill">' +
+                                            m3AdminEscape(
+                                                log.action
+                                            ) +
+                                        '</span>' +
+                                    '</td>' +
+                                    '<td>' +
+                                        m3AdminEscape(
+                                            log.user_id || "-"
+                                        ) +
+                                    '</td>' +
+                                    '<td>' +
+                                        m3AdminEscape(
+                                            log.details || "-"
+                                        ) +
+                                    '</td>' +
+                                    '<td>' +
+                                        m3AdminEscape(
+                                            log.ip_address || "-"
+                                        ) +
+                                    '</td>' +
+                                    '<td>' +
+                                        m3AdminEscape(
+                                            m3AdminFormatTime(
+                                                log.created_at
+                                            )
+                                        ) +
+                                    '</td>' +
+                                '</tr>'
+                            );
+                        }
+                    )
+                    .join("");
+        }
+
+        document.addEventListener(
+            "DOMContentLoaded",
+            function() {
+
+                setTimeout(
+                    function() {
+                        m3LoadAdminData();
+                    },
+                    0
+                );
+
+            }
+        );
 
     </script>
 

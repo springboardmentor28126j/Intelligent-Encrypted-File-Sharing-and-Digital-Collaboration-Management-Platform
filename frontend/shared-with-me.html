@@ -957,6 +957,42 @@
         }
 
 
+        .action-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .view-btn,
+        .download-btn {
+            margin-top: 0;
+        }
+
+        .view-btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 11px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .view-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 9px 20px rgba(5,150,105,0.25);
+        }
+
+        .view-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         /* =========================================
            ERROR MESSAGE
         ========================================= */
@@ -1789,7 +1825,7 @@
 
                         const permission =
                             file.permission ||
-                            "read";
+                            "view";
 
 
 
@@ -1849,17 +1885,59 @@
                             </div>
 
 
-                            <button
-                                class="download-btn"
-                                data-file-id="${fileId ?? ""}"
-                            >
+                            <div class="action-row">
 
-                                ⬇️ Download File
+                                ${(permission === "view" || permission === "download") ? `
+                                    <button
+                                        class="view-btn"
+                                        data-file-id="${fileId ?? ""}"
+                                    >
+                                        👁 View
+                                    </button>
+                                ` : ""}
 
-                            </button>
+                                ${permission === "download" ? `
+                                    <button
+                                        class="download-btn"
+                                        data-file-id="${fileId ?? ""}"
+                                    >
+                                        ⬇️ Download
+                                    </button>
+                                ` : ""}
+
+                            </div>
 
                         `;
 
+
+
+                        // =================================
+                        // VIEW BUTTON
+                        // =================================
+
+                        const viewButton =
+                            card.querySelector(
+                                ".view-btn"
+                            );
+
+                        if (viewButton) {
+                            viewButton.addEventListener(
+                                "click",
+                                function() {
+
+                                    if (!fileId) {
+                                        alert("File ID is missing from the server response.");
+                                        return;
+                                    }
+
+                                    viewFile(
+                                        fileId,
+                                        filename,
+                                        viewButton
+                                    );
+                                }
+                            );
+                        }
 
 
                         // =================================
@@ -1871,40 +1949,24 @@
                                 ".download-btn"
                             );
 
+                        if (downloadButton) {
+                            downloadButton.addEventListener(
+                                "click",
+                                function() {
 
+                                    if (!fileId) {
+                                        alert("File ID is missing from the server response.");
+                                        return;
+                                    }
 
-                        downloadButton.addEventListener(
-                            "click",
-                            function() {
-
-                                if (
-                                    fileId === null ||
-                                    fileId === undefined ||
-                                    fileId === ""
-                                ) {
-
-                                    alert(
-                                        "File ID is missing from the server response. Please restart the backend and try again."
+                                    downloadFile(
+                                        fileId,
+                                        filename,
+                                        downloadButton
                                     );
-
-                                    console.error(
-                                        "Missing file_id. Server returned:",
-                                        file
-                                    );
-
-                                    return;
-
                                 }
-
-
-                                downloadFile(
-                                    fileId,
-                                    filename,
-                                    downloadButton
-                                );
-
-                            }
-                        );
+                            );
+                        }
 
 
 
@@ -1956,6 +2018,91 @@
 
         }
 
+
+
+        // =========================================
+        // VIEW FILE
+        // =========================================
+
+        async function viewFile(
+            fileId,
+            filename,
+            button
+        ) {
+
+            const token =
+                localStorage.getItem(
+                    "access_token"
+                );
+
+            if (!token) {
+                window.location.href = "login.html";
+                return;
+            }
+
+            const newTab =
+                window.open("about:blank", "_blank");
+
+            try {
+
+                button.disabled = true;
+                button.innerText = "⏳ Opening...";
+
+                const response =
+                    await fetch(
+                        "http://127.0.0.1:8000/view/"
+                        + encodeURIComponent(fileId),
+                        {
+                            method: "GET",
+                            headers: {
+                                "Authorization":
+                                    "Bearer " + token
+                            }
+                        }
+                    );
+
+                if (response.status === 401) {
+                    localStorage.clear();
+                    if (newTab) newTab.close();
+                    window.location.href = "login.html";
+                    return;
+                }
+
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    if (newTab) newTab.close();
+                    alert(
+                        data.detail ||
+                        "You do not have permission to view this file."
+                    );
+                    return;
+                }
+
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+
+                if (newTab) {
+                    newTab.location.href = url;
+                } else {
+                    window.open(url, "_blank");
+                }
+
+                setTimeout(
+                    function() {
+                        URL.revokeObjectURL(url);
+                    },
+                    60000
+                );
+
+            } catch (error) {
+                console.error("View file error:", error);
+                if (newTab) newTab.close();
+                alert("Unable to view the file.");
+            } finally {
+                button.disabled = false;
+                button.innerText = "👁 View";
+            }
+        }
 
 
         // =========================================

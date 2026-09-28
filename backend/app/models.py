@@ -390,7 +390,114 @@ class ShareLink(Base):
 
 
 # =========================================================
-# 7. Downloads
+# 7. Activity Logs
+# =========================================================
+
+class ActivityLog(Base):
+
+    __tablename__ = "activity_logs"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=True
+    )
+
+    action = Column(
+        String(50),
+        nullable=False
+    )
+
+    file_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("files.id"),
+        nullable=True
+    )
+
+    details = Column(
+        Text,
+        nullable=True
+    )
+
+    ip_address = Column(
+        String(45),
+        nullable=True
+    )
+
+    user_agent = Column(
+        Text,
+        nullable=True
+    )
+
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        server_default=func.now()
+    )
+
+
+# =========================================================
+# 8. Notifications
+# =========================================================
+
+class Notification(Base):
+
+    __tablename__ = "notifications"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False
+    )
+
+    notification_type = Column(
+        String(30),
+        nullable=False
+    )
+
+    title = Column(
+        String(150),
+        nullable=False
+    )
+
+    message = Column(
+        Text,
+        nullable=False
+    )
+
+    related_file_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("files.id"),
+        nullable=True
+    )
+
+    is_read = Column(
+        Boolean,
+        nullable=False,
+        default=False
+    )
+
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        server_default=func.now()
+    )
+
+
+# =========================================================
+# 9. Downloads
 # =========================================================
 
 class Download(Base):

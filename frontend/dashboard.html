@@ -1348,7 +1348,366 @@
         }
 
 
-    </style>
+
+        /* =================================================
+           MILESTONE 3 - MONITORING & ANALYTICS
+        ================================================= */
+
+        .m3-section {
+            margin-top: 30px;
+        }
+
+        .m3-heading {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 15px;
+            margin-bottom: 16px;
+        }
+
+        .m3-heading h2 {
+            color: #312e81;
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .m3-heading span {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .m3-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .m3-stat {
+            background: rgba(255,255,255,0.96);
+            border: 1px solid #e5e7f0;
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+        }
+
+        .m3-stat .m3-icon {
+            font-size: 20px;
+            margin-bottom: 9px;
+        }
+
+        .m3-stat strong {
+            display: block;
+            color: #312e81;
+            font-size: 22px;
+        }
+
+        .m3-stat small {
+            display: block;
+            color: #64748b;
+            margin-top: 3px;
+            font-size: 11px;
+        }
+
+        .m3-stat.alert strong {
+            color: #dc2626;
+        }
+
+        .m3-panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        .m3-panel {
+            background: rgba(255,255,255,0.96);
+            border: 1px solid #e5e7f0;
+            border-radius: 18px;
+            padding: 20px;
+            box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+        }
+
+        .m3-panel.full {
+            grid-column: 1 / -1;
+        }
+
+        .m3-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 13px;
+        }
+
+        .m3-panel-header h3 {
+            margin: 0;
+            color: #312e81;
+            font-size: 16px;
+        }
+
+        .m3-action-btn {
+            border: none;
+            background: #eef2ff;
+            color: #4f46e5;
+            padding: 8px 11px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .m3-action-btn:hover {
+            background: #e0e7ff;
+        }
+
+        .m3-list {
+            max-height: 280px;
+            overflow-y: auto;
+        }
+
+        .m3-item {
+            padding: 11px 0;
+            border-bottom: 1px solid #eef2f7;
+        }
+
+        .m3-item:last-child {
+            border-bottom: none;
+        }
+
+        .m3-item-title {
+            color: #334155;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .m3-item-meta {
+            color: #64748b;
+            font-size: 10px;
+            line-height: 1.6;
+            margin-top: 3px;
+        }
+
+        .m3-unread {
+            background: #eff6ff;
+            border-radius: 10px;
+            padding: 10px;
+        }
+
+        .m3-read-btn {
+            margin-top: 6px;
+            border: none;
+            background: transparent;
+            color: #4f46e5;
+            cursor: pointer;
+            padding: 0;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .m3-table-wrap {
+            overflow-x: auto;
+        }
+
+        .m3-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .m3-table th,
+        .m3-table td {
+            padding: 9px 8px;
+            border-bottom: 1px solid #eef2f7;
+            text-align: left;
+            font-size: 10px;
+        }
+
+        .m3-table th {
+            color: #4338ca;
+            font-size: 9px;
+            text-transform: uppercase;
+        }
+
+        .m3-pill {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #eef2ff;
+            color: #4f46e5;
+            font-weight: 700;
+        }
+
+        .m3-select {
+            width: 100%;
+            padding: 9px 10px;
+            border-radius: 9px;
+            border: 1px solid #dbe3f0;
+            background: white;
+            margin-bottom: 10px;
+        }
+
+        .m3-report {
+            margin-top: 12px;
+        }
+
+        .m3-empty {
+            color: #94a3b8;
+            font-size: 11px;
+            padding: 10px 0;
+        }
+
+        @media (max-width: 950px) {
+            .m3-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 700px) {
+            .m3-panels {
+                grid-template-columns: 1fr;
+            }
+
+            .m3-panel.full {
+                grid-column: auto;
+            }
+        }
+
+        @media (max-width: 520px) {
+            .m3-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .m3-heading {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+        }
+
+            /* Highlighted AI Dashboard Insights */
+        .ai-dashboard-hero {
+            margin: 0 0 24px 0;
+            padding: 26px;
+            border-radius: 22px;
+            background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 48%, #fdf2f8 100%);
+            border: 2px solid #c4b5fd;
+            box-shadow: 0 12px 35px rgba(79, 70, 229, 0.16);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ai-dashboard-hero::before {
+            content: "";
+            position: absolute;
+            top: -70px;
+            right: -50px;
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            background: rgba(139, 92, 246, 0.12);
+        }
+
+        .ai-dashboard-hero-top {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .ai-dashboard-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: #7c3aed;
+            color: white;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: .6px;
+            margin-bottom: 8px;
+        }
+
+        .ai-dashboard-hero h3 {
+            margin: 0 0 7px 0;
+            font-size: 23px;
+            color: #312e81;
+        }
+
+        .ai-dashboard-hero p {
+            margin: 0;
+            color: #4b5563;
+            max-width: 720px;
+            line-height: 1.55;
+        }
+
+        .ai-dashboard-button {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 18px;
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            box-shadow: 0 7px 18px rgba(79, 70, 229, .25);
+        }
+
+        .ai-dashboard-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 9px 22px rgba(79, 70, 229, .32);
+        }
+
+        .ai-dashboard-result {
+            position: relative;
+            z-index: 1;
+            margin-top: 20px;
+            padding: 16px 18px;
+            border-radius: 14px;
+            background: rgba(255,255,255,.82);
+            border: 1px solid rgba(124,58,237,.16);
+            min-height: 48px;
+        }
+
+        .ai-dashboard-placeholder {
+            color: #6b7280;
+        }
+
+        @media (max-width: 700px) {
+            .ai-dashboard-hero-top {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .ai-dashboard-button {
+                width: 100%;
+            }
+        }
+
+
+
+
+/* Highlight AI Activity Summary */
+.ai-activity-highlight {
+    border: 1px solid rgba(99, 102, 241, 0.45);
+    background: linear-gradient(135deg, rgba(99,102,241,0.10), rgba(139,92,246,0.06));
+    box-shadow: 0 8px 24px rgba(79,70,229,0.10);
+}
+.ai-activity-highlight .m3-panel-header {
+    border-bottom-color: rgba(99,102,241,0.18);
+}
+.ai-mini-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    background: rgba(99,102,241,0.14);
+    color: #4f46e5;
+    vertical-align: middle;
+}
+
+</style>
 
 </head>
 
@@ -1784,6 +2143,174 @@
 
 
 
+
+        <!-- =================================================
+             MILESTONE 3 MONITORING & ANALYTICS
+        ================================================== -->
+
+        <section class="m3-section">
+
+            <div class="m3-heading">
+                <div>
+                    <h2>Monitoring & Analytics</h2>
+                    <span>Your TrustShare security, activity and storage overview</span>
+                </div>
+            </div>
+
+<div class="ai-dashboard-hero">
+
+                <div class="ai-dashboard-hero-top">
+                    <div>
+                        <div class="ai-dashboard-badge">✨ AI-POWERED</div>
+                        <h3>🧠 AI Dashboard Insights</h3>
+                        <p>Get an intelligent overview of your TrustShare dashboard, including activity, storage, notifications, and security.</p>
+                    </div>
+                    <button class="ai-dashboard-button" onclick="m3GenerateDashboardInsights()">
+                        ✨ Analyze Dashboard
+                    </button>
+                </div>
+
+                <div id="m3DashboardInsights" class="ai-dashboard-result">
+                    <div class="ai-dashboard-placeholder">Click <strong>Analyze Dashboard</strong> to generate your overall AI insights.</div>
+                </div>
+
+            </div>
+
+            <div class="m3-grid">
+
+                <div class="m3-stat">
+                    <div class="m3-icon">🔔</div>
+                    <strong id="m3Unread">0</strong>
+                    <small>Unread Notifications</small>
+                </div>
+
+                <div class="m3-stat">
+                    <div class="m3-icon">💾</div>
+                    <strong id="m3Storage">0 MB</strong>
+                    <small>Your Storage Used</small>
+                </div>
+
+                <div class="m3-stat">
+                    <div class="m3-icon">📊</div>
+                    <strong id="m3ActivityCount">0</strong>
+                    <small>Recent Activity Events</small>
+                </div>
+
+                <div class="m3-stat" id="m3SuspiciousCard">
+                    <div class="m3-icon">🛡️</div>
+                    <strong id="m3Suspicious">No</strong>
+                    <small>Suspicious Activity</small>
+                </div>
+
+            </div>
+
+            <div class="m3-panels">
+
+                <!-- Notifications -->
+                <section class="m3-panel">
+
+                    <div class="m3-panel-header">
+                        <h3>🔔 Notifications</h3>
+                        <button class="m3-action-btn"
+                                onclick="m3MarkAllRead()">
+                            Mark all read
+                        </button>
+                    </div>
+
+                    <div id="m3Notifications" class="m3-list">
+                        <div class="m3-empty">Loading notifications...</div>
+                    </div>
+
+                </section>
+
+                <!-- Storage -->
+                <section class="m3-panel">
+
+                    <div class="m3-panel-header">
+                        <h3>💾 Storage Analytics</h3>
+                    </div>
+
+                    <div id="m3StorageDetails" class="m3-list">
+                        <div class="m3-empty">Loading storage analytics...</div>
+                    </div>
+
+                </section>
+
+                <!-- AI ACTIVITY SUMMARY -->
+                <section class="m3-panel full ai-activity-highlight">
+                    <div class="m3-panel-header">
+                        <h3>🤖 AI Activity Summary <span class="ai-mini-badge">AI</span></h3>
+                        <button class="m3-action-btn" onclick="m3GenerateAISummary()">
+                            Generate Summary
+                        </button>
+                    </div>
+                    <div id="m3AISummary" class="m3-list">
+                        <div class="m3-empty">Click "Generate Summary" to analyze your recent activity.</div>
+                    </div>
+                </section>
+
+                <!-- Activity -->
+                <section class="m3-panel full">
+
+                    <div class="m3-panel-header">
+                        <h3>📋 Recent Activity</h3>
+                        <button class="m3-action-btn"
+                                onclick="m3LoadDashboardData()">
+                            Refresh
+                        </button>
+                    </div>
+
+                    <div class="m3-table-wrap">
+                        <table class="m3-table">
+                            <thead>
+                                <tr>
+                                    <th>Action</th>
+                                    <th>Details</th>
+                                    <th>System</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="m3ActivityTable">
+                                <tr>
+                                    <td colspan="4">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                </section>
+
+
+                <!-- File report -->
+                <section class="m3-panel full">
+
+                    <div class="m3-panel-header">
+                        <h3>📄 File Activity Report</h3>
+                    </div>
+
+                    <select id="m3FileSelect"
+                            class="m3-select">
+                        <option value="">Select a file</option>
+                    </select>
+
+                    <button class="m3-action-btn"
+                            onclick="m3LoadFileReport()">
+                        Generate Report
+                    </button>
+
+                    <div id="m3FileReport" class="m3-report">
+                        <div class="m3-empty">
+                            Select a file to view activity.
+                        </div>
+                    </div>
+
+                </section>
+
+            </div>
+
+        </section>
+
+
         <!-- =================================================
              SECURITY BANNER
         ================================================== -->
@@ -1875,6 +2402,352 @@
 
         }
 
+
+
+        /* =================================================
+           M3 API HELPERS
+        ================================================= */
+
+        const M3_API = "http://127.0.0.1:8000";
+
+        function m3Token() {
+            return localStorage.getItem("access_token");
+        }
+
+        async function m3Fetch(path, options = {}) {
+            const token = m3Token();
+            if (!token) {
+                window.location.href = "login.html";
+                throw new Error("Missing authentication token");
+            }
+
+            const response = await fetch(
+                M3_API + path,
+                {
+                    ...options,
+                    headers: {
+                        ...(options.headers || {}),
+                        "Authorization": "Bearer " + token,
+                        "Accept": "application/json"
+                    }
+                }
+            );
+
+            if (response.status === 401) {
+                localStorage.clear();
+                window.location.href = "login.html";
+                throw new Error("Session expired");
+            }
+
+            const contentType = response.headers.get("content-type") || "";
+            const data = contentType.includes("application/json")
+                ? await response.json()
+                : await response.text();
+
+            if (!response.ok) {
+                const detail = data && data.detail ? data.detail : `HTTP ${response.status}`;
+                throw new Error(detail);
+            }
+
+            return data;
+        }
+
+        function m3FormatMB(bytes) {
+            const mb = Number(bytes || 0) / (1024 * 1024);
+            return `${mb.toFixed(2)} MB`;
+        }
+
+        function m3FormatTime(value) {
+            if (!value) return "-";
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return String(value);
+            return date.toLocaleString();
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+
+        async function m3LoadNotifications() {
+            const box = document.getElementById("m3Notifications");
+            try {
+                const data = await m3Fetch("/notifications");
+                const notifications = Array.isArray(data.notifications)
+                    ? data.notifications
+                    : [];
+
+                document.getElementById("m3Unread").innerText =
+                    String(data.unread_count ?? 0);
+
+                if (!notifications.length) {
+                    box.innerHTML = '<div class="m3-empty">No notifications.</div>';
+                    return;
+                }
+
+                box.innerHTML = notifications.slice(0, 10).map((item) => `
+                    <div class="m3-notification ${item.is_read ? "read" : "unread"}">
+                        <strong>${escapeHtml(item.title || "Notification")}</strong>
+                        <p>${escapeHtml(item.message || "")}</p>
+                        <small>${m3FormatTime(item.created_at)}</small>
+                    </div>
+                `).join("");
+            } catch (error) {
+                console.error("Notifications error:", error);
+                box.innerHTML = `<div class="m3-empty">Unable to load notifications: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        async function m3MarkAllRead() {
+            try {
+                await m3Fetch("/notifications/read-all", { method: "PUT" });
+                await m3LoadNotifications();
+            } catch (error) {
+                console.error("Mark all read error:", error);
+                alert("Unable to mark notifications as read: " + error.message);
+            }
+        }
+
+        async function m3LoadStorage() {
+            const box = document.getElementById("m3StorageDetails");
+            try {
+                const data = await m3Fetch("/storage-analytics");
+                const total = data.summary?.total_storage || {};
+                document.getElementById("m3Storage").innerText =
+                    `${Number(total.mb ?? 0).toFixed(2)} MB`;
+
+                const byType = Array.isArray(data.by_content_type)
+                    ? data.by_content_type
+                    : [];
+
+                box.innerHTML = `
+                    <div class="m3-summary-line"><strong>Files:</strong> ${data.summary?.total_files ?? 0}</div>
+                    <div class="m3-summary-line"><strong>Total:</strong> ${m3FormatMB(total.bytes || 0)}</div>
+                    ${byType.length ? `
+                        <div class="m3-subheading">By file type</div>
+                        ${byType.map((item) => `
+                            <div class="m3-summary-line">
+                                ${escapeHtml(item.content_type || "unknown")} — ${item.file_count ?? 0} files — ${m3FormatMB(item.size?.bytes || 0)}
+                            </div>
+                        `).join("")}
+                    ` : "<div class=\"m3-empty\">No storage breakdown available.</div>"}
+                `;
+            } catch (error) {
+                console.error("Storage analytics error:", error);
+                box.innerHTML = `<div class="m3-empty">Unable to load storage analytics: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        async function m3LoadActivity() {
+            const table = document.getElementById("m3ActivityTable");
+            try {
+                const data = await m3Fetch("/activity-logs");
+                const logs = Array.isArray(data.logs) ? data.logs : [];
+                document.getElementById("m3ActivityCount").innerText = String(logs.length);
+
+                if (!logs.length) {
+                    table.innerHTML = '<tr><td colspan="4">No recent activity.</td></tr>';
+                    return;
+                }
+
+                table.innerHTML = logs.slice(0, 20).map((log) => `
+                    <tr>
+                        <td>${escapeHtml(log.action || "-")}</td>
+                        <td>${escapeHtml(log.details || "-")}</td>
+                        <td>${escapeHtml(log.ip_address || "Unknown System")}</td>
+                        <td>${escapeHtml(m3FormatTime(log.created_at))}</td>
+                    </tr>
+                `).join("");
+            } catch (error) {
+                console.error("Activity logs error:", error);
+                table.innerHTML = `<tr><td colspan="4">Unable to load activity logs: ${escapeHtml(error.message)}</td></tr>`;
+                document.getElementById("m3ActivityCount").innerText = "0";
+            }
+        }
+
+        async function m3LoadSuspicious() {
+            try {
+                const data = await m3Fetch(
+                    "/security/suspicious-activity?window_minutes=10"
+                );
+
+                // The backend returns { suspicious: true/false, results: [...] }
+                // for the current user's suspicious-activity endpoint.
+                const suspicious = Boolean(data.suspicious);
+                const results = Array.isArray(data.results)
+                    ? data.results
+                    : [];
+
+                const card = document.getElementById("m3SuspiciousCard");
+                const label = document.getElementById("m3Suspicious");
+
+                label.innerText = suspicious
+                    ? `Yes${results.length ? ` (${results.length})` : ""}`
+                    : "No";
+
+                // Add a small detail line when suspicious activity exists.
+                let detail = document.getElementById("m3SuspiciousDetails");
+                if (!detail) {
+                    detail = document.createElement("div");
+                    detail.id = "m3SuspiciousDetails";
+                    detail.style.marginTop = "8px";
+                    detail.style.fontSize = "12px";
+                    detail.style.lineHeight = "1.4";
+                    card.appendChild(detail);
+                }
+
+                if (suspicious && results.length) {
+                    const reasons = [];
+
+                    results.forEach((item) => {
+                        (item.reasons || []).forEach((reason) => {
+                            if (reason.type === "multiple_failed_logins") {
+                                reasons.push(
+                                    `${reason.count} failed logins`
+                                );
+                            } else if (reason.type === "download_spike") {
+                                reasons.push(
+                                    `${reason.count} downloads`
+                                );
+                            } else if (reason.type === "temporary_link_spike") {
+                                reasons.push(
+                                    `${reason.count} temporary links`
+                                );
+                            } else if (reason.type === "multiple_login_ips") {
+                                reasons.push(
+                                    `${reason.count} login systems`
+                                );
+                            }
+                        });
+                    });
+
+                    detail.innerText = reasons.length
+                        ? "Reason: " + [...new Set(reasons)].join(", ")
+                        : "Suspicious activity detected.";
+                } else {
+                    detail.innerText = "";
+                }
+
+            } catch (error) {
+                console.error("Suspicious activity error:", error);
+                document.getElementById("m3Suspicious").innerText = "Unavailable";
+
+                const detail = document.getElementById("m3SuspiciousDetails");
+                if (detail) {
+                    detail.innerText = "";
+                }
+            }
+        }
+
+        async function m3LoadFilesForReport() {
+            const select = document.getElementById("m3FileSelect");
+            try {
+                const data = await m3Fetch("/files");
+                const files = Array.isArray(data.files) ? data.files : [];
+                select.innerHTML = '<option value="">Select a file</option>';
+                files.forEach((file) => {
+                    const id = file.id || file.file_id;
+                    if (!id) return;
+                    const option = document.createElement("option");
+                    option.value = id;
+                    option.textContent = file.filename || "Unnamed file";
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error("Files for report error:", error);
+                select.innerHTML = '<option value="">Unable to load files</option>';
+            }
+        }
+
+        async function m3LoadFileReport() {
+            const select = document.getElementById("m3FileSelect");
+            const reportBox = document.getElementById("m3FileReport");
+            const fileId = select.value;
+            if (!fileId) {
+                reportBox.innerHTML = '<div class="m3-empty">Select a file to view activity.</div>';
+                return;
+            }
+
+            reportBox.innerHTML = '<div class="m3-empty">Loading report...</div>';
+            try {
+                const data = await m3Fetch(`/reports/file-activity/${encodeURIComponent(fileId)}`);
+                const summary = data.summary || {};
+                const activity = Array.isArray(data.activity) ? data.activity : [];
+                reportBox.innerHTML = `
+                    <div class="m3-report-grid">
+                        <div><strong>File:</strong> ${escapeHtml(data.file?.filename || "-")}</div>
+                        <div><strong>Total events:</strong> ${summary.total_activity_events ?? 0}</div>
+                        <div><strong>Downloads:</strong> ${summary.downloads ?? 0}</div>
+                        <div><strong>Temporary links:</strong> ${summary.temporary_links ?? 0}</div>
+                    </div>
+                    ${activity.length ? `
+                        <div class="m3-subheading">Recent activity</div>
+                        <div class="m3-report-events">
+                            ${activity.slice(0, 10).map((item) => `
+                                <div class="m3-report-event">
+                                    <strong>${escapeHtml(item.action || "-")}</strong>
+                                    <span>${escapeHtml(item.details || "")}</span>
+                                    <small>${escapeHtml(m3FormatTime(item.created_at))}</small>
+                                </div>
+                            `).join("")}
+                        </div>
+                    ` : '<div class="m3-empty">No activity found for this file.</div>'}
+                `;
+            } catch (error) {
+                console.error("File report error:", error);
+                reportBox.innerHTML = `<div class="m3-empty">Unable to load file report: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        async function m3GenerateAISummary() {
+            const box = document.getElementById("m3AISummary");
+            box.innerHTML = '<div class="m3-empty">Analyzing recent activity...</div>';
+            try {
+                const data = await m3Fetch("/ai/activity-summary");
+                box.innerHTML = `
+                    <div class="m3-summary-line"><strong>Summary:</strong> ${escapeHtml(data.summary || "No summary available.")}</div>
+                    <div class="m3-summary-line"><strong>Security Insight:</strong> ${escapeHtml(data.security_insight || "No security insight available.")}</div>
+                    <div class="m3-summary-line"><strong>Activities analyzed:</strong> ${Number(data.activity_count || 0)}</div>
+                    <div class="m3-summary-line"><strong>Analysis:</strong> ${escapeHtml(data.source === "openai" ? "AI-generated" : "Local activity analysis")}</div>
+                `;
+            } catch (error) {
+                console.error("AI activity summary error:", error);
+                box.innerHTML = `<div class="m3-empty">Unable to generate AI summary: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+async function m3GenerateDashboardInsights() {
+            const box = document.getElementById("m3DashboardInsights");
+            box.innerHTML = '<div class="m3-empty">Analyzing your dashboard data...</div>';
+            try {
+                const data = await m3Fetch("/ai/dashboard-insights");
+                const metrics = data.metrics || {};
+                box.innerHTML = `
+                    <div class="m3-summary-line"><strong>Overall Summary:</strong> ${escapeHtml(data.summary || "No summary available.")}</div>
+                    <div class="m3-summary-line"><strong>Security Insight:</strong> ${escapeHtml(data.security_insight || "No security insight available.")}</div>
+                    <div class="m3-summary-line"><strong>Recommendation:</strong> ${escapeHtml(data.recommendation || "No recommendation available.")}</div>
+                    <div class="m3-summary-line"><strong>Dashboard Data:</strong> ${Number(metrics.total_files || 0)} files · ${Number(metrics.storage_mb || 0).toFixed(2)} MB · ${Number(metrics.activity_count || 0)} activities · ${Number(metrics.unread_notifications || 0)} unread notifications</div>
+                    <div class="m3-summary-line"><strong>Analysis:</strong> ${escapeHtml(data.source === "openai" ? "AI-generated" : "Local dashboard analysis")}</div>
+                `;
+            } catch (error) {
+                console.error("AI dashboard insights error:", error);
+                box.innerHTML = `<div class="m3-empty">Unable to analyze dashboard: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        async function m3LoadDashboardData() {
+            await Promise.all([
+                m3LoadNotifications(),
+                m3LoadStorage(),
+                m3LoadActivity(),
+                m3LoadSuspicious(),
+                m3LoadFilesForReport()
+            ]);
+        }
 
 
         /* =================================================
@@ -1996,6 +2869,8 @@
                     "Dashboard profile response:",
                     data
                 );
+
+                m3LoadDashboardData();
 
 
                 /* -------------------------------------
