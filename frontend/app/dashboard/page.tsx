@@ -547,26 +547,112 @@ export default function Dashboard() {
         </div>
 
         {/* ==========================================
-            ACTIVITY MONITORING
+            MONITORING & SECURITY
         ========================================== */}
-        <div className="bg-white p-6 rounded-2xl shadow-lg">
+        <div className="bg-white p-6 rounded-2xl shadow-lg mb-6">
 
-          <h2 className="text-xl font-semibold mb-2">
-            Activity Monitoring
+          <h2 className="text-2xl font-bold mb-2">
+            Monitoring & Security
           </h2>
 
-          <p className="text-gray-600 text-sm">
-            File upload, download, sharing and access activities are recorded
-            in the backend audit log.
+          <p className="text-gray-600 mb-6">
+            Monitor file activities, notifications, reports, analytics and security events.
           </p>
 
-          <button
-            onClick={() => router.push("/audit-logs")}
-            className="mt-4 bg-gray-800 text-white px-5 py-2 rounded-lg hover:bg-gray-900"
-          >
-            View Audit Logs
-          </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
 
+            {/* ACTIVITY MONITORING */}
+            <button
+              onClick={() => router.push("/audit-logs")}
+              className="text-left bg-blue-50 border border-blue-200 p-5 rounded-xl hover:shadow-md transition"
+            >
+              <h3 className="text-xl font-semibold text-blue-700">
+                📊 Activity Monitoring
+              </h3>
+
+              <p className="text-gray-600 mt-2">
+                View user and file activities.
+              </p>
+            </button>
+
+            {/* AUDIT LOGS */}
+            <button
+              onClick={() => router.push("/audit-logs")}
+              className="text-left bg-gray-50 border border-gray-200 p-5 rounded-xl hover:shadow-md transition"
+            >
+              <h3 className="text-xl font-semibold text-gray-700">
+                📋 Audit Logs
+              </h3>
+
+              <p className="text-gray-600 mt-2">
+                Review complete audit history.
+              </p>
+            </button>
+
+            {/* NOTIFICATIONS */}
+            <button
+              onClick={() => router.push("/notifications")}
+              className="text-left bg-yellow-50 border border-yellow-200 p-5 rounded-xl hover:shadow-md transition"
+            >
+              <h3 className="text-xl font-semibold text-yellow-700">
+                🔔 Notifications
+              </h3>
+
+              <p className="text-gray-600 mt-2">
+                View system and security notifications.
+              </p>
+            </button>
+
+            {/* REPORTS */}
+            <button
+              onClick={() => router.push("/reports")}
+              className="text-left bg-purple-50 border border-purple-200 p-5 rounded-xl hover:shadow-md transition"
+            >
+              <h3 className="text-xl font-semibold text-purple-700">
+                📑 Reports
+              </h3>
+
+              <p className="text-gray-600 mt-2">
+                View activity and security reports.
+              </p>
+            </button>
+
+            {/* ANALYTICS */}
+            <button
+              onClick={() => router.push("/analytics")}
+              className="text-left bg-green-50 border border-green-200 p-5 rounded-xl hover:shadow-md transition"
+            >
+              <h3 className="text-xl font-semibold text-green-700">
+                📈 Analytics
+              </h3>
+
+              <p className="text-gray-600 mt-2">
+                Monitor storage and system usage.
+              </p>
+            </button>
+
+            {/* SECURITY ALERTS */}
+            <button
+              onClick={() => router.push("/security-alerts")}
+              className="text-left bg-red-50 border border-red-200 p-5 rounded-xl hover:shadow-md transition"
+            >
+              <h3 className="text-xl font-semibold text-red-700">
+                🚨 Security Alerts
+              </h3>
+
+              <p className="text-gray-600 mt-2">
+                Detect suspicious activities and alerts.
+              </p>
+            </button>
+
+          </div>
+        </div>
+
+        {/* ==========================================
+            FOOTER
+        ========================================== */}
+        <div className="text-center text-gray-500 text-sm py-4">
+          TrustShare • Secure File-Sharing and Digital Collaboration Platform
         </div>
 
       </div>
