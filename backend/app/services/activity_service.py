@@ -1,3 +1,5 @@
+import platform
+import socket
 from datetime import datetime
 from contextvars import ContextVar
 
@@ -14,11 +16,21 @@ _request_ua: ContextVar[str | None] = ContextVar("audit_ua", default=None)
 def bind_request_audit_meta(request: Request) -> None:
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        ip_address = forwarded.split(",")[0].strip() or None
+        raw_ip = forwarded.split(",")[0].strip() or None
     else:
-        ip_address = request.client.host if request.client else None
+        raw_ip = request.client.host if request.client else None
+
+    # Resolve local or remote system name
+    if not raw_ip or raw_ip in ("127.0.0.1", "localhost", "::1", "Unknown"):
+        system_name = platform.node() or socket.gethostname()
+    else:
+        try:
+            system_name = socket.gethostbyaddr(raw_ip)[0]
+        except Exception:
+            system_name = raw_ip
+
     user_agent = request.headers.get("user-agent")
-    _request_ip.set(ip_address)
+    _request_ip.set(system_name)
     _request_ua.set(_truncate_user_agent(user_agent))
 
 

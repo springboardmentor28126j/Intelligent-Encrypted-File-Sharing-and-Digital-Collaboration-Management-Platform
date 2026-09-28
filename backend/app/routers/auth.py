@@ -1,5 +1,7 @@
 import hashlib
 import logging
+import platform
+import socket
 import time
 from datetime import datetime, timedelta
 
@@ -58,12 +60,21 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 def _extract_client_ip(request: Request) -> tuple[str, str | None]:
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        ip = forwarded.split(",")[0].strip()
+        raw_ip = forwarded.split(",")[0].strip()
     else:
-        ip = request.client.host if request.client else "Unknown"
-    ua = request.headers.get("user-agent")
-    return ip, ua
+        raw_ip = request.client.host if request.client else "Unknown"
 
+    # Resolve local or remote system name
+    if not raw_ip or raw_ip in ("127.0.0.1", "localhost", "::1", "Unknown"):
+        system_name = platform.node() or socket.gethostname()
+    else:
+        try:
+            system_name = socket.gethostbyaddr(raw_ip)[0]
+        except Exception:
+            system_name = raw_ip
+
+    ua = request.headers.get("user-agent")
+    return system_name, ua
 
 @router.post("/register", response_model=UserResponse, status_code=201)
 def register(data: RegisterRequest, db: Session = Depends(get_db)):

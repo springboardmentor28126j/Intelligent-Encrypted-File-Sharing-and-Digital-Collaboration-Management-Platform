@@ -30,7 +30,7 @@ def check_login_lockout(email: str) -> tuple[bool, str, int]:
             remaining_mins = max(1, int((remaining_seconds + 59) / 60))
             return (
                 True,
-                f"Too many failed attempts. Try again in {remaining_mins} minutes.",
+                f"Too many failed attempts. Try again in {remaining_mins} minute(s).",
                 remaining_seconds,
             )
         else:
@@ -44,7 +44,7 @@ def record_failed_login(
     ip_address: str = "Unknown",
     user_agent: str | None = None,
 ) -> bool:
-    """Record a failed login attempt. Enforces 15-minute lockout & triggers security alerts if 5 attempts in 10m."""
+    """Record a failed login attempt. Enforces 1-minute lockout & triggers security alerts if 5 attempts in 10m."""
     if not email:
         return False
     key = email.strip().lower()
@@ -58,10 +58,10 @@ def record_failed_login(
     user = db.query(User).filter(User.email == key).first()
 
     if len(attempts) >= 5:
-        # Enforce 15-minute lockout (900 seconds)
-        _login_lockouts[key] = now + 900
+        # Enforce 1-minute lockout (60 seconds)
+        _login_lockouts[key] = now + 60
 
-        msg = f"Suspicious Login Detected: Multiple failed password attempts detected from IP {ip_address}"
+        msg = f"Suspicious Login Detected: Multiple failed password attempts detected from System {ip_address}"
 
         if user:
             log_activity(
@@ -77,11 +77,11 @@ def record_failed_login(
                 user_id=user.id,
                 type="security_alert",
                 title="Suspicious Login Detected",
-                message=f"Multiple failed password attempts detected from IP {ip_address}.",
+                message=f"Multiple failed password attempts detected from System {ip_address}.",
             )
         else:
             logger.warning(
-                "Suspicious login threshold reached for email=%s from IP=%s",
+                "Suspicious login threshold reached for email=%s from System=%s",
                 email,
                 ip_address,
             )
@@ -124,7 +124,7 @@ def record_failed_file_access(
                 db=db,
                 user=owner,
                 action="UNAUTHORIZED_ACCESS_ATTEMPT",
-                description=f"Repeated unauthorized download attempts detected on '{file_name}' from IP {ip_address}",
+                description=f"Repeated unauthorized download attempts detected on '{file_name}' from System {ip_address}",
                 file_id=file_item.id,
                 ip_address=ip_address,
                 user_agent=user_agent,
@@ -134,7 +134,7 @@ def record_failed_file_access(
                 user_id=owner.id,
                 type="security_alert",
                 title="Unauthorized Access Attempt",
-                message=f"Repeated unauthorized download attempts detected on '{file_name}'.",
+                message=f"Repeated unauthorized download attempts detected on '{file_name}' from System {ip_address}.",
             )
         return True
     return False
