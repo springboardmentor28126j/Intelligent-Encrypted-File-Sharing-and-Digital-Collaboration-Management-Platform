@@ -3,6 +3,27 @@ import "./App.css";
 
 const API_URL = "http://127.0.0.1:8000";
 
+function formatDateTime(dateValue) {
+  if (!dateValue) return "-";
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return date.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+}
+
 function App() {
   // =====================================================
   // AUTH STATE
@@ -50,6 +71,36 @@ function App() {
   });
 
   // =====================================================
+  // REVOKE ACCESS POPUP
+  // =====================================================
+
+  const [revokePopup, setRevokePopup] = useState({
+    open: false,
+    shareId: null,
+    fileName: "",
+    recipient: "",
+  });
+
+  const [notificationPopup, setNotificationPopup] = useState({
+    open: false,
+    notification: null,
+  });
+
+
+  const [systemPopup, setSystemPopup] = useState({
+    open: false,
+    title: "",
+    message: "",
+    tone: "general",
+    icon: "🔔",
+  });
+
+  const [sharedRemovePopup, setSharedRemovePopup] = useState({
+    open: false,
+    shareId: null,
+  });
+
+  // =====================================================
   // SECURE SHARING / PERMISSIONS / TEMPORARY ACCESS
   // =====================================================
 
@@ -63,6 +114,45 @@ function App() {
   const [shareMessage, setShareMessage] = useState("");
   const [existingShares, setExistingShares] = useState([]);
   const [sharesLoading, setSharesLoading] = useState(false);
+
+  // =====================================================
+  // SHARED WITH ME
+  // =====================================================
+
+  const [sharedFiles, setSharedFiles] = useState([]);
+  const [sharedLoading, setSharedLoading] = useState(false);
+
+  // SENT FILES - files shared directly with other TrustShare accounts
+  const [sentFiles, setSentFiles] = useState([]);
+  const [sentLoading, setSentLoading] = useState(false);
+
+  // Account-to-account sharing recipient
+  const [shareRecipient, setShareRecipient] = useState("");
+
+  // =====================================================
+  // MILESTONE 3 STATE
+  // =====================================================
+
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+
+  const [securityAlerts, setSecurityAlerts] = useState([]);
+  const [alertsLoading, setAlertsLoading] = useState(false);
+
+  const [analytics, setAnalytics] = useState({
+    total_files: 0,
+    total_shared: 0,
+    total_downloads: 0,
+    total_views: 0,
+    unread_notifications: 0,
+    security_alerts: 0
+  });
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [m3Error, setM3Error] = useState("");
+
 
   // =====================================================
   // SEND FILE PAGE
@@ -410,7 +500,10 @@ function App() {
           fileInput.value = "";
         }
 
-        loadFiles();
+        await loadFiles();
+        await loadActivity();
+        await loadNotifications();
+        await loadAnalytics();
       } else {
         setMessage(data.message);
       }
@@ -448,9 +541,13 @@ function App() {
       );
 
       if (!response.ok) {
-        alert(
-          "Unable to download file."
-        );
+        setSystemPopup({
+          open: true,
+          title: "Download Failed",
+          message: "Unable to download file.",
+          tone: "general",
+          icon: "⚠️",
+        });
 
         return;
       }
@@ -478,15 +575,23 @@ function App() {
       window.URL.revokeObjectURL(
         url
       );
+
+      await loadActivity();
+      await loadAnalytics();
+      await loadNotifications();
     } catch (error) {
       console.error(
         "Download error:",
         error
       );
 
-      alert(
-        "Unable to download file."
-      );
+      setSystemPopup({
+        open: true,
+        title: "Download Failed",
+        message: "Unable to download file.",
+        tone: "general",
+        icon: "⚠️",
+      });
     }
   }
 
@@ -564,12 +669,18 @@ function App() {
         setMessage(
           "File deleted successfully."
         );
+
+        await loadActivity();
+        await loadAnalytics();
+        await loadNotifications();
       } else {
-        alert(
-          data.detail ||
-            data.message ||
-            "Failed to delete file."
-        );
+        setSystemPopup({
+          open: true,
+          title: "Delete Failed",
+          message: data.detail || data.message || "Failed to delete file.",
+          tone: "general",
+          icon: "⚠️",
+        });
 
         closeDeletePopup();
       }
@@ -579,9 +690,13 @@ function App() {
         error
       );
 
-      alert(
-        "Unable to connect to the server."
-      );
+      setSystemPopup({
+        open: true,
+        title: "Connection Error",
+        message: "Unable to connect to the server.",
+        tone: "general",
+        icon: "⚠️",
+      });
 
       closeDeletePopup();
     }
@@ -596,10 +711,10 @@ function App() {
     setSharePermission("view");
     setShareExpiry(24);
     setMaxDownloads("");
+    setShareRecipient("");
     setShareLink("");
     setShareMessage("");
     setShareModalOpen(true);
-    loadShares(file.id);
   }
 
   async function loadShares(fileId) {
@@ -627,7 +742,32 @@ function App() {
     }
   }
 
-  async function revokeShareLink(shareId) {
+  function openRevokePopup(shareId, fileName, recipient = "") {
+    setRevokePopup({
+      open: true,
+      shareId,
+      fileName,
+      recipient,
+    });
+  }
+
+  function closeRevokePopup() {
+    setRevokePopup({
+      open: false,
+      shareId: null,
+      fileName: "",
+      recipient: "",
+    });
+  }
+
+  async function confirmRevoke() {
+    const shareId = revokePopup.shareId;
+
+    if (!shareId) {
+      closeRevokePopup();
+      return;
+    }
+
     try {
       const response = await fetch(`${API_URL}/shares/${shareId}`, {
         method: "DELETE",
@@ -636,23 +776,38 @@ function App() {
         },
       });
 
-      if (response.ok) {
-        // Refresh from the server rather than filtering locally, since
-        // the backend is the source of truth for revoked/expired state.
-        loadShares(shareFile.id);
-      } else {
-        const data = await response.json();
-        setShareMessage(data.detail || "Unable to revoke this link.");
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "Unable to revoke access."
+        );
       }
+
+      closeRevokePopup();
+
+      if (shareFile?.id) {
+        await loadShares(shareFile.id);
+      }
+
+      await loadSentFiles();
+      await loadActivity();
+      await loadNotifications();
+      await loadAnalytics();
+      await loadSecurityAlerts();
     } catch (error) {
       console.error("Revoke error:", error);
-      setShareMessage("Unable to connect to the server.");
+      closeRevokePopup();
+      setShareMessage(
+        error.message || "Unable to revoke access."
+      );
     }
   }
 
   function closeShareModal() {
     setShareModalOpen(false);
     setShareFile(null);
+    setShareRecipient("");
     setShareLink("");
     setShareMessage("");
   }
@@ -709,7 +864,10 @@ function App() {
       const fullShareLink = `${API_URL}${data.share_url}`;
       setShareLink(fullShareLink);
       setShareMessage("Secure share link created successfully.");
-      loadShares(shareFile.id);
+      await loadShares(shareFile.id);
+      await loadActivity();
+      await loadAnalytics();
+      await loadSecurityAlerts();
     } catch (error) {
       setShareMessage(error.message || "Unable to create share link.");
     } finally {
@@ -725,6 +883,301 @@ function App() {
       setShareMessage("Share link copied to clipboard.");
     } catch (error) {
       setShareMessage("Unable to copy the link.");
+    }
+  }
+
+
+  // =====================================================
+  // SHARE DIRECTLY WITH TRUSTSHARE ACCOUNT
+  // =====================================================
+
+  async function shareFileWithAccount() {
+    if (!shareFile) return;
+
+    const recipient = shareRecipient.trim();
+
+    if (!recipient) {
+      setShareMessage("Enter the recipient's TrustShare email or username.");
+      return;
+    }
+
+    if (!shareExpiry || Number(shareExpiry) <= 0) {
+      setShareMessage("Please enter a valid expiry time.");
+      return;
+    }
+
+    if (
+      maxDownloads !== "" &&
+      (
+        Number(maxDownloads) <= 0 ||
+        !Number.isInteger(Number(maxDownloads))
+      )
+    ) {
+      setShareMessage(
+        "Maximum downloads must be a positive whole number."
+      );
+      return;
+    }
+
+    setShareLoading(true);
+    setShareMessage("");
+
+    try {
+      const formData = new FormData();
+
+      formData.append("recipient", recipient);
+      formData.append("permission", sharePermission);
+      formData.append("expires_in_hours", shareExpiry);
+
+      if (maxDownloads !== "") {
+        formData.append("max_downloads", maxDownloads);
+      }
+
+      const response = await fetch(
+        `${API_URL}/files/${shareFile.id}/share-account`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "Unable to share the file."
+        );
+      }
+
+      setShareMessage(
+        data.message || "File shared successfully."
+      );
+
+      setShareRecipient("");
+      setMaxDownloads("");
+
+      await loadActivity();
+      await loadNotifications();
+      await loadAnalytics();
+      await loadSentFiles();
+
+      setTimeout(() => {
+        closeShareModal();
+      }, 1200);
+
+    } catch (error) {
+      setShareMessage(
+        error.message || "Unable to share the file."
+      );
+    } finally {
+      setShareLoading(false);
+    }
+  }
+
+  // =====================================================
+  // LOAD SENT FILES
+  // =====================================================
+
+  async function loadSentFiles() {
+    if (!token) return;
+
+    setSentLoading(true);
+
+    try {
+      const response = await fetch(
+        `${API_URL}/sent-files`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "Unable to load sent files."
+        );
+      }
+
+      setSentFiles(
+        Array.isArray(data) ? data : []
+      );
+    } catch (error) {
+      console.error("Sent files error:", error);
+      setSentFiles([]);
+    } finally {
+      setSentLoading(false);
+    }
+  }
+
+  // =====================================================
+  // LOAD SHARED WITH ME
+  // =====================================================
+
+  async function loadSharedFiles() {
+    if (!token) return;
+
+    setSharedLoading(true);
+
+    try {
+      const response = await fetch(
+        `${API_URL}/shared-with-me`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "Unable to load shared files."
+        );
+      }
+
+      setSharedFiles(
+        Array.isArray(data) ? data : []
+      );
+
+    } catch (error) {
+      console.error(
+        "Shared files error:",
+        error
+      );
+
+      setSharedFiles([]);
+    } finally {
+      setSharedLoading(false);
+    }
+  }
+
+  async function openSharedFile(
+    shareId,
+    permission,
+    filename
+  ) {
+    try {
+      const response = await fetch(
+        `${API_URL}/shared-with-me/${shareId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        let errorMessage = "Unable to access the shared file.";
+
+        try {
+          const data = await response.json();
+          errorMessage = data.detail || errorMessage;
+        } catch (_) {}
+
+        setSystemPopup({
+          open: true,
+          title: errorMessage.toLowerCase().includes("expired") ? "Access Expired" : "Unable to Access File",
+          message: errorMessage,
+          tone: errorMessage.toLowerCase().includes("expired") ? "access" : "general",
+          icon: errorMessage.toLowerCase().includes("expired") ? "⏱️" : "⚠️",
+        });
+        loadSharedFiles();
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      if (permission === "view") {
+        window.open(
+          url,
+          "_blank",
+          "noopener,noreferrer"
+        );
+
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+        }, 60000);
+
+      } else {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+        }, 60000);
+      }
+
+      loadSharedFiles();
+
+    } catch (error) {
+      console.error(
+        "Shared file access error:",
+        error
+      );
+
+      const message = error?.message || "Unable to access the shared file. Please check that the backend server is running.";
+      setSystemPopup({
+        open: true,
+        title: "Unable to Access File",
+        message,
+        tone: "general",
+        icon: "⚠️",
+      });
+    }
+  }
+
+  function openSharedRemovePopup(shareId) {
+    setSharedRemovePopup({ open: true, shareId });
+  }
+
+  async function confirmSharedRemove() {
+    const shareId = sharedRemovePopup.shareId;
+    if (!shareId) {
+      setSharedRemovePopup({ open: false, shareId: null });
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/shared-with-me/${shareId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Unable to remove shared access.");
+      }
+
+      setSharedRemovePopup({ open: false, shareId: null });
+      await loadSharedFiles();
+      await loadActivity();
+      await loadNotifications();
+      await loadAnalytics();
+    } catch (error) {
+      setSharedRemovePopup({ open: false, shareId: null });
+      setSystemPopup({
+        open: true,
+        title: "Unable to Remove File",
+        message: error.message || "Unable to remove shared access.",
+        tone: "general",
+        icon: "⚠️",
+      });
     }
   }
 
@@ -796,6 +1249,173 @@ function App() {
   }
 
   // =====================================================
+  // MILESTONE 3 API FUNCTIONS
+  // =====================================================
+
+  async function loadActivity() {
+    if (!token) return;
+    setActivityLoading(true);
+    setM3Error("");
+    try {
+      const response = await fetch(`${API_URL}/activity?limit=100`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Unable to load activity.");
+      setActivityLogs(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Activity error:", error);
+      setActivityLogs([]);
+      setM3Error(error.message || "Unable to load activity.");
+    } finally {
+      setActivityLoading(false);
+    }
+  }
+
+  async function loadNotifications() {
+    if (!token) return;
+    setNotificationsLoading(true);
+    setM3Error("");
+    try {
+      const response = await fetch(`${API_URL}/notifications`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Unable to load notifications.");
+      setNotifications(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Notification error:", error);
+      setNotifications([]);
+      setM3Error(error.message || "Unable to load notifications.");
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }
+
+  async function openNotificationPopup(notification) {
+    let notificationToShow = notification;
+
+    // Opening a notification marks it as read.
+    if (notification && !notification.is_read) {
+      try {
+        const response = await fetch(
+          `${API_URL}/notifications/${notification.id}/read`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          notificationToShow = {
+            ...notification,
+            is_read: true,
+          };
+
+          setNotifications((previousNotifications) =>
+            previousNotifications.map((item) =>
+              item.id === notification.id
+                ? { ...item, is_read: true }
+                : item
+            )
+          );
+
+          // Keep the Analytics unread count in sync.
+          await loadAnalytics();
+        } else {
+          const data = await response.json().catch(() => ({}));
+          console.error(
+            "Unable to mark notification as read:",
+            data.detail || "Unknown error"
+          );
+        }
+      } catch (error) {
+        console.error("Mark notification read error:", error);
+      }
+    }
+
+    setNotificationPopup({
+      open: true,
+      notification: notificationToShow,
+    });
+  }
+
+  function closeNotificationPopup() {
+    setNotificationPopup({ open: false, notification: null });
+  }
+
+  function notificationMeta(item) {
+    const title = String(item?.title || "").toLowerCase();
+    const message = String(item?.message || "").toLowerCase();
+    if (title.includes("security") || message.includes("suspicious") || message.includes("failed login")) {
+      return { icon: "🛡️", tone: "security", label: "Security Alert" };
+    }
+    if (title.includes("access") && (title.includes("revok") || message.includes("revok"))) {
+      return { icon: "🔒", tone: "access", label: "Access Control" };
+    }
+    if (title.includes("download") || title.includes("accessed") || message.includes("downloaded")) {
+      return { icon: "⬇️", tone: "download", label: "File Access" };
+    }
+    if (title.includes("view") || message.includes("viewed")) {
+      return { icon: "👁️", tone: "view", label: "File View" };
+    }
+    if (title.includes("share") || message.includes("shared")) {
+      return { icon: "↗", tone: "share", label: "File Share" };
+    }
+    return { icon: "🔔", tone: "general", label: "TrustShare" };
+  }
+
+  async function loadSecurityAlerts() {
+    if (!token) return;
+    setAlertsLoading(true);
+    setM3Error("");
+    try {
+      const response = await fetch(`${API_URL}/security-alerts`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Unable to load security alerts.");
+      setSecurityAlerts(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Security alerts error:", error);
+      setSecurityAlerts([]);
+      setM3Error(error.message || "Unable to load security alerts.");
+    } finally {
+      setAlertsLoading(false);
+    }
+  }
+
+  async function loadAnalytics() {
+    if (!token) return;
+    setAnalyticsLoading(true);
+    setM3Error("");
+    try {
+      const response = await fetch(`${API_URL}/analytics`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Unable to load analytics.");
+      setAnalytics({
+        total_files: 0,
+        total_shared: 0,
+        total_downloads: 0,
+        total_views: 0,
+        unread_notifications: 0,
+        security_alerts: 0,
+        storage_bytes: 0,
+        ...data
+      });
+    } catch (error) {
+      console.error("Analytics error:", error);
+      setM3Error(error.message || "Unable to load analytics.");
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }
+
+  // =====================================================
   // LOGOUT
   // =====================================================
 
@@ -835,6 +1455,41 @@ function App() {
       user
     ) {
       loadFiles();
+    }
+
+    if (targetPage === "shared" && user) {
+      loadSharedFiles();
+    }
+
+    if (targetPage === "sent" && user) {
+      loadSentFiles();
+    }
+
+    if (targetPage === "shared" && user) {
+      loadSharedFiles();
+    }
+
+    if (targetPage === "activity" && user) {
+      loadActivity();
+    }
+
+    if (targetPage === "notifications" && user) {
+      loadNotifications();
+    }
+
+    if (targetPage === "security" && user) {
+      loadSecurityAlerts();
+    }
+
+    if (targetPage === "analytics" && user) {
+      loadAnalytics();
+    }
+
+    if (
+      targetPage === "shared" &&
+      user
+    ) {
+      loadSharedFiles();
     }
   }
 
@@ -1274,14 +1929,28 @@ function App() {
                   📁 My Files
                 </button>
 
-                <button
-                  onClick={() =>
-                    navigateTo(
-                      "send"
-                    )
-                  }
-                >
-                  📧 Send File
+                <button onClick={() => navigateTo("shared")}>
+                  🤝 Shared With Me
+                </button>
+
+                <button onClick={() => navigateTo("sent")}>
+                  📤 Sent Files
+                </button>
+
+                <button onClick={() => navigateTo("activity")}>
+                  📋 Activity
+                </button>
+
+                <button onClick={() => navigateTo("notifications")}>
+                  🔔 Notifications
+                </button>
+
+                <button onClick={() => navigateTo("security")}>
+                  🛡 Security Alerts
+                </button>
+
+                <button onClick={() => navigateTo("analytics")}>
+                  📊 Analytics
                 </button>
 
                 <button
@@ -1378,7 +2047,7 @@ function App() {
               <div>
 
                 <span className="stat-number">
-                  {files.length}
+                  {analytics.total_files}
                 </span>
 
                 <span className="stat-label">
@@ -1689,118 +2358,533 @@ function App() {
           SEND FILE
       ================================================= */}
 
-      {page === "send" && (
+      {/* =================================================
+          SHARED WITH ME
+      ================================================= */}
+
+      {page === "shared" && (
         <main className="dashboard-container">
           <section className="page-heading">
-            <div className="welcome-small">
-              SECURE SHARING
-            </div>
-            <h2>Send File</h2>
-            <p>Send a TrustShare secure link to another person by email.</p>
+            <div className="welcome-small">SECURE SHARING</div>
+            <h2>Shared With Me</h2>
+            <p>Files shared with your TrustShare account.</p>
           </section>
 
-          <section className="send-file-card">
-            <div className="send-file-header">
-              <div className="send-file-icon">📧</div>
-              <div>
-                <h3>Send a Secure File Link</h3>
-                <p>Paste your generated TrustShare link and enter the recipient's email address.</p>
+          <section className="files-card">
+            {sharedLoading ? (
+              <div className="empty-files"><h3>Loading shared files...</h3></div>
+            ) : sharedFiles.length === 0 ? (
+              <div className="empty-files">
+                <div className="empty-icon">🤝</div>
+                <h3>No Shared Files</h3>
+                <p>Files shared with your account will appear here.</p>
               </div>
-            </div>
-
-            <form className="send-file-form" onSubmit={sendFileByEmail}>
-              <div className="send-form-group">
-                <label htmlFor="sendShareLink">TrustShare File Link</label>
-                <div className="send-link-row">
-                  <input
-                    id="sendShareLink"
-                    type="url"
-                    placeholder="Paste your TrustShare secure link"
-                    value={sendShareLink}
-                    onChange={(e) => {
-                      setSendShareLink(e.target.value);
-                      setSendMessage("");
-                    }}
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="copy-link-button"
-                    onClick={copySendLink}
-                    disabled={!sendShareLink}
-                  >
-                    📋 Copy
-                  </button>
-                </div>
+            ) : (
+              <div className="shared-files-list">
+                {sharedFiles.map((item) => (
+                  <div className="shared-file-item" key={item.share_id}>
+                    <div className="shared-file-main">
+                      <div className="shared-file-icon">📄</div>
+                      <div>
+                        <h3>{item.filename}</h3>
+                        <p>Shared by <strong>{item.owner?.username}</strong></p>
+                        <small>
+                          Permission: {item.permission === "download" ? "Download" : "View"}
+                          {item.expires_at ? ` • Expires: ${formatDateTime(item.expires_at)}` : ""}
+                          {item.permission === "download" && item.max_downloads
+                            ? ` • Downloads: ${item.download_count}/${item.max_downloads}`
+                            : ""}
+                        </small>
+                      </div>
+                    </div>
+                    <div className="shared-file-actions">
+                      <button className="secondary-button" onClick={() => openSharedFile(item.share_id, item.permission, item.filename)}>
+                        {item.permission === "download" ? "⬇ Download" : "👁 View"}
+                      </button>
+                      <button className="danger-action" onClick={() => openSharedRemovePopup(item.share_id)}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
-
-              <div className="send-form-group">
-                <label htmlFor="recipientEmail">Recipient Email</label>
-                <input
-                  id="recipientEmail"
-                  type="email"
-                  placeholder="example@gmail.com"
-                  value={recipientEmail}
-                  onChange={(e) => {
-                    setRecipientEmail(e.target.value);
-                    setSendMessage("");
-                  }}
-                  required
-                />
-              </div>
-
-              <div className="send-form-group">
-                <label htmlFor="emailMessage">Message <span>(Optional)</span></label>
-                <textarea
-                  id="emailMessage"
-                  placeholder="Write a short message to the recipient..."
-                  value={emailMessage}
-                  onChange={(e) => setEmailMessage(e.target.value)}
-                  rows="5"
-                />
-              </div>
-
-              <div className="send-security-note">
-                <span>🛡️</span>
-                <div>
-                  <strong>Secure temporary access</strong>
-                  <p>The recipient will receive the TrustShare link. Access is controlled by the permission, expiry time, and download limit configured for that link.</p>
-                </div>
-              </div>
-
-              {sendMessage && (
-                <div
-                  className={`send-message ${
-                    sendMessage.toLowerCase().includes("opening") ||
-                    sendMessage.toLowerCase().includes("copied")
-                      ? "success-message"
-                      : "error-message"
-                  }`}
-                >
-                  {sendMessage}
-                </div>
-              )}
-
-              <div className="send-file-actions">
-                <button
-                  type="button"
-                  className="cancel-delete-button"
-                  onClick={() => navigateTo("files")}
-                >
-                  ← Back to My Files
-                </button>
-                <button type="submit" className="generate-share-button">
-                  📧 Send Secure Link
-                </button>
-              </div>
-            </form>
+            )}
           </section>
         </main>
       )}
 
       {/* =================================================
-          MY PROFILE
+          SENT FILES
       ================================================= */}
+
+      {page === "sent" && (
+        <main className="dashboard-container">
+          <section className="page-heading">
+            <div className="welcome-small">SECURE SHARING</div>
+            <h2>Sent Files</h2>
+            <p>Files you have shared with other TrustShare users.</p>
+          </section>
+
+          <section className="files-card">
+            {sentLoading ? (
+              <div className="empty-files">
+                <h3>Loading sent files...</h3>
+              </div>
+            ) : sentFiles.length === 0 ? (
+              <div className="empty-files">
+                <div className="empty-icon">📤</div>
+                <h3>No Sent Files</h3>
+                <p>Files you share with other TrustShare users will appear here.</p>
+              </div>
+            ) : (
+              <div className="shared-files-list">
+                {sentFiles.map((item) => (
+                  <div className="shared-file-item sent-file-item" key={item.share_id}>
+                    <div className="shared-file-main">
+                      <div className="shared-file-icon">📄</div>
+                      <div>
+                        <h3>{item.filename}</h3>
+                        <p>
+                          Sent to <strong>{item.recipient?.username}</strong>
+                          {item.recipient?.email ? ` (${item.recipient.email})` : ""}
+                        </p>
+                        <small>
+                          Permission: {item.permission === "download" ? "Download" : "View"}
+                          {item.expires_at
+                            ? ` • Expires: ${formatDateTime(item.expires_at)}`
+                            : ""}
+                          {item.permission === "download" && item.max_downloads
+                            ? ` • Downloads: ${item.download_count}/${item.max_downloads}`
+                            : item.permission === "download"
+                              ? ` • Downloads: ${item.download_count}`
+                              : ""}
+                          {item.revoked ? " • Revoked" : ""}
+                        </small>
+                      </div>
+                    </div>
+
+                    <div className="shared-file-actions">
+                      {item.revoked ? (
+                        <span className="share-status revoked">Revoked</span>
+                      ) : (
+                        <button
+                          className="danger-action"
+                          onClick={() =>
+                            openRevokePopup(
+                              item.share_id,
+                              item.filename,
+                              item.recipient?.username || item.recipient?.email || ""
+                            )
+                          }
+                        >
+                          Revoke Access
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </main>
+      )}
+
+      {/* =================================================
+          ACTIVITY MONITORING / AUDIT LOG
+      ================================================= */}
+
+      {page === "activity" && (
+        <main className="dashboard-container">
+          <section className="page-heading">
+            {/* <div className="welcome-small">MILESTONE 3</div> */}
+            <h2>Activity & Audit Log</h2>
+            <p>Monitor important actions performed on your TrustShare account.</p>
+          </section>
+          {m3Error && <div className="dashboard-message">{m3Error}</div>}
+          <div className="m3-toolbar">
+            <span>{activityLogs.length} activity records</span>
+            <button className="secondary-button" onClick={loadActivity}>Refresh</button>
+          </div>
+          <section className="files-card">
+            {activityLoading ? (
+              <div className="empty-files"><h3>Loading activity...</h3></div>
+            ) : activityLogs.length === 0 ? (
+              <div className="empty-files">
+                <div className="empty-icon">📋</div>
+                <h3>No Activity Yet</h3>
+                <p>Your file and account activities will appear here.</p>
+              </div>
+            ) : (
+              <div className="m3-table-wrap">
+                <table className="m3-table">
+                  <thead><tr><th>Time</th><th>Action</th><th>File</th><th>Description</th><th>IP Address</th></tr></thead>
+                  <tbody>
+                    {activityLogs.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.created_at ? formatDateTime(item.created_at) : "-"}</td>
+                        <td><span className="activity-badge">{item.action}</span></td>
+                        <td>{item.filename || "-"}</td>
+                        <td>{item.description || "-"}</td>
+                        <td>{item.ip_address || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </main>
+      )}
+
+      {/* =================================================
+          NOTIFICATIONS
+      ================================================= */}
+
+      {page === "notifications" && (
+        <main className="dashboard-container notifications-page">
+          <section className="notification-hero">
+            <div className="notification-hero-icon" aria-hidden="true">🔔</div>
+            <div className="notification-hero-copy">
+              <div className="notification-eyebrow">TRUSTSHARE</div>
+              <h2>Notifications</h2>
+              <p>Stay informed about file activity, sharing and account security.</p>
+            </div>
+            <button
+              className="notification-refresh-button notification-hero-refresh"
+              onClick={loadNotifications}
+              disabled={notificationsLoading}
+            >
+              <span className="button-icon">↻</span>
+              <span>{notificationsLoading ? "Refreshing..." : "Refresh"}</span>
+            </button>
+          </section>
+
+          {m3Error && <div className="dashboard-message">{m3Error}</div>}
+
+          <section className="notifications-panel notification-center-card">
+            <div className="notification-overview">
+              <div className="notification-overview-main">
+                <div className="notification-total-badge">{notifications.length}</div>
+                <div>
+                  <h3>Notification Center</h3>
+                  <p>
+                    {notifications.length === 0
+                      ? "No new TrustShare updates"
+                      : `${notifications.length} update${notifications.length === 1 ? "" : "s"} available`}
+                  </p>
+                </div>
+              </div>
+              <div className="notification-stat-group">
+                <div className="notification-stat">
+                  <strong>{notifications.filter((n) => !n.is_read).length}</strong>
+                  <span>Unread</span>
+                </div>
+                <div className="notification-stat">
+                  <strong>{notifications.filter((n) => n.is_read).length}</strong>
+                  <span>Read</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="notification-section-title">
+              <div>
+                <span className="notification-section-dot"></span>
+                <strong>Recent activity</strong>
+              </div>
+              <span>{notifications.length} total</span>
+            </div>
+
+            {notificationsLoading ? (
+              <div className="notification-empty-state notification-state-card">
+                <div className="notification-loading-icon">⟳</div>
+                <h3>Loading notifications</h3>
+                <p>Please wait while we retrieve your latest TrustShare updates.</p>
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="notification-empty-state notification-state-card">
+                <div className="notification-empty-icon">✓</div>
+                <h3>You're all caught up</h3>
+                <p>New sharing, file access and security updates will appear here.</p>
+              </div>
+            ) : (
+              <div className="professional-notification-list">
+                {notifications.map((item) => {
+                  const meta = notificationMeta(item);
+                  return (
+                    <article
+                      className={`professional-notification-card notification-card-v2 ${item.is_read ? "is-read" : "is-unread"}`}
+                      key={item.id}
+                      onClick={() => openNotificationPopup(item)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openNotificationPopup(item);
+                        }
+                      }}
+                    >
+                      <div className={`notification-type-icon ${meta.tone}`} aria-hidden="true">
+                        {meta.icon}
+                      </div>
+
+                      <div className="notification-content">
+                        <div className="notification-card-title-row">
+                          <h3>{item.title}</h3>
+                          <span className={`notification-status-pill ${item.is_read ? "read" : "unread"}`}>
+                            {item.is_read ? "Read" : "New"}
+                          </span>
+                        </div>
+
+                        <p>{item.message}</p>
+
+                        <div className="notification-meta-row">
+                          <span className={`notification-type-pill ${meta.tone}`}>
+                            {meta.label}
+                          </span>
+                          <span className="notification-date">
+                            ◷ {item.created_at ? formatDateTime(item.created_at) : ""}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="notification-card-arrow" aria-hidden="true">›</div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </main>
+      )}
+
+      {/* =================================================
+          NOTIFICATION DETAILS POPUP
+          Read-only: no Mark as Read action
+      ================================================= */}
+      {notificationPopup.open && notificationPopup.notification && (() => {
+        const item = notificationPopup.notification;
+        const meta = notificationMeta(item);
+        return (
+          <div className="professional-modal-overlay" onClick={closeNotificationPopup}>
+            <div
+              className="professional-notification-modal notification-details-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                className="professional-modal-close"
+                onClick={closeNotificationPopup}
+                aria-label="Close notification"
+              >
+                ×
+              </button>
+
+              <div className={`professional-modal-icon ${meta.tone}`}>
+                {meta.icon}
+              </div>
+
+              <div className={`notification-modal-status ${item.is_read ? "read" : "unread"}`}>
+                {item.is_read ? "READ" : "NEW"}
+              </div>
+
+              <h2>{item.title}</h2>
+              <p>Notification details</p>
+
+              <div className="notification-modal-detail professional-detail-box">
+                <div className={`notification-type-icon ${meta.tone}`}>
+                  {meta.icon}
+                </div>
+                <div>
+                  <strong>{item.title}</strong>
+                  <span>{item.message}</span>
+                  <small>◷ {item.created_at ? formatDateTime(item.created_at) : ""}</small>
+                </div>
+              </div>
+
+              <div className="professional-modal-actions single-action">
+                <button
+                  className="professional-confirm-button"
+                  onClick={closeNotificationPopup}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* =================================================
+          PROFESSIONAL ACCESS ERROR POPUP
+      ================================================= */}
+      {systemPopup.open && (
+        <div className="professional-modal-overlay" onClick={() => setSystemPopup({ ...systemPopup, open: false })}>
+          <div className="professional-notification-modal compact" onClick={(event) => event.stopPropagation()}>
+            <button className="professional-modal-close" onClick={() => setSystemPopup({ ...systemPopup, open: false })}>×</button>
+            <div className={`professional-modal-icon ${systemPopup.tone}`}>{systemPopup.icon}</div>
+            <h2>{systemPopup.title}</h2>
+            <p>{systemPopup.message}</p>
+            <div className="professional-modal-actions single-action">
+              <button className="professional-confirm-button" onClick={() => setSystemPopup({ ...systemPopup, open: false })}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================
+          REMOVE SHARED FILE POPUP
+      ================================================= */}
+      {sharedRemovePopup.open && (
+        <div className="professional-modal-overlay" onClick={() => setSharedRemovePopup({ open: false, shareId: null })}>
+          <div className="professional-notification-modal compact" onClick={(event) => event.stopPropagation()}>
+            <button className="professional-modal-close" onClick={() => setSharedRemovePopup({ open: false, shareId: null })}>×</button>
+            <div className="professional-modal-icon access">🗑️</div>
+            <h2>Remove Shared File?</h2>
+            <p>This will remove the shared file from your Shared With Me list. The original owner's file will not be deleted.</p>
+            <div className="professional-modal-actions">
+              <button className="professional-cancel-button" onClick={() => setSharedRemovePopup({ open: false, shareId: null })}>Cancel</button>
+              <button className="professional-confirm-button danger" onClick={confirmSharedRemove}>Remove File</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECURITY ALERTS */}
+      {page === "security" && (
+        <main className="dashboard-container">
+          <section className="page-heading">
+            {/* <div className="welcome-small">MILESTONE 3</div> */}
+            <h2>Security Alerts</h2>
+            <p>Rule-based detection of unusual account activity.</p>
+          </section>
+
+          {m3Error && <div className="dashboard-message">{m3Error}</div>}
+          <div className="m3-toolbar">
+            <span>{securityAlerts.length} active alerts</span>
+            <button className="secondary-button" onClick={loadSecurityAlerts}>Refresh</button>
+          </div>
+          <section className="files-card">
+            {alertsLoading ? (
+              <div className="empty-files">
+                <h3>Checking security...</h3>
+              </div>
+            ) : securityAlerts.length === 0 ? (
+              <div className="empty-files">
+                <div className="empty-icon">🛡️</div>
+                <h3>No Security Alerts</h3>
+                <p>No security alerts were found.</p>
+              </div>
+            ) : (
+              <div className="m3-list">
+                {securityAlerts.map((item) => (
+                  <div
+                    className="m3-alert"
+                    key={item.id}
+                  >
+                    <div>
+                      <div
+                        className={
+                          `severity-badge ${String(
+                            item.severity || ""
+                          ).toLowerCase()}`
+                        }
+                      >
+                        {item.severity || "INFO"}
+                      </div>
+                      <h3>{item.alert_type}</h3>
+                      <p>{item.description}</p>
+                      <small>
+                        {item.created_at
+                          ? formatDateTime(item.created_at)
+                          : ""}
+                      </small>
+                    </div>
+
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </main>
+      )}
+
+      {/* ANALYTICS */}
+      {page === "analytics" && (
+        <main className="dashboard-container">
+          <section className="page-heading">
+            {/* <div className="welcome-small">MILESTONE 3</div> */}
+            <h2>Security & Storage Analytics</h2>
+            <p>
+              Overview of your TrustShare file and security activity.
+            </p>
+          </section>
+
+          {m3Error && <div className="dashboard-message">{m3Error}</div>}
+          <div className="m3-toolbar">
+            <span>Live statistics from TrustShare</span>
+            <button className="secondary-button" onClick={loadAnalytics}>Refresh</button>
+          </div>
+          <section className="m3-analytics-grid">
+            <div className="stat-card">
+              <div className="stat-icon">📁</div>
+              <div>
+                <span className="stat-number">{analytics.total_files}</span>
+                <span className="stat-label">Total Files</span>
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-icon">↗</div>
+              <div>
+                <span className="stat-number">{analytics.total_shared}</span>
+                <span className="stat-label">Files Shared</span>
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-icon">⬇️</div>
+              <div>
+                <span className="stat-number">{analytics.total_downloads}</span>
+                <span className="stat-label">Downloads</span>
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-icon">👁️</div>
+              <div>
+                <span className="stat-number">{analytics.total_views}</span>
+                <span className="stat-label">Views</span>
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-icon">🔔</div>
+              <div>
+                <span className="stat-number">
+                  {analytics.unread_notifications}
+                </span>
+                <span className="stat-label">Unread Notifications</span>
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-icon">🛡️</div>
+              <div>
+                <span className="stat-number">
+                  {analytics.security_alerts}
+                </span>
+                <span className="stat-label">Active Security Alerts</span>
+              </div>
+            </div>
+          </section>
+
+          {analyticsLoading && (
+            <div className="dashboard-message">
+              Refreshing analytics...
+            </div>
+          )}
+        </main>
+      )}
 
       {page === "profile" && (
 
@@ -2066,7 +3150,7 @@ function App() {
                   </span>
 
                   <strong>
-                    {files.length}
+                    {analytics.total_files}
                   </strong>
 
                 </div>
@@ -2121,6 +3205,60 @@ function App() {
       ================================================= */}
 
       {/* =================================================
+          REVOKE ACCESS CONFIRMATION POPUP
+      ================================================= */}
+
+      {revokePopup.open && (
+        <div
+          className="modal-overlay"
+          onClick={closeRevokePopup}
+        >
+          <div
+            className="revoke-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="revoke-modal-icon">🔐</div>
+
+            <h2>Revoke Access?</h2>
+
+            <p>
+              Are you sure you want to revoke access to this shared file?
+            </p>
+
+            <div className="revoke-file-name">
+              📄 <span>{revokePopup.fileName}</span>
+            </div>
+
+            {revokePopup.recipient && (
+              <p className="revoke-recipient">
+                Shared with <strong>{revokePopup.recipient}</strong>
+              </p>
+            )}
+
+            <p className="revoke-warning">
+              The recipient will no longer be able to access this file through this share.
+            </p>
+
+            <div className="modal-actions">
+              <button
+                className="cancel-delete-button"
+                onClick={closeRevokePopup}
+              >
+                Cancel
+              </button>
+
+              <button
+                className="confirm-revoke-button"
+                onClick={confirmRevoke}
+              >
+                🔒 Revoke Access
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================
           SECURE SHARING MODAL
       ================================================= */}
 
@@ -2132,12 +3270,12 @@ function App() {
         >
 
           <div
-            className="share-modal"
+            className="share-modal account-share-modal"
             onClick={(e) => e.stopPropagation()}
           >
 
             <div className="share-modal-icon">
-              🔗
+              🔐
             </div>
 
             <h2>
@@ -2148,278 +3286,141 @@ function App() {
               {shareFile?.filename}
             </p>
 
-            {sharesLoading ? (
-              <p className="existing-shares-loading">Loading existing links...</p>
-            ) : existingShares.length > 0 ? (
-              <div className="existing-shares-list">
-                <p className="existing-shares-title">Active share links</p>
+            <div className="share-form-group">
+              <label htmlFor="shareRecipient">
+                TrustShare Recipient
+              </label>
 
-                {existingShares.map((share) => (
-                  <div className="existing-share-item" key={share.id}>
-                    <div className="existing-share-info">
-                      <span className={`share-permission-badge ${share.permission}`}>
-                        {share.permission === "view" ? "👁️ View" : "⬇ Download"}
-                      </span>
+              <input
+                id="shareRecipient"
+                type="text"
+                placeholder="Recipient email or username"
+                value={shareRecipient}
+                onChange={(e) =>
+                  setShareRecipient(e.target.value)
+                }
+              />
 
-                      <span className="existing-share-meta">
-                        Expires {new Date(share.expires_at).toLocaleString()}
-                        {share.max_downloads
-                          ? ` · ${share.download_count}/${share.max_downloads} downloads`
-                          : ""}
-                        {share.revoked ? " · Revoked" : ""}
-                      </span>
-                    </div>
+              <small className="share-help-text">
+                The recipient must already have a TrustShare account.
+              </small>
+            </div>
 
-                    {!share.revoked && (
-                      <button
-                        className="revoke-share-button"
-                        onClick={() => revokeShareLink(share.id)}
-                      >
-                        Revoke
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : null}
+            <div className="share-form-group">
+              <label>
+                Permission
+              </label>
 
-            {!shareLink ? (
+              <div className="permission-options">
 
-              <>
-
-                <div className="share-form-group">
-                  <label>
-                    Permission
-                  </label>
-
-                  <div className="permission-options">
-
-                    <label className={`permission-option ${sharePermission === "view" ? "selected" : ""}`}>
-                      <input
-                        type="radio"
-                        name="sharePermission"
-                        value="view"
-                        checked={sharePermission === "view"}
-                        onChange={(e) => setSharePermission(e.target.value)}
-                      />
-                      <span>👁️ View Only</span>
-                    </label>
-
-                    <label className={`permission-option ${sharePermission === "download" ? "selected" : ""}`}>
-                      <input
-                        type="radio"
-                        name="sharePermission"
-                        value="download"
-                        checked={sharePermission === "download"}
-                        onChange={(e) => setSharePermission(e.target.value)}
-                      />
-                      <span>⬇ Download</span>
-                    </label>
-
-                  </div>
-                </div>
-
-                <div className="share-form-row">
-
-                  <div className="share-form-group">
-                    <label htmlFor="shareExpiry">
-                      Temporary Access (Hours)
-                    </label>
-                    <input
-                      id="shareExpiry"
-                      type="number"
-                      min="1"
-                      value={shareExpiry}
-                      onChange={(e) => setShareExpiry(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="share-form-group">
-                    <label htmlFor="maxDownloads">
-                      Max Downloads (Optional)
-                    </label>
-                    <input
-                      id="maxDownloads"
-                      type="number"
-                      min="1"
-                      step="1"
-                      placeholder="Unlimited"
-                      value={maxDownloads}
-                      onChange={(e) => setMaxDownloads(e.target.value)}
-                    />
-                  </div>
-
-                </div>
-
-                <div className="temporary-access-note">
-                  <span>🛡️</span>
-                  <div>
-                    <strong>Temporary and controlled access</strong>
-                    <p>
-                      The link will expire automatically after the selected time.
-                      You can also limit the number of downloads.
-                    </p>
-                  </div>
-                </div>
-
-                {shareMessage && (
-                  <div className="share-message error-message">
-                    {shareMessage}
-                  </div>
-                )}
-
-                <div className="modal-actions share-modal-actions">
-                  <button
-                    className="cancel-delete-button"
-                    onClick={closeShareModal}
-                    disabled={shareLoading}
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    className="generate-share-button"
-                    onClick={createShareLink}
-                    disabled={shareLoading}
-                  >
-                    {shareLoading ? "Creating..." : "🔐 Generate Secure Link"}
-                  </button>
-                </div>
-
-              </>
-
-            ) : (
-
-              <>
-
-                <div className="share-success-box">
-                  <div className="share-success-icon">
-                    ✓
-                  </div>
-                  <h3>
-                    Secure Link Ready
-                  </h3>
-                  <p>
-                    Your file has been configured for secure temporary access.
-                  </p>
-                </div>
-
-                <div className="share-link-box">
+                <label
+                  className={`permission-option ${
+                    sharePermission === "view"
+                      ? "selected"
+                      : ""
+                  }`}
+                >
                   <input
-                    type="text"
-                    value={shareLink}
-                    readOnly
-                    onFocus={(e) => e.target.select()}
+                    type="radio"
+                    name="sharePermission"
+                    value="view"
+                    checked={sharePermission === "view"}
+                    onChange={(e) =>
+                      setSharePermission(e.target.value)
+                    }
                   />
 
-                  <button
-                    className="copy-share-button"
-                    onClick={copyShareLink}
-                  >
-                    📋 Copy
-                  </button>
-                </div>
+                  <span>
+                    👁️ View
+                  </span>
+                </label>
 
-                <div className="share-details">
-                  <div>
-                    <span>Permission</span>
-                    <strong>
-                      {sharePermission === "view" ? "View Only" : "Download"}
-                    </strong>
-                  </div>
-                  <div>
-                    <span>Expires In</span>
-                    <strong>{shareExpiry} hour(s)</strong>
-                  </div>
-                  <div>
-                    <span>Maximum Downloads</span>
-                    <strong>{maxDownloads || "Unlimited"}</strong>
-                  </div>
-                </div>
+                <label
+                  className={`permission-option ${
+                    sharePermission === "download"
+                      ? "selected"
+                      : ""
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="sharePermission"
+                    value="download"
+                    checked={sharePermission === "download"}
+                    onChange={(e) =>
+                      setSharePermission(e.target.value)
+                    }
+                  />
 
-                {shareMessage && (
-                  <div className="share-message success-message">
-                    {shareMessage}
-                  </div>
-                )}
+                  <span>
+                    ⬇️ Download
+                  </span>
+                </label>
 
-                <div className="modal-actions share-modal-actions">
-                  <button
-                    className="cancel-delete-button"
-                    onClick={() => openSendFilePage(shareLink)}
-                  >
-                    📧 Open Email
-                  </button>
-                  <button
-                    className="generate-share-button"
-                    onClick={closeShareModal}
-                  >
-                    Done
-                  </button>
-                </div>
+              </div>
+            </div>
 
-              </>
+            <div className="share-form-row">
 
+              <div className="share-form-group">
+                <label htmlFor="shareExpiry">
+                  Temporary Access (Hours)
+                </label>
+
+                <input
+                  id="shareExpiry"
+                  type="number"
+                  min="1"
+                  value={shareExpiry}
+                  onChange={(e) =>
+                    setShareExpiry(e.target.value)
+                  }
+                />
+              </div>
+
+              <div className="share-form-group">
+                <label htmlFor="maxDownloads">
+                  Maximum Downloads
+                </label>
+
+                <input
+                  id="maxDownloads"
+                  type="number"
+                  min="1"
+                  placeholder="Unlimited"
+                  value={maxDownloads}
+                  onChange={(e) =>
+                    setMaxDownloads(e.target.value)
+                  }
+                />
+              </div>
+
+            </div>
+
+            {shareMessage && (
+              <div className="share-message">
+                {shareMessage}
+              </div>
             )}
 
-          </div>
-
-        </div>
-
-      )}
-
-      {deletePopup.open && (
-
-        <div
-          className="modal-overlay"
-          onClick={closeDeletePopup}
-        >
-
-          <div
-            className="delete-modal"
-            onClick={(e) =>
-              e.stopPropagation()
-            }
-          >
-
-            <div className="delete-modal-icon">
-              🗑️
-            </div>
-
-            <h2>
-              Delete File?
-            </h2>
-
-            <p>
-              Are you sure you want to
-              delete this file?
-            </p>
-
-            <div className="delete-file-name">
-              📄{" "}
-              <span>
-                {deletePopup.fileName}
-              </span>
-            </div>
-
-            <p className="delete-warning">
-              This action cannot be undone.
-            </p>
-
-            <div className="modal-actions">
+            <div className="share-modal-actions">
 
               <button
-                className="cancel-delete-button"
-                onClick={closeDeletePopup}
+                className="secondary-button"
+                onClick={closeShareModal}
+                disabled={shareLoading}
               >
                 Cancel
               </button>
 
               <button
-                className="confirm-delete-button"
-                onClick={confirmDelete}
+                className="main-button share-submit-button"
+                onClick={shareFileWithAccount}
+                disabled={shareLoading}
               >
-                🗑 Delete
+                {shareLoading
+                  ? "Sharing..."
+                  : "Share File"}
               </button>
 
             </div>
