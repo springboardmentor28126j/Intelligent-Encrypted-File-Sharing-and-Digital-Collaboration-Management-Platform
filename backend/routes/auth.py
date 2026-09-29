@@ -23,6 +23,10 @@ from mongodb import (
     create_security_alert
 )
 
+from suspicious_activity import (
+    check_failed_login_suspicious_activity
+)
+
 
 # ==========================================
 # ROUTER
@@ -42,11 +46,9 @@ def get_db():
     db = SessionLocal()
 
     try:
-
         yield db
 
     finally:
-
         db.close()
 
 
@@ -279,6 +281,7 @@ def login(
             "FAILED LOGIN ATTEMPT"
         )
 
+
         # ==========================================
         # SAVE FAILED LOGIN ACTIVITY
         # ==========================================
@@ -317,7 +320,7 @@ def login(
 
 
         # ==========================================
-        # SAVE FAILED LOGIN SECURITY ALERT
+        # SAVE NORMAL FAILED LOGIN SECURITY ALERT
         # ==========================================
 
         try:
@@ -350,6 +353,43 @@ def login(
                 "MongoDB failed login security "
                 "alert failed:",
                 error
+            )
+
+
+        # ==========================================
+        # CHECK SUSPICIOUS LOGIN ACTIVITY
+        # ==========================================
+        #
+        # If there are 5 or more failed login
+        # attempts within the last 10 minutes:
+        #
+        # 1. Create a suspicious activity alert
+        # 2. Mark it as HIGH severity
+        # 3. Send an email to the registered account
+        #
+        # The suspicious_activity.py function also
+        # prevents duplicate alerts/emails during
+        # the same 10-minute window.
+        # ==========================================
+
+        try:
+
+            suspicious_result = (
+                check_failed_login_suspicious_activity(
+                    user
+                )
+            )
+
+            print(
+                "Suspicious login check:",
+                suspicious_result
+            )
+
+        except Exception as error:
+
+            print(
+                "Suspicious activity detection failed:",
+                repr(error)
             )
 
 
