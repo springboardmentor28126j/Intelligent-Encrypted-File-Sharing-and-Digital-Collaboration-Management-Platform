@@ -1,0 +1,1 @@
+# TrustShare core package
