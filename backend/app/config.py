@@ -31,15 +31,44 @@ class Settings(BaseSettings):
     # 32 bytes (64 hex chars). In production, set via MASTER_KEY_HEX or connect to AWS KMS/Azure Key Vault.
     MASTER_KEY_HEX: str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
-    # Storage Backend Configuration ("local" or "s3")
-    STORAGE_BACKEND: str = "local"
+    # Password Reset & Token Settings
+    PASSWORD_RESET_EXPIRE_MINUTES: int = 30
+    FRONTEND_URL: str = "http://localhost:3000"
 
-    # AWS S3 Configuration
-    AWS_ACCESS_KEY_ID: str = ""
-    AWS_SECRET_ACCESS_KEY: str = ""
-    AWS_REGION: str = "us-east-1"
-    AWS_S3_BUCKET_NAME: str = "trustshare-encrypted-files"
-    AWS_S3_ENDPOINT_URL: str = ""
+    # Email Service Configuration ("smtp", "resend", "sendgrid", or "console")
+    EMAIL_PROVIDER: str = "smtp"
+    EMAIL_FROM_ADDRESS: str = "no-reply@trustshare.io"
+    EMAIL_FROM_NAME: str = "TrustShare Security"
+
+    # SMTP Configuration (Works with Gmail App Password, AWS SES, Mailgun, SendGrid SMTP, etc.)
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_USE_TLS: bool = True
+    SMTP_USE_SSL: bool = False
+    SMTP_TIMEOUT_SECONDS: int = 10
+
+    # API-based Email Providers
+    RESEND_API_KEY: str = ""
+    SENDGRID_API_KEY: str = ""
+
+    # Rate Limiting
+    RATE_LIMIT_LOGIN_MAX: int = 5
+    RATE_LIMIT_LOGIN_WINDOW_SEC: int = 300
+    RATE_LIMIT_RESET_MAX: int = 3
+    RATE_LIMIT_RESET_WINDOW_SEC: int = 900
+
+    # Storage Backend Configuration ("supabase" or "local")
+    STORAGE_BACKEND: str = "supabase"
+
+    # Supabase Cloud Storage Configuration
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_STORAGE_BUCKET: str = "trustshare-files"
+    SUPABASE_SIGNED_URL_EXPIRY_SECONDS: int = 300  # 5 minutes
+
 
     # JWT
     SECRET_KEY: str = "supersecretkey_change_in_production_32chars"
@@ -59,3 +88,4 @@ class Settings(BaseSettings):
 
 # Singleton settings instance – imported across the app
 settings = Settings()
+

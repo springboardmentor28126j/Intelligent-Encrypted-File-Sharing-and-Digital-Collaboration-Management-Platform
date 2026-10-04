@@ -37,10 +37,26 @@ export interface LoginPayload {
   password: string;
 }
 
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+  email_sent: boolean;
+  delivery_status: string;
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  new_password: string;
+}
+
 export interface MessageResponse {
   message: string;
   success?: boolean;
 }
+
 
 export type FileCategory =
   | "document"
@@ -67,6 +83,8 @@ export interface ShareLink {
   created_at: string;
   is_expired?: boolean;
   is_revoked?: boolean;
+  email_sent?: boolean;
+  email_status?: string | null;
 }
 
 export interface FileMetadata {
@@ -338,6 +356,25 @@ export async function getCurrentUser(): Promise<UserOut> {
   });
 }
 
+export async function forgotPassword(
+  payload: ForgotPasswordPayload
+): Promise<ForgotPasswordResponse> {
+  return apiFetch<ForgotPasswordResponse>("/forgot-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function resetPassword(
+  payload: ResetPasswordPayload
+): Promise<MessageResponse> {
+  return apiFetch<MessageResponse>("/reset-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+
 // ─── File APIs ────────────────────────────────────────────────────────────────
 
 export async function uploadFile(
@@ -545,3 +582,135 @@ export async function downloadPublicShare(token: string, filename: string): Prom
 export async function getSystemHealth(): Promise<HealthStatus> {
   return apiFetch<HealthStatus>("/health", { method: "GET" });
 }
+
+// ─── Audit & Activity Monitoring Types & APIs ────────────────────────────────
+
+export interface AuditLog {
+  id: number;
+  user_id?: number | null;
+  user_email?: string | null;
+  action: string;
+  file_id?: number | null;
+  filename?: string | null;
+  ip_address?: string | null;
+  timestamp: string;
+  details?: string | null;
+  status: string;
+  user_agent?: string | null;
+}
+
+export interface AuditStats {
+  total_events: number;
+  login_events: number;
+  failed_logins: number;
+  file_operations: number;
+  security_alerts: number;
+  unique_users: number;
+  actions_breakdown: Record<string, number>;
+}
+
+export async function getAuditLogs(params?: {
+  action?: string;
+  file_id?: number;
+  status_filter?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<AuditLog[]> {
+  const query = new URLSearchParams();
+  if (params?.action) query.set("action", params.action);
+  if (params?.file_id) query.set("file_id", String(params.file_id));
+  if (params?.status_filter) query.set("status_filter", params.status_filter);
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.offset) query.set("offset", String(params.offset));
+
+  const qs = query.toString();
+  return apiFetch<AuditLog[]>(`/audit/logs${qs ? `?${qs}` : ""}`, { method: "GET" });
+}
+
+export async function getAuditStats(): Promise<AuditStats> {
+  return apiFetch<AuditStats>("/audit/stats", { method: "GET" });
+}
+
+export async function getFileAuditHistory(fileId: number): Promise<AuditLog[]> {
+  return apiFetch<AuditLog[]>(`/audit/file/${fileId}`, { method: "GET" });
+}
+
+// ─── Notification Types & APIs ────────────────────────────────────────────────
+
+export interface NotificationItem {
+  id: number;
+  user_id: number;
+  message: string;
+  type: string;
+  is_read: boolean;
+  created_at: string;
+  link_url?: string | null;
+}
+
+export interface UnreadCount {
+  unread_count: number;
+}
+
+export async function getNotifications(unreadOnly = false): Promise<NotificationItem[]> {
+  return apiFetch<NotificationItem[]>(`/notifications?unread_only=${unreadOnly}`, { method: "GET" });
+}
+
+export async function getUnreadCount(): Promise<UnreadCount> {
+  return apiFetch<UnreadCount>("/notifications/unread-count", { method: "GET" });
+}
+
+export async function markNotificationAsRead(id: number): Promise<MessageResponse> {
+  return apiFetch<MessageResponse>(`/notifications/${id}/read`, { method: "PATCH" });
+}
+
+export async function markAllNotificationsAsRead(): Promise<MessageResponse> {
+  return apiFetch<MessageResponse>("/notifications/read-all", { method: "POST" });
+}
+
+export async function deleteNotification(id: number): Promise<MessageResponse> {
+  return apiFetch<MessageResponse>(`/notifications/${id}`, { method: "DELETE" });
+}
+
+// ─── Analytics Types & APIs ───────────────────────────────────────────────────
+
+export interface RecentActivityItem {
+  id: number;
+  action: string;
+  user_email?: string | null;
+  filename?: string | null;
+  ip_address?: string | null;
+  timestamp: string;
+  status: string;
+}
+
+export interface TrendPoint {
+  date: string;
+  uploads: number;
+  downloads: number;
+  shares: number;
+}
+
+export interface StorageCategoryItem {
+  category: string;
+  count: number;
+  bytes: number;
+  percentage: number;
+}
+
+export interface AnalyticsDashboard {
+  total_files: number;
+  total_storage_bytes: number;
+  total_storage_mb: number;
+  total_downloads: number;
+  total_shares: number;
+  active_links: number;
+  security_incidents: number;
+  recent_activity: RecentActivityItem[];
+  upload_trends: TrendPoint[];
+  category_distribution: StorageCategoryItem[];
+}
+
+export async function getAnalyticsDashboard(days = 7): Promise<AnalyticsDashboard> {
+  return apiFetch<AnalyticsDashboard>(`/analytics/dashboard?days=${days}`, { method: "GET" });
+}
+

@@ -732,3 +732,217 @@ a:hover {
   color: #818cf8;
 }
 
+/* ─── Social Sharing Buttons ─────────────────────────────────────────────────── */
+.social-share-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.social-share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.social-share-btn:hover {
+  transform: translateY(-1px);
+}
+
+.social-share-btn.whatsapp {
+  background: rgba(37, 211, 102, 0.12);
+  border-color: rgba(37, 211, 102, 0.35);
+  color: #25d366;
+}
+.social-share-btn.whatsapp:hover {
+  background: rgba(37, 211, 102, 0.22);
+  border-color: #25d366;
+  box-shadow: 0 0 15px rgba(37, 211, 102, 0.3);
+}
+
+.social-share-btn.gmail {
+  background: rgba(234, 67, 53, 0.12);
+  border-color: rgba(234, 67, 53, 0.35);
+  color: #f87171;
+}
+.social-share-btn.gmail:hover {
+  background: rgba(234, 67, 53, 0.22);
+  border-color: #ea4335;
+  box-shadow: 0 0 15px rgba(234, 67, 53, 0.3);
+}
+
+.social-share-btn.telegram {
+  background: rgba(36, 161, 222, 0.12);
+  border-color: rgba(36, 161, 222, 0.35);
+  color: #38bdf8;
+}
+.social-share-btn.telegram:hover {
+  background: rgba(36, 161, 222, 0.22);
+  border-color: #24a1de;
+  box-shadow: 0 0 15px rgba(36, 161, 222, 0.3);
+}
+
+.social-share-btn.teams {
+  background: rgba(98, 100, 167, 0.15);
+  border-color: rgba(98, 100, 167, 0.4);
+  color: #a5b4fc;
+}
+.social-share-btn.teams:hover {
+  background: rgba(98, 100, 167, 0.28);
+  border-color: #818cf8;
+  box-shadow: 0 0 15px rgba(98, 100, 167, 0.35);
+}
+
+.social-share-btn.email-direct {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.35);
+  color: #818cf8;
+}
+.social-share-btn.email-direct:hover {
+  background: rgba(99, 102, 241, 0.22);
+  border-color: #6366f1;
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+}
+
+/* ─── Milestone 4 Responsive Layout & UI Optimizations ───────────────────────── */
+
+/* Responsive Container */
+.container {
+  width: 100%;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Laptop and Medium Desktops (<= 1200px) */
+@media (max-width: 1200px) {
+  .container {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+}
+
+/* Tablet Layout (<= 992px) */
+@media (max-width: 992px) {
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .heading-1 {
+    font-size: 2.25rem;
+  }
+
+  .stats-grid,
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .modal-content {
+    max-width: 90vw !important;
+  }
+}
+
+/* Mobile & Small Screens (<= 768px) */
+@media (max-width: 768px) {
+  .container {
+    padding-left: 0.875rem;
+    padding-right: 0.875rem;
+  }
+
+  .heading-1 {
+    font-size: 1.85rem;
+    line-height: 1.25;
+  }
+
+  .heading-2 {
+    font-size: 1.45rem;
+  }
+
+  .stats-grid,
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.875rem !important;
+  }
+
+  /* Navigation responsiveness */
+  nav {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  /* Horizontal scrolling tabs for dashboard */
+  .dashboard-tabs,
+  .nav-tabs {
+    display: flex;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.5rem;
+    scrollbar-width: thin;
+  }
+
+  /* Responsive table wrapper */
+  .table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-md);
+  }
+
+  /* Responsive action buttons */
+  .action-btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .modal-content {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    padding: 1.25rem !important;
+    margin: 1rem auto;
+  }
+
+  .social-share-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Very Small Mobile Phones (<= 480px) */
+@media (max-width: 480px) {
+  .container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .heading-1 {
+    font-size: 1.6rem;
+  }
+
+  .social-share-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-card {
+    padding: 1.25rem !important;
+  }
+}
+
+
+

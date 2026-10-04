@@ -7,15 +7,15 @@ services:
     container_name: trustshare_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: trustshare
-      POSTGRES_PASSWORD: trustshare_secret
-      POSTGRES_DB: trustshare_db
+      POSTGRES_USER: ${POSTGRES_USER:-trustshare}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trustshare_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-trustshare_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U trustshare -d trustshare_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trustshare} -d ${POSTGRES_DB:-trustshare_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,7 +26,7 @@ services:
     container_name: trustshare_mongo
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "${MONGO_PORT:-27017}:27017"
     volumes:
       - mongo_data:/data/db
     healthcheck:
@@ -35,13 +35,13 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─── Redis (Session Blacklist & Caching) ──────────────────────────────────
+  # ─── Redis (Session Blacklist, Rate Limiting & Caching) ───────────────────
   redis:
     image: redis:7-alpine
     container_name: trustshare_redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -58,15 +58,23 @@ services:
     container_name: trustshare_backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://trustshare:trustshare_secret@db:5432/trustshare_db
-      MONGODB_URL: mongodb://mongo:27017
-      MONGODB_DB_NAME: trustshare_db
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: ${DATABASE_URL:-postgresql://trustshare:trustshare_secret@db:5432/trustshare_db}
+      MONGODB_URL: ${MONGODB_URL:-mongodb://mongo:27017}
+      MONGODB_DB_NAME: ${MONGODB_DB_NAME:-trustshare_db}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       UPLOAD_DIR: /app/uploads
-      MAX_FILE_SIZE_MB: 50
-      SECRET_KEY: supersecretkey_change_in_production_32chars
-      ALGORITHM: HS256
-      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-50}
+      SECRET_KEY: ${SECRET_KEY:-supersecretkey_change_in_production_32chars}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      MASTER_KEY_HEX: ${MASTER_KEY_HEX:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      SUPABASE_STORAGE_BUCKET: ${SUPABASE_STORAGE_BUCKET:-trustshare-files}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
     ports:
       - "8000:8000"
     depends_on:
@@ -79,6 +87,12 @@ services:
     volumes:
       - ./backend:/app
       - file_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/health\")' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     command: >
       sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
@@ -90,11 +104,12 @@ services:
     container_name: trustshare_frontend
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports:
       - "3000:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     volumes:
       - ./src:/app/src
       - /app/node_modules

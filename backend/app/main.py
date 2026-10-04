@@ -17,11 +17,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.database import Base, engine
+from app.database import Base, engine, is_sqlite
 from app.mongodb import init_mongo_indexes
 from app.routers import auth as auth_router
+from app.routers import audit as audit_router
+from app.routers import analytics as analytics_router
 from app.routers import files as files_router
 from app.routers import health as health_router
+from app.routers import notifications as notifications_router
 from app.routers import shares as shares_router
 from app.services.file_service import ensure_upload_dir
 
@@ -36,17 +39,33 @@ logger = logging.getLogger("trustshare.main")
 async def lifespan(app: FastAPI):
     """
     Application lifespan handler.
-    - Creates SQL tables (PostgreSQL/SQLite)
+    - Creates SQL tables (for local SQLite)
     - Initializes local secure upload directory
-    - Creates MongoDB indexes
+    - Non-blocking MongoDB index setup
     """
     logger.info("Initializing TrustShare backend services...")
     # SQL Database tables
-    Base.metadata.create_all(bind=engine)
+    if is_sqlite:
+        try:
+            Base.metadata.create_all(bind=engine)
+            logger.info("SQLite local database schema verified.")
+        except Exception as exc:
+            logger.warning(f"Database schema auto-creation note: {exc}")
+    else:
+        logger.info("PostgreSQL database connection active.")
+
     # File storage directory
-    ensure_upload_dir()
+    try:
+        ensure_upload_dir()
+    except Exception as exc:
+        logger.warning(f"Upload directory initialization note: {exc}")
+
     # MongoDB indexes
-    init_mongo_indexes()
+    try:
+        init_mongo_indexes()
+    except Exception as exc:
+        logger.warning(f"MongoDB index initialization note: {exc}")
+
     logger.info("TrustShare services initialized successfully.")
     yield
     logger.info("TrustShare backend services shutting down.")
@@ -55,8 +74,8 @@ async def lifespan(app: FastAPI):
 # ─── App Instance ─────────────────────────────────────────────────────────────
 app = FastAPI(
     title="TrustShare API",
-    description="Enterprise Secure File Sharing System API with MongoDB & Redis integration.",
-    version="1.0.0",
+    description="Enterprise Secure File Sharing System API with S3, Monitoring, Notifications, and Analytics.",
+    version="2.0.0",
     docs_url="/docs",       # Swagger UI
     redoc_url="/redoc",     # ReDoc
     lifespan=lifespan,
@@ -75,6 +94,7 @@ if not cors_origins:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -85,3 +105,39 @@ app.include_router(auth_router.router)
 app.include_router(health_router.router)
 app.include_router(files_router.router)
 app.include_router(shares_router.router)
+app.include_router(audit_router.router)
+app.include_router(notifications_router.router)
+app.include_router(analytics_router.router)
+
+
+# ─── Root Status Endpoint ─────────────────────────────────────────────────────
+@app.get("/", tags=["System"])
+def root():
+    """Root health and status endpoint."""
+    return {
+        "status": "online",
+        "service": "TrustShare API",
+        "version": "2.0.0",
+        "docs": "/docs",
+        "health": "/health",
+    }
+
+
+# Forward /upload to /files/upload for legacy/short URI compatibility
+@app.post("/upload", tags=["Files"], include_in_schema=False)
+async def upload_file_alias(
+    request: files_router.Request,
+    file: files_router.UploadFile = files_router.File(...),
+    description: files_router.Optional[str] = files_router.Form(None),
+    current_user: files_router.User = files_router.Depends(files_router.get_current_user),
+    db: files_router.Session = files_router.Depends(files_router.get_db),
+):
+    return await files_router.upload_file(
+        request=request,
+        file=file,
+        description=description,
+        current_user=current_user,
+        db=db,
+    )
+
+

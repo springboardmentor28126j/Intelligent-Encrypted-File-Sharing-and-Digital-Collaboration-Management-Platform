@@ -1,0 +1,486 @@
+{
+  "info": {
+    "name": "TrustShare – Enterprise Secure File Sharing API",
+    "_postman_id": "trustshare-api-v2-full",
+    "description": "Complete Postman collection for TrustShare Secure File Sharing Platform covering Authentication, AES-256 File Management, S3 Object Storage, Access Control & Sharing, Activity Monitoring, Notifications, Analytics, and Suspicious Activity Detection.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testFileId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "shareToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Security Auditor\",\n  \"email\": \"auditor@example.com\",\n  \"password\": \"SecPass@2026!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["register"]
+            }
+          }
+        },
+        {
+          "name": "Login & Capture JWT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.access_token) {",
+                  "    pm.collectionVariables.set('authToken', jsonData.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"auditor@example.com\",\n  \"password\": \"SecPass@2026!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["me"]
+            }
+          }
+        },
+        {
+          "name": "Logout Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. File Management & Encryption",
+      "item": [
+        {
+          "name": "Upload Encrypted File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('testFileId', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                },
+                {
+                  "key": "description",
+                  "value": "Confidential Security Architecture Document",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/files/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", "upload"]
+            }
+          }
+        },
+        {
+          "name": "List Encrypted Files",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files?category=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["files"],
+              "query": [
+                { "key": "category", "value": "all" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get File Metadata (Keys Omitted)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files/{{testFileId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", "{{testFileId}}"]
+            }
+          }
+        },
+        {
+          "name": "Decrypt & Download File",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files/{{testFileId}}/download",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", "{{testFileId}}", "download"]
+            }
+          }
+        },
+        {
+          "name": "Delete File",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files/{{testFileId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", "{{testFileId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Access Control & Sharing",
+      "item": [
+        {
+          "name": "Create Temporary Share Link",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.share_token) {",
+                  "    pm.collectionVariables.set('shareToken', jsonData.share_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"duration\": \"24h\",\n  \"permission\": \"can_download\",\n  \"max_downloads\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/files/{{testFileId}}/share",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", "{{testFileId}}", "share"]
+            }
+          }
+        },
+        {
+          "name": "Share Directly With User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipient_email\": \"bob@example.com\",\n  \"permission\": \"can_download\",\n  \"duration\": \"7d\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/files/{{testFileId}}/share-user",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", "{{testFileId}}", "share-user"]
+            }
+          }
+        },
+        {
+          "name": "List Files Shared With Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files/shared-with-me",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", "shared-with-me"]
+            }
+          }
+        },
+        {
+          "name": "Public Shared Link Info",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/share/{{shareToken}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["share", "{{shareToken}}"]
+            }
+          }
+        },
+        {
+          "name": "Public Shared Link Download",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/share/{{shareToken}}/download",
+              "host": ["{{baseUrl}}"],
+              "path": ["share", "{{shareToken}}", "download"]
+            }
+          }
+        },
+        {
+          "name": "Revoke Share Link",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files/{{testFileId}}/share/{{shareToken}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", "{{testFileId}}", "share", "{{shareToken}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Activity & Monitoring System",
+      "item": [
+        {
+          "name": "Get Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/audit/logs?limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "logs"],
+              "query": [
+                { "key": "limit", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Monitoring Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/audit/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Get File Audit History",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/audit/file/{{testFileId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "file", "{{testFileId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. In-App Notifications",
+      "item": [
+        {
+          "name": "List User Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"]
+            }
+          }
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/unread-count",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "unread-count"]
+            }
+          }
+        },
+        {
+          "name": "Mark All As Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/read-all",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "read-all"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Analytics Dashboard",
+      "item": [
+        {
+          "name": "Get Unified Analytics Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/analytics/dashboard?days=7",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics", "dashboard"],
+              "query": [
+                { "key": "days", "value": "7" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. System Diagnostics & Health",
+      "item": [
+        {
+          "name": "Unified Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "MongoDB Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health/mongodb",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "mongodb"]
+            }
+          }
+        },
+        {
+          "name": "Redis Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health/redis",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "redis"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

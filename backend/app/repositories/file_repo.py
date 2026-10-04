@@ -14,11 +14,19 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
-from app.database import SessionLocal
+import app.database as database
 from app.models import File as SQLFile, FileShare as SQLFileShare, User as SQLUser, SharePermission
 from app.mongodb import get_files_collection
 
+
 logger = logging.getLogger("trustshare.file_repo")
+
+
+def _get_db(db: Optional[Session] = None) -> Tuple[Session, bool]:
+    """Helper to dynamically acquire session if none provided."""
+    if db is not None:
+        return db, False
+    return database.SessionLocal(), True
 
 
 def clean_doc(doc: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -37,10 +45,8 @@ def create_file(file_doc: Dict[str, Any], db: Optional[Session] = None) -> Dict[
     """
     Persist a new file metadata record in PostgreSQL and MongoDB.
     """
-    own_session = False
-    if db is None:
-        db = SessionLocal()
-        own_session = True
+    db, own_session = _get_db(db)
+
 
     try:
         sql_file = SQLFile(
@@ -89,13 +95,11 @@ def get_file_by_id(file_id: str, db: Optional[Session] = None) -> Optional[Dict[
     """
     Find file metadata by unique file_id from PostgreSQL or MongoDB fallback.
     """
-    own_session = False
-    if db is None:
-        db = SessionLocal()
-        own_session = True
+    db, own_session = _get_db(db)
 
     try:
         query = db.query(SQLFile)
+
         if str(file_id).isdigit():
             sql_file = query.filter(SQLFile.id == int(file_id)).first()
         else:
@@ -162,10 +166,7 @@ def list_files(
     """
     List files with search and category filters.
     """
-    own_session = False
-    if db is None:
-        db = SessionLocal()
-        own_session = True
+    db, own_session = _get_db(db)
 
     try:
         query = db.query(SQLFile)
@@ -253,10 +254,7 @@ def list_files(
 
 def delete_file(file_id: str, db: Optional[Session] = None) -> bool:
     """Delete file metadata record from PostgreSQL and MongoDB."""
-    own_session = False
-    if db is None:
-        db = SessionLocal()
-        own_session = True
+    db, own_session = _get_db(db)
 
     try:
         query = db.query(SQLFile)
@@ -282,10 +280,7 @@ def delete_file(file_id: str, db: Optional[Session] = None) -> bool:
 
 def add_share_link(file_id: str, share_doc: Dict[str, Any], db: Optional[Session] = None) -> bool:
     """Add a share link / recipient record to PostgreSQL and MongoDB."""
-    own_session = False
-    if db is None:
-        db = SessionLocal()
-        own_session = True
+    db, own_session = _get_db(db)
 
     try:
         perm_val = share_doc.get("permission", "can_download")
@@ -342,10 +337,7 @@ def add_share_link(file_id: str, share_doc: Dict[str, Any], db: Optional[Session
 
 def revoke_share_link(file_id: str, share_token: str, db: Optional[Session] = None) -> bool:
     """Revoke a share link by token in PostgreSQL and MongoDB."""
-    own_session = False
-    if db is None:
-        db = SessionLocal()
-        own_session = True
+    db, own_session = _get_db(db)
 
     try:
         query = db.query(SQLFileShare).filter(
@@ -376,18 +368,19 @@ def revoke_share_link(file_id: str, share_token: str, db: Optional[Session] = No
     return True
 
 
+
 def find_share_by_token(share_token: str, db: Optional[Session] = None) -> Optional[Tuple[Dict[str, Any], Dict[str, Any]]]:
     """Look up file and share record by share token."""
     own_session = False
     if db is None:
-        db = SessionLocal()
+        db = database.SessionLocal()
         own_session = True
 
     try:
         share = db.query(SQLFileShare).filter(
             SQLFileShare.share_token == share_token,
-            SQLFileShare.is_revoked == False,
         ).first()
+
         if share and share.file:
             f = share.file
             file_doc = {
@@ -446,10 +439,7 @@ def find_share_by_token(share_token: str, db: Optional[Session] = None) -> Optio
 
 def list_shared_with_user(user_email: str, user_id: int, db: Optional[Session] = None) -> List[Dict[str, Any]]:
     """List all active files shared directly with a specific user."""
-    own_session = False
-    if db is None:
-        db = SessionLocal()
-        own_session = True
+    db, own_session = _get_db(db)
 
     results = []
     try:
@@ -495,10 +485,8 @@ def list_shared_with_user(user_email: str, user_id: int, db: Optional[Session] =
 
 def increment_download_count(file_id: str, share_token: Optional[str] = None, db: Optional[Session] = None):
     """Increment download counters in PostgreSQL and MongoDB."""
-    own_session = False
-    if db is None:
-        db = SessionLocal()
-        own_session = True
+    db, own_session = _get_db(db)
+
 
     try:
         query = db.query(SQLFile)

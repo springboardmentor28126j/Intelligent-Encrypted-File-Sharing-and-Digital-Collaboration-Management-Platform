@@ -88,10 +88,43 @@ class TokenData(BaseModel):
     email: Optional[str] = None
 
 
+class ForgotPasswordRequest(BaseModel):
+    """Payload for POST /forgot-password."""
+    email: EmailStr = Field(
+        ...,
+        examples=["alice@example.com"],
+        description="Registered email address to send password reset instructions",
+    )
+
+
+class ResetPasswordRequest(BaseModel):
+    """Payload for POST /reset-password."""
+    token: str = Field(
+        ...,
+        min_length=16,
+        description="One-time secure password reset token from email link",
+    )
+    new_password: str = Field(
+        ...,
+        min_length=6,
+        max_length=128,
+        examples=["NewSecurePassword123!"],
+        description="New plain-text password to replace previous credentials",
+    )
+
+
+class ForgotPasswordResponse(BaseModel):
+    """Response returned when password reset email is initiated."""
+    message: str
+    email_sent: bool = True
+    delivery_status: str = "sent"
+
+
 class MessageResponse(BaseModel):
     """Standard generic API response message."""
     message: str
     success: bool = True
+
 
 
 # ─── File Sharing Schemas ─────────────────────────────────────────────────────
@@ -151,6 +184,9 @@ class ShareLinkOut(BaseModel):
     created_at: datetime
     is_expired: bool = False
     is_revoked: bool = False
+    email_sent: Optional[bool] = None
+    email_status: Optional[str] = None
+
 
 
 class SharedWithMeOut(BaseModel):
@@ -270,3 +306,89 @@ class HealthStatusOut(BaseModel):
     postgres: Dict[str, Any]
     mongodb: MongoHealthOut
     redis: RedisHealthOut
+
+
+# ─── Audit & Activity Schemas ──────────────────────────────────────────────────
+
+class AuditLogOut(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    user_email: Optional[str] = None
+    action: str
+    file_id: Optional[int] = None
+    filename: Optional[str] = None
+    ip_address: Optional[str] = None
+    timestamp: datetime
+    details: Optional[str] = None
+    status: str = "success"
+    user_agent: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AuditStatsOut(BaseModel):
+    total_events: int
+    login_events: int
+    failed_logins: int
+    file_operations: int
+    security_alerts: int
+    unique_users: int
+    actions_breakdown: Dict[str, int]
+
+
+# ─── Notification Schemas ─────────────────────────────────────────────────────
+
+class NotificationOut(BaseModel):
+    id: int
+    user_id: int
+    message: str
+    type: str
+    is_read: bool
+    created_at: datetime
+    link_url: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UnreadCountOut(BaseModel):
+    unread_count: int
+
+
+# ─── Analytics Dashboard Schemas ──────────────────────────────────────────────
+
+class RecentActivityItem(BaseModel):
+    id: int
+    action: str
+    user_email: Optional[str] = None
+    filename: Optional[str] = None
+    ip_address: Optional[str] = None
+    timestamp: datetime
+    status: str = "success"
+
+
+class TrendPoint(BaseModel):
+    date: str
+    uploads: int = 0
+    downloads: int = 0
+    shares: int = 0
+
+
+class StorageCategoryItem(BaseModel):
+    category: str
+    count: int
+    bytes: int
+    percentage: float
+
+
+class AnalyticsDashboardOut(BaseModel):
+    total_files: int
+    total_storage_bytes: int
+    total_storage_mb: float
+    total_downloads: int
+    total_shares: int
+    active_links: int
+    security_incidents: int
+    recent_activity: List[RecentActivityItem] = []
+    upload_trends: List[TrendPoint] = []
+    category_distribution: List[StorageCategoryItem] = []
+

@@ -96,14 +96,29 @@ export default function LoginPage() {
 
           {/* Password */}
           <div className="form-group">
-            <label htmlFor="login-password" className="form-label">
-              Password
-            </label>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label htmlFor="login-password" className="form-label" style={{ marginBottom: 0 }}>
+                Password
+              </label>
+              <Link
+                href="/forgot-password"
+                id="forgot-password-link"
+                style={{
+                  fontSize: "var(--font-size-xs)",
+                  color: "var(--color-primary-light, #818cf8)",
+                  textDecoration: "none",
+                  fontWeight: 500,
+                }}
+              >
+                Forgot Password?
+              </Link>
+            </div>
             <input
               id="login-password"
               name="password"
               type="password"
               className="form-input"
+              style={{ marginTop: "0.5rem" }}
               placeholder="Your password"
               value={formData.password}
               onChange={handleChange}
@@ -112,6 +127,7 @@ export default function LoginPage() {
               disabled={loading}
             />
           </div>
+
 
           {/* Sign In button */}
           <button

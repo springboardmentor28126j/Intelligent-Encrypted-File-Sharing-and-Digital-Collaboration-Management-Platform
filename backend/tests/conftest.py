@@ -22,6 +22,7 @@ from app.database import Base, get_db
 from app.main import app
 from app.mongodb import clear_mongo_fallback
 from app.redis_client import clear_redis_fallback
+from app.services.security_service import clear_security_trackers
 
 # ─── Test Database ────────────────────────────────────────────────────────────
 # SQLite in-memory is used for speed and no external dependencies.
@@ -36,6 +37,9 @@ engine = create_engine(
 app_database.engine = engine
 app_main.engine = engine
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+app_database.SessionLocal = TestingSessionLocal
+
+
 
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -44,16 +48,19 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 def setup_database():
     """
     Create all tables before each test and drop them after.
-    Clears in-memory MongoDB documents and Redis cache between tests.
+    Clears in-memory MongoDB documents, Redis cache, and security trackers between tests.
     `autouse=True` means this runs automatically for every test in the suite.
     """
     clear_mongo_fallback()
     clear_redis_fallback()
+    clear_security_trackers()
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
     clear_mongo_fallback()
     clear_redis_fallback()
+    clear_security_trackers()
+
 
 
 @pytest.fixture
@@ -83,3 +90,29 @@ def client():
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def test_user(db_session):
+    """Create and return a standard registered user for tests."""
+    from app.auth import hash_password
+    from app.models import User
+    user = User(
+        name="Test User",
+        email="test_user_fixture@example.com",
+        password_hash=hash_password("Password123!"),
+        role="user",
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def auth_headers(test_user):
+    """Return JWT Bearer Authorization header for test_user."""
+    from app.auth import create_access_token
+    token = create_access_token(data={"sub": test_user.email})
+    return {"Authorization": f"Bearer {token}"}
+

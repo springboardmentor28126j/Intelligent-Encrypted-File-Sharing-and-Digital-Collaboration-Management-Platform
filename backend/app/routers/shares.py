@@ -1,5 +1,5 @@
 """
-routers/shares.py – Public share recipient endpoints with AES-256 decryption.
+routers/shares.py – Public share recipient endpoints with AES-256 decryption & access auditing.
 
 Routes:
   GET /share/{token}          – View shared file information & check validity
@@ -8,12 +8,22 @@ Routes:
 
 from datetime import datetime, timezone
 import io
-from fastapi import APIRouter, HTTPException, status
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
 
+from app.database import get_db
+from app.models import File, FileShare, User
 from app.repositories import file_repo
 from app.schemas import FileCategory, PublicShareOut, SharePermission
+from app.services.audit_service import get_client_ip, get_user_agent, log_audit_event
 from app.services.file_service import decrypt_and_retrieve_file
+from app.services.notification_service import notify_file_downloaded
+from app.services.security_service import (
+    check_and_record_download,
+    record_unauthorized_share_access,
+)
 
 router = APIRouter(prefix="/share", tags=["Public File Sharing"])
 
@@ -48,17 +58,40 @@ def is_download_limit_reached(share_doc: dict) -> bool:
     summary="Get public information for a shared file",
     description="Validates share token, checks expiration and permissions without revealing owner private data.",
 )
-def get_public_share(token: str) -> PublicShareOut:
-    result = file_repo.find_share_by_token(token)
+def get_public_share(
+    token: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> PublicShareOut:
+    ip_addr = get_client_ip(request)
+    ua = get_user_agent(request)
+    result = file_repo.find_share_by_token(token, db=db)
+    
     if not result:
+        record_unauthorized_share_access(
+            db=db,
+            token=token,
+            ip_address=ip_addr,
+            user_agent=ua,
+            reason="Token not found",
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Shared link was not found or has expired.",
         )
 
     file_doc, share_doc = result
+    sql_share = db.query(FileShare).filter(FileShare.share_token == token).first()
 
     if share_doc.get("is_revoked", False):
+        record_unauthorized_share_access(
+            db=db,
+            token=token,
+            ip_address=ip_addr,
+            user_agent=ua,
+            reason="Link revoked",
+            share=sql_share,
+        )
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="This shared link has been revoked by the owner.",
@@ -69,6 +102,14 @@ def get_public_share(token: str) -> PublicShareOut:
 
     if expired or limit_reached:
         reason = "link has expired" if expired else "download limit has been reached"
+        record_unauthorized_share_access(
+            db=db,
+            token=token,
+            ip_address=ip_addr,
+            user_agent=ua,
+            reason=reason,
+            share=sql_share,
+        )
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail=f"This shared link is no longer accessible because the {reason}.",
@@ -109,18 +150,42 @@ def get_public_share(token: str) -> PublicShareOut:
     summary="Download a shared file via public link with server-side decryption",
     description="Streams the file if valid, not expired, and permissions allow downloads.",
 )
-def download_shared_file(token: str):
-    result = file_repo.find_share_by_token(token)
+def download_shared_file(
+    token: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    ip_addr = get_client_ip(request)
+    ua = get_user_agent(request)
+    result = file_repo.find_share_by_token(token, db=db)
+
+    
     if not result:
+        record_unauthorized_share_access(
+            db=db,
+            token=token,
+            ip_address=ip_addr,
+            user_agent=ua,
+            reason="Download attempted on invalid token",
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Shared link was not found or has expired.",
         )
 
     file_doc, share_doc = result
+    sql_share = db.query(FileShare).filter(FileShare.share_token == token).first()
 
     # 1. Revocation check
     if share_doc.get("is_revoked", False):
+        record_unauthorized_share_access(
+            db=db,
+            token=token,
+            ip_address=ip_addr,
+            user_agent=ua,
+            reason="Download attempted on revoked token",
+            share=sql_share,
+        )
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="This shared link has been revoked.",
@@ -128,6 +193,14 @@ def download_shared_file(token: str):
 
     # 2. Expiration check
     if is_share_expired(share_doc):
+        record_unauthorized_share_access(
+            db=db,
+            token=token,
+            ip_address=ip_addr,
+            user_agent=ua,
+            reason="Download attempted on expired token",
+            share=sql_share,
+        )
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="This shared link has expired.",
@@ -135,6 +208,14 @@ def download_shared_file(token: str):
 
     # 3. Limit check
     if is_download_limit_reached(share_doc):
+        record_unauthorized_share_access(
+            db=db,
+            token=token,
+            ip_address=ip_addr,
+            user_agent=ua,
+            reason="Download limit reached",
+            share=sql_share,
+        )
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="The download limit for this link has been exceeded.",
@@ -152,7 +233,7 @@ def download_shared_file(token: str):
     encrypted_dek = file_doc.get("encrypted_dek")
     nonce_hex = file_doc.get("nonce")
 
-    # Legacy unencrypted file fallback
+    # Legacy fallback
     if not encrypted_dek or not nonce_hex:
         from app.services.file_service import get_file_storage_path
         from fastapi.responses import FileResponse
@@ -162,7 +243,7 @@ def download_shared_file(token: str):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="File content not found in storage.",
             )
-        file_repo.increment_download_count(file_doc["id"], share_token=token)
+        file_repo.increment_download_count(file_doc["id"], share_token=token, db=db)
         return FileResponse(
             path=str(file_path),
             filename=file_doc["original_name"],
@@ -181,7 +262,39 @@ def download_shared_file(token: str):
     )
 
     # 5. Increment counter
-    file_repo.increment_download_count(file_doc["id"], share_token=token)
+    file_repo.increment_download_count(file_doc["id"], share_token=token, db=db)
+
+    # 6. Audit log download
+    numeric_fid = int(file_doc["id"]) if str(file_doc["id"]).isdigit() else None
+    owner_id = file_doc.get("owner_id")
+    log_audit_event(
+        db=db,
+        user_id=owner_id,
+        action="public_download",
+        file_id=numeric_fid,
+        ip_address=ip_addr,
+        user_agent=ua,
+        details=f"Shared file '{file_doc['original_name']}' downloaded via token {token[:8]}...",
+        status="success",
+    )
+
+    # 7. Notify file owner
+    if owner_id:
+        notify_file_downloaded(
+            db=db,
+            owner_id=owner_id,
+            filename=file_doc["original_name"],
+            downloader_info=f"Anonymous user (IP {ip_addr})",
+        )
+
+    # 8. Check download velocity
+    check_and_record_download(
+        db=db,
+        user_id=owner_id,
+        file_id=numeric_fid or 0,
+        ip_address=ip_addr,
+        user_agent=ua,
+    )
 
     return StreamingResponse(
         io.BytesIO(decrypted_bytes),

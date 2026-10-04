@@ -7,20 +7,27 @@ and ensures it is closed after the request completes (even on errors).
 """
 
 from sqlalchemy import create_engine
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from app.config import settings
 
 # ─── Engine ───────────────────────────────────────────────────────────────────
-# For SQLite, check_same_thread=False is needed so FastAPI worker threads can share connections.
 is_sqlite = settings.DATABASE_URL.startswith("sqlite")
-connect_args = {"check_same_thread": False} if is_sqlite else {"sslmode": "require"}
+connect_args = {"check_same_thread": False} if is_sqlite else {"sslmode": "require", "connect_timeout": 10}
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args=connect_args,
-    pool_pre_ping=not is_sqlite,
-    echo=False,  # Set to True to log all SQL statements during development
-)
+if is_sqlite:
+    engine = create_engine(
+        settings.DATABASE_URL,
+        connect_args=connect_args,
+        echo=False,
+    )
+else:
+    engine = create_engine(
+        settings.DATABASE_URL,
+        connect_args=connect_args,
+        poolclass=NullPool,
+        echo=False,
+    )
 
 # ─── Session Factory ──────────────────────────────────────────────────────────
 SessionLocal = sessionmaker(

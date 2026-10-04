@@ -119,7 +119,18 @@ def validate_file(file: UploadFile) -> Tuple[str, str, FileCategory]:
             ),
         )
 
-    # 2. Check against allowed extensions
+    # 2. Check for dangerous double extensions (e.g., sample.pdf.exe or file.exe.jpg)
+    name_parts = sanitized_name.lower().split(".")
+    if len(name_parts) > 2:
+        for part in name_parts[1:]:
+            ext_candidate = f".{part}"
+            if ext_candidate in DANGEROUS_EXTENSIONS:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Security rejection: Double extension detected with prohibited extension '{ext_candidate}'.",
+                )
+
+    # 3. Check against allowed extensions
     if extension not in ALLOWED_EXTENSIONS:
         allowed_list_str = ", ".join(sorted(list(ALLOWED_EXTENSIONS)))
         raise HTTPException(
@@ -132,6 +143,7 @@ def validate_file(file: UploadFile) -> Tuple[str, str, FileCategory]:
 
     category = get_file_category(extension)
     return sanitized_name, extension, category
+
 
 
 def ensure_upload_dir() -> Path:

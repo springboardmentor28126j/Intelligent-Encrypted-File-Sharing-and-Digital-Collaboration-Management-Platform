@@ -103,8 +103,8 @@ def get_redis_client() -> redis.Redis:
             _redis_pool = redis.ConnectionPool.from_url(
                 settings.REDIS_URL,
                 max_connections=30,
-                socket_timeout=1.0,
-                socket_connect_timeout=1.0,
+                socket_timeout=0.2,
+                socket_connect_timeout=0.2,
                 decode_responses=True,
             )
             _redis_client = redis.Redis(connection_pool=_redis_pool)

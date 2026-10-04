@@ -93,9 +93,13 @@ class User(Base):
     folders = relationship("Folder", back_populates="owner", cascade="all, delete-orphan")
     created_shares = relationship("FileShare", foreign_keys="FileShare.owner_id", back_populates="owner")
     received_shares = relationship("FileShare", foreign_keys="FileShare.shared_with_id", back_populates="recipient")
+    audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r} role={self.role}>"
+
 
 
 class Folder(Base):
@@ -148,7 +152,7 @@ class File(Base):
     encryption_nonce = Column(String(64), nullable=False)  # Hex or base64 encoded 12-byte IV
 
     # Milestone 2 Extended Metadata
-    storage_backend = Column(String(32), default="local", nullable=False)
+    storage_backend = Column(String(32), default="supabase", nullable=False)
     extension = Column(String(20), default="", nullable=False)
     sha256_hash = Column(String(64), default="", nullable=False)
     encryption_algorithm = Column(String(50), default="AES-256-GCM", nullable=False)
@@ -179,6 +183,7 @@ class File(Base):
     owner = relationship("User", back_populates="files")
     folder = relationship("Folder", back_populates="files")
     shares = relationship("FileShare", back_populates="file", cascade="all, delete-orphan")
+    audit_logs = relationship("AuditLog", back_populates="file", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<File id={self.id} name={self.filename!r} owner_id={self.owner_id}>"
@@ -216,8 +221,11 @@ class FileShare(Base):
         nullable=False,
     )
 
-    # Synonyms
+    # Synonyms for team & cross-module interoperability
     recipient_id = synonym("shared_with_id")
+    shared_with_user_id = synonym("shared_with_id")
+    token_hash = synonym("share_token")
+    revoked = synonym("is_revoked")
 
     # Relationships
     file = relationship("File", back_populates="shares")
@@ -226,6 +234,7 @@ class FileShare(Base):
 
     def __repr__(self) -> str:
         return f"<FileShare id={self.id} file_id={self.file_id} token={self.share_token}>"
+
 
 
 class ShareLink(Base):
@@ -264,3 +273,84 @@ class Share(Base):
     download_count = Column(Integer, default=0, nullable=False)
     revoked = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class AuditLog(Base):
+    """
+    audit_logs table – tracks all system, security, authentication, and file lifecycle events.
+    """
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    action = Column(String(100), nullable=False, index=True)
+    file_id = Column(Integer, ForeignKey("files.id", ondelete="SET NULL"), nullable=True, index=True)
+    ip_address = Column(String(45), nullable=True, index=True)
+    timestamp = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+    details = Column(Text, nullable=True)
+    status = Column(String(50), default="success", nullable=False)
+    user_agent = Column(String(255), nullable=True)
+
+    # Relationships
+    user = relationship("User", back_populates="audit_logs")
+    file = relationship("File", back_populates="audit_logs")
+
+    def __repr__(self) -> str:
+        return f"<AuditLog id={self.id} action={self.action!r} user_id={self.user_id} ip={self.ip_address}>"
+
+
+class Notification(Base):
+    """
+    notifications table – in-app real-time alerts and security event dispatches.
+    """
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    type = Column(String(50), default="system", nullable=False, index=True)
+    is_read = Column(Boolean, default=False, nullable=False, index=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+    link_url = Column(String(255), nullable=True)
+
+    # Relationships
+    user = relationship("User", back_populates="notifications")
+
+    def __repr__(self) -> str:
+        return f"<Notification id={self.id} user_id={self.user_id} type={self.type!r} read={self.is_read}>"
+
+
+class PasswordResetToken(Base):
+    """
+    password_reset_tokens table – stores cryptographically hashed one-time tokens
+    for user password recovery workflows.
+    """
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String(128), unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used = Column(Boolean, default=False, nullable=False, server_default="false")
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="reset_tokens")
+
+    def __repr__(self) -> str:
+        return f"<PasswordResetToken id={self.id} user_id={self.user_id} used={self.used}>"
+

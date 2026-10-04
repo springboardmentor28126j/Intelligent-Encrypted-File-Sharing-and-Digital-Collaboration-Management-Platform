@@ -87,7 +87,7 @@ export default function HomePage() {
           }}
         >
           <span>✨</span>
-          <span>Milestone 1 – Authentication Foundation</span>
+          <span>Enterprise Secure File Sharing Platform</span>
         </div>
 
         <h1 className="heading-1" style={{ marginBottom: "1.5rem" }}>

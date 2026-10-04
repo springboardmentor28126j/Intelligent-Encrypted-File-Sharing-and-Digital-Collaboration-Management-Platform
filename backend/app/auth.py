@@ -9,13 +9,13 @@ Provides:
   - `require_admin` RBAC dependency
 """
 
+import bcrypt
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -25,17 +25,22 @@ from app.schemas import TokenData
 from app.services.redis_service import is_token_blacklisted, blacklist_token
 
 # ─── Password Hashing ─────────────────────────────────────────────────────────
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def hash_password(plain_password: str) -> str:
-    """Hash a plain-text password using bcrypt."""
-    return pwd_context.hash(plain_password)
+    """Hash a plain-text password using native bcrypt."""
+    pw_bytes = plain_password.encode("utf-8")
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(pw_bytes, salt).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain-text password against a stored bcrypt hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        pw_bytes = plain_password.encode("utf-8")
+        hash_bytes = hashed_password.encode("utf-8")
+        return bcrypt.checkpw(pw_bytes, hash_bytes)
+    except Exception:
+        return False
 
 
 # ─── JWT Token Creation ───────────────────────────────────────────────────────
