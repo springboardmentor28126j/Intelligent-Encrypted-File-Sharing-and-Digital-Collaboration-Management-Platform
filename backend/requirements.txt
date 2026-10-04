@@ -11,6 +11,7 @@ passlib==1.7.4
 bcrypt==4.0.1
 python-multipart==0.0.9
 pymongo==4.9.1
+dnspython==2.6.1
 redis==5.0.8
 cryptography==43.0.1
 boto3==1.35.36

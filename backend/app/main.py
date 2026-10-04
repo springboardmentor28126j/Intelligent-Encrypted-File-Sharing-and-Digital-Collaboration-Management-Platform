@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.config import settings
 from app.core.database import Base, engine
 from app.models import models  # noqa: F401  (ensures models are registered before create_all)
 from app.routes import auth, files, activity, share, admin, notifications, analytics, folders
@@ -11,7 +12,7 @@ app = FastAPI(title="TrustShare API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

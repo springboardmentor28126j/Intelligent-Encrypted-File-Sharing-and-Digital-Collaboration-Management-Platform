@@ -30,6 +30,11 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
+    # Local dev only: hot-reload on file changes (the Dockerfile's own
+    # CMD omits --reload, since that's what Render/Railway run in
+    # production — reload has no place there and was the cause of the
+    # WatchfilesRustInternalError crash seen in earlier logs).
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
       - ./backend/.env
     ports:

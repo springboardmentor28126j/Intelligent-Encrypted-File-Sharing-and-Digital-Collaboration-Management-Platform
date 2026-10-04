@@ -33,6 +33,16 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: str = ""
     S3_ENDPOINT_URL: str = ""  # leave blank for real AWS S3
 
+    # Comma-separated list of allowed CORS origins, e.g.
+    # "http://localhost:3000,https://trustshare.vercel.app"
+    # Defaults to local dev only; set this in production so the
+    # deployed frontend is actually allowed to call the API.
+    CORS_ORIGINS: str = "http://localhost:3000"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
     class Config:
         env_file = ".env"
 

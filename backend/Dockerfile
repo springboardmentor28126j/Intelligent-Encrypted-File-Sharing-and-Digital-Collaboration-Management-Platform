@@ -9,4 +9,10 @@ COPY . .
 
 RUN mkdir -p /app/uploads
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# No --reload here: that's a dev-only feature (file-watching for hot
+# reload) and was the cause of the WatchfilesRustInternalError crash
+# seen in local Docker logs. It also has no place in production.
+# $PORT is injected by Render/Railway at runtime; default to 8000 so
+# this still works unchanged for local `docker build && docker run`.
+ENV PORT=8000
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
