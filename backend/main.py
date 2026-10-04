@@ -669,7 +669,6 @@ def download_file(
 
     s3_key = f"encrypted/{filename}"
 
-
     try:
 
         # -------------------------
@@ -684,7 +683,6 @@ def download_file(
         encrypted_file = response[
             "Body"
         ].read()
-
 
         # -------------------------
         # Get Protected AES Key
@@ -705,7 +703,6 @@ def download_file(
 
         cur.close()
 
-
         if not result:
 
             log_activity(
@@ -715,11 +712,11 @@ def download_file(
                 status="FAILED",
                 details="Encryption key not found"
             )
+
             return {
                 "message":
                     "Encryption key not found"
             }
-
 
         # -------------------------
         # Recover AES-256 Key
@@ -729,20 +726,17 @@ def download_file(
             result[0]
         )
 
-
         # -------------------------
         # Extract File Nonce
         # -------------------------
 
         file_nonce = encrypted_file[:12]
 
-
         # -------------------------
         # Extract Ciphertext
         # -------------------------
 
         encrypted_data = encrypted_file[12:]
-
 
         # -------------------------
         # Decrypt
@@ -756,9 +750,8 @@ def download_file(
             None
         )
 
-
         # -------------------------
-        # Return Original File
+        # Content Type
         # -------------------------
 
         content_type = (
@@ -780,6 +773,9 @@ def download_file(
         elif filename.lower().endswith(".png"):
             content_type = "image/png"
 
+        # -------------------------
+        # Audit Log
+        # -------------------------
 
         log_activity(
             email,
@@ -789,6 +785,90 @@ def download_file(
             details="Encrypted file decrypted and downloaded"
         )
 
+        # =====================================================
+        # DOWNLOAD NOTIFICATION
+        # =====================================================
+
+        try:
+
+            cur = conn.cursor()
+
+            # Find the owner of the shared file.
+            # We look at the most recent matching share record.
+            cur.execute(
+                """
+                SELECT owner_email
+                FROM shared_files
+                WHERE filename=%s
+                AND allowed_email=%s
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (
+                    filename,
+                    email
+                )
+            )
+
+            share_result = cur.fetchone()
+
+            cur.close()
+
+            if share_result:
+
+                owner_email = share_result[0]
+
+                # Do not send a notification when the owner
+                # downloads their own file.
+                if (
+                    owner_email
+                    and owner_email.lower()
+                    != email.lower()
+                ):
+
+                    notification_message = (
+                        f"Your file '{filename}' "
+                        f"was downloaded by {email}."
+                    )
+
+                    # In-app notification
+                    create_notification(
+                        owner_email,
+                        "FILE_DOWNLOADED",
+                        notification_message
+                    )
+
+                    # Email notification
+                    send_notification_email(
+                        owner_email,
+                        "TrustShare - File Downloaded",
+                        (
+                            f"Hello,\n\n"
+                            f"Your file '{filename}' "
+                            f"was downloaded by {email}.\n\n"
+                            f"TrustShare Security Notification\n"
+                            f"TrustShare Team"
+                        )
+                    )
+
+        except Exception as notification_error:
+
+            print(
+                "Download notification error:",
+                notification_error
+            )
+
+            # Notification failure must not stop the actual
+            # file download.
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
+        # -------------------------
+        # Return Original File
+        # -------------------------
+
         return Response(
             content=original_file,
             media_type=content_type,
@@ -797,7 +877,6 @@ def download_file(
                     f'attachment; filename="{filename}"'
             }
         )
-
 
     except ClientError as e:
 
@@ -1643,6 +1722,57 @@ TrustShare Team
             receiver_email,
             message.as_string()
         )
+
+
+# =========================================================
+# SEND NORMAL NOTIFICATION EMAIL
+# =========================================================
+
+
+def send_notification_email(
+    receiver_email: str,
+    subject: str,
+    message: str
+):
+    """
+    Sends a normal TrustShare notification email through Gmail SMTP.
+    """
+
+    try:
+
+        smtp_email = os.getenv("SMTP_EMAIL")
+        smtp_password = os.getenv("SMTP_PASSWORD")
+        smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+        smtp_port = int(os.getenv("SMTP_PORT", "587"))
+
+        if not smtp_email or not smtp_password:
+            raise RuntimeError(
+                "SMTP_EMAIL or SMTP_PASSWORD is missing in .env"
+            )
+
+        message_body = MIMEText(message)
+        message_body["Subject"] = subject
+        message_body["From"] = smtp_email
+        message_body["To"] = receiver_email
+
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(
+                smtp_email,
+                smtp_password.replace(" ", "")
+            )
+            server.sendmail(
+                smtp_email,
+                receiver_email,
+                message_body.as_string()
+            )
+
+        return True
+
+    except Exception as e:
+
+        print("Notification email error:", e)
+        return False
 
 
 # =========================================================
