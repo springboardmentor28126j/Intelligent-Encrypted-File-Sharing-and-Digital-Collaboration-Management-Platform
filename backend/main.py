@@ -4,6 +4,11 @@ import hashlib
 import bcrypt
 import psycopg2
 import boto3
+import smtplib
+import secrets
+
+from datetime import datetime, timedelta
+from email.mime.text import MIMEText
 
 from dotenv import load_dotenv
 from botocore.exceptions import ClientError
@@ -14,7 +19,6 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
 
 # =========================
 # Load Environment Variables
@@ -1585,4 +1589,309 @@ def suspicious_activity():
         "report": "Suspicious Activity Detection",
         "suspicious_events": len(alerts),
         "alerts": alerts
+    }
+# =========================================================
+# FORGOT PASSWORD / OTP SYSTEM
+# =========================================================
+
+
+def send_otp_email(receiver_email: str, otp: str):
+    """
+    Sends password reset OTP through Gmail SMTP.
+    """
+
+    smtp_email = os.getenv("SMTP_EMAIL")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+
+    if not smtp_email or not smtp_password:
+        raise RuntimeError(
+            "SMTP_EMAIL or SMTP_PASSWORD is missing in .env"
+        )
+
+    subject = "TrustShare Password Reset OTP"
+
+    body = f"""
+Hello,
+
+Your TrustShare password reset OTP is:
+
+{otp}
+
+This OTP is valid for 10 minutes.
+
+If you did not request a password reset, please ignore this email.
+
+Regards,
+TrustShare Team
+"""
+
+    message = MIMEText(body)
+    message["Subject"] = subject
+    message["From"] = smtp_email
+    message["To"] = receiver_email
+
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()
+        server.login(
+            smtp_email,
+            smtp_password.replace(" ", "")
+        )
+        server.sendmail(
+            smtp_email,
+            receiver_email,
+            message.as_string()
+        )
+
+
+# =========================================================
+# Forgot Password - Send OTP
+# =========================================================
+
+@app.post("/forgot-password")
+def forgot_password(email: str):
+
+    email = email.strip().lower()
+
+    cur = conn.cursor()
+
+    # Check whether user exists
+    cur.execute(
+        """
+        SELECT email
+        FROM users
+        WHERE LOWER(email)=%s
+        """,
+        (email,)
+    )
+
+    user = cur.fetchone()
+
+    if not user:
+        cur.close()
+
+        return {
+            "message": "Email address is not registered"
+        }
+
+    # Generate secure 6-digit OTP
+    otp = str(
+        secrets.randbelow(900000) + 100000
+    )
+
+    expires_at = datetime.now() + timedelta(
+        minutes=10
+    )
+
+    # Remove old OTPs for this email
+    cur.execute(
+        """
+        DELETE FROM password_reset_otps
+        WHERE email=%s
+        """,
+        (email,)
+    )
+
+    # Store new OTP
+    cur.execute(
+        """
+        INSERT INTO password_reset_otps
+        (email, otp, expires_at, is_verified)
+        VALUES (%s, %s, %s, FALSE)
+        """,
+        (
+            email,
+            otp,
+            expires_at
+        )
+    )
+
+    conn.commit()
+    cur.close()
+
+    try:
+        # Send OTP email
+        send_otp_email(
+            email,
+            otp
+        )
+
+    except Exception as e:
+
+        # Remove OTP if email sending fails
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            DELETE FROM password_reset_otps
+            WHERE email=%s
+            AND otp=%s
+            """,
+            (
+                email,
+                otp
+            )
+        )
+
+        conn.commit()
+        cur.close()
+
+        print("SMTP Error:", e)
+
+        return {
+            "message": "Failed to send OTP email"
+        }
+
+    return {
+        "message": "OTP sent successfully"
+    }
+
+
+# =========================================================
+# Verify OTP
+# =========================================================
+
+@app.post("/verify-otp")
+def verify_otp(
+    email: str,
+    otp: str
+):
+
+    email = email.strip().lower()
+    otp = otp.strip()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT id
+        FROM password_reset_otps
+        WHERE email=%s
+        AND otp=%s
+        AND is_verified=FALSE
+        AND expires_at > CURRENT_TIMESTAMP
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (
+            email,
+            otp
+        )
+    )
+
+    record = cur.fetchone()
+
+    if not record:
+        cur.close()
+
+        return {
+            "message": "Invalid or expired OTP"
+        }
+
+    # Mark OTP as verified
+    cur.execute(
+        """
+        UPDATE password_reset_otps
+        SET is_verified=TRUE
+        WHERE id=%s
+        """,
+        (record[0],)
+    )
+
+    conn.commit()
+    cur.close()
+
+    return {
+        "message": "OTP verified successfully"
+    }
+
+
+# =========================================================
+# Reset Password
+# =========================================================
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+
+
+@app.post("/reset-password")
+def reset_password(
+    request: ResetPasswordRequest
+):
+
+    email = request.email.strip().lower()
+    otp = request.otp.strip()
+    new_password = request.new_password
+
+    # Basic password validation
+    if len(new_password) < 6:
+        return {
+            "message": "Password must contain at least 6 characters"
+        }
+
+    cur = conn.cursor()
+
+    # Check verified and non-expired OTP
+    cur.execute(
+        """
+        SELECT id
+        FROM password_reset_otps
+        WHERE email=%s
+        AND otp=%s
+        AND is_verified=TRUE
+        AND expires_at > CURRENT_TIMESTAMP
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (
+            email,
+            otp
+        )
+    )
+
+    otp_record = cur.fetchone()
+
+    if not otp_record:
+        cur.close()
+
+        return {
+            "message": "OTP verification required or OTP expired"
+        }
+
+    # Hash new password using bcrypt
+    hashed_password = bcrypt.hashpw(
+        new_password.encode("utf-8"),
+        bcrypt.gensalt()
+    ).decode("utf-8")
+
+    # Update user's password
+    cur.execute(
+        """
+        UPDATE users
+        SET password=%s
+        WHERE LOWER(email)=%s
+        """,
+        (
+            hashed_password,
+            email
+        )
+    )
+
+    # Delete used OTP
+    cur.execute(
+        """
+        DELETE FROM password_reset_otps
+        WHERE id=%s
+        """,
+        (otp_record[0],)
+    )
+
+    conn.commit()
+    cur.close()
+
+    return {
+        "message": "Password reset successfully"
     }

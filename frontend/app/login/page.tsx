@@ -79,6 +79,7 @@ export default function Login() {
       }
     } catch (error) {
       console.error("Login error:", error);
+
       alert(
         "Backend is not connected. Please start FastAPI."
       );
@@ -89,6 +90,7 @@ export default function Login() {
     <main className="min-h-screen flex items-center justify-center bg-gray-100 p-6">
       <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
 
+        {/* Project Title */}
         <h1 className="text-3xl font-bold text-blue-600 text-center">
           TrustShare
         </h1>
@@ -97,10 +99,12 @@ export default function Login() {
           Secure File-Sharing Platform
         </p>
 
+        {/* Login Heading */}
         <h2 className="text-2xl font-semibold mt-8 mb-5">
           Login
         </h2>
 
+        {/* Email */}
         <input
           type="email"
           placeholder="Enter email"
@@ -109,14 +113,26 @@ export default function Login() {
           className="w-full border rounded-lg px-4 py-3 mb-4"
         />
 
+        {/* Password */}
         <input
           type="password"
           placeholder="Enter password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full border rounded-lg px-4 py-3 mb-5"
+          className="w-full border rounded-lg px-4 py-3 mb-2"
         />
 
+        {/* Forgot Password */}
+        <div className="text-right mb-5">
+          <a
+            href="/forgot-password"
+            className="text-blue-600 text-sm font-semibold hover:underline"
+          >
+            Forgot Password?
+          </a>
+        </div>
+
+        {/* Login Button */}
         <button
           onClick={handleLogin}
           className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700"
@@ -124,6 +140,7 @@ export default function Login() {
           Login
         </button>
 
+        {/* Register */}
         <p className="text-center text-gray-600 mt-5">
           Don't have an account?{" "}
           <a
