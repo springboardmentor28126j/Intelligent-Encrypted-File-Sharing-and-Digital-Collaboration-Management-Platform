@@ -15,7 +15,7 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('files');
-  const [authView, setAuthView] = useState('login'); // login | signup | forgot | reset
+  const [authView, setAuthView] = useState('login');
   const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [generatedToken, setGeneratedToken] = useState('');
@@ -28,13 +28,15 @@ function App() {
   const [activityLogs, setActivityLogs] = useState([]);
   const [analytics, setAnalytics] = useState(null);
 
-  // ---- MFA (Two-Factor Authentication) state ----
-  const [mfaRequired, setMfaRequired] = useState(false); // true when login needs an OTP step
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaLoginEmail, setMfaLoginEmail] = useState('');
   const [mfaLoginCode, setMfaLoginCode] = useState('');
   const [mfaEnabled, setMfaEnabled] = useState(localStorage.getItem('mfa_enabled') === 'true');
-  const [showMfaSetup, setShowMfaSetup] = useState(false); // settings: code-entry step while enabling
+  const [showMfaSetup, setShowMfaSetup] = useState(false);
   const [mfaSetupCode, setMfaSetupCode] = useState('');
+  const [passwordStrength, setPasswordStrength] = useState({ score: 0, label: '', color: '' });
+
+  const [shareLinks, setShareLinks] = useState([]);
 
   useEffect(() => {
     if (loggedIn) {
@@ -53,6 +55,13 @@ function App() {
   useEffect(() => {
     if (loggedIn && activeTab === 'analytics') {
       fetchAnalytics();
+    }
+    // eslint-disable-next-line
+  }, [loggedIn, activeTab]);
+
+  useEffect(() => {
+    if (loggedIn && activeTab === 'settings') {
+      fetchShareLinks();
     }
     // eslint-disable-next-line
   }, [loggedIn, activeTab]);
@@ -96,6 +105,49 @@ function App() {
     }
   };
 
+  const fetchShareLinks = async () => {
+    try {
+      const userEmail = localStorage.getItem('email');
+      const userRole = localStorage.getItem('role');
+      const res = await axios.get(
+        `http://127.0.0.1:8000/share-links?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
+      );
+      setShareLinks(res.data);
+    } catch (error) {
+      console.log('Error fetching share links');
+    }
+  };
+
+  const handleRevokeShareLink = async (token) => {
+    if (!window.confirm('Revoke this share link? It will stop working immediately.')) return;
+    try {
+      const userEmail = localStorage.getItem('email');
+      const userRole = localStorage.getItem('role');
+      await axios.delete(
+        `http://127.0.0.1:8000/share-links/${token}?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
+      );
+      setMessage('Share link revoked');
+      setIsError(false);
+      fetchShareLinks();
+    } catch (error) {
+      setIsError(true);
+      setMessage('Failed to revoke link');
+    }
+  };
+
+  const checkPasswordStrength = (pwd) => {
+    let score = 0;
+    if (pwd.length >= 8) score++;
+    if (pwd.length >= 12) score++;
+    if (/[A-Z]/.test(pwd)) score++;
+    if (/[0-9]/.test(pwd)) score++;
+    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+
+    if (score <= 1) return { score, label: 'Weak', color: '#e94560' };
+    if (score <= 3) return { score, label: 'Medium', color: '#f5a623' };
+    return { score, label: 'Strong', color: '#2dd4bf' };
+  };
+
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setIsError(false);
@@ -129,6 +181,7 @@ function App() {
       } else {
         setMessage('Account created. You can log in now.');
         setIsLogin(true);
+        setPasswordStrength({ score: 0, label: '', color: '' });
       }
     } catch (error) {
       setIsError(true);
@@ -287,7 +340,6 @@ function App() {
     }
   };
 
-  // ---- MFA setup (from Settings page) ----
   const handleMfaEnableRequest = async () => {
     try {
       const userEmail = localStorage.getItem('email');
@@ -334,7 +386,6 @@ function App() {
     }
   };
 
-  // NEW: Task (iv) — downloads a CSV activity/security report, built client-side
   const handleDownloadReport = async () => {
     try {
       const userEmail = localStorage.getItem('email');
@@ -392,6 +443,7 @@ function App() {
     setFiles([]);
     setActivityLogs([]);
     setAnalytics(null);
+    setShareLinks([]);
     setMessage('');
     setActiveTab('files');
     setMfaEnabled(false);
@@ -417,6 +469,7 @@ function App() {
       case 'file_delete': return 'deleted';
       case 'share_link_created': return 'created a share link for';
       case 'shared_file_access': return 'accessed via share link';
+      case 'share_link_revoked': return 'revoked a share link';
       case 'suspicious_activity': return 'triggered a suspicious activity alert';
       case 'mfa_enabled': return 'enabled two-factor authentication';
       case 'mfa_disabled': return 'disabled two-factor authentication';
@@ -431,6 +484,7 @@ function App() {
       case 'file_delete': return '🗑️';
       case 'share_link_created': return '🔗';
       case 'shared_file_access': return '📤';
+      case 'share_link_revoked': return '🚫';
       case 'suspicious_activity': return '⚠️';
       case 'mfa_enabled': return '🔐';
       case 'mfa_disabled': return '🔓';
@@ -467,7 +521,7 @@ function App() {
 
   const suspiciousCount = activityLogs.filter((log) => log.action === 'suspicious_activity').length;
 
-  // ---------- MFA VERIFICATION SCREEN (shown right after password, before dashboard) ----------
+  // ---------- MFA VERIFICATION SCREEN ----------
   if (!loggedIn && mfaRequired) {
     return (
       <div className="auth-page">
@@ -626,9 +680,27 @@ function App() {
                         type="password"
                         placeholder="••••••••"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          if (!isLogin) setPasswordStrength(checkPasswordStrength(e.target.value));
+                        }}
                         required
                       />
+                      {!isLogin && password && (
+                        <div style={{ marginTop: '8px' }}>
+                          <div style={{ height: '4px', background: '#253256', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${(passwordStrength.score / 5) * 100}%`,
+                              background: passwordStrength.color,
+                              transition: 'width 0.3s ease'
+                            }} />
+                          </div>
+                          <div style={{ fontSize: '12px', color: passwordStrength.color, marginTop: '4px' }}>
+                            {passwordStrength.label}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {isLogin && (
@@ -1057,6 +1129,27 @@ function App() {
                   Download Report
                 </button>
               </div>
+            </div>
+
+            <div className="card">
+              <h3>Active Share Links ({shareLinks.length})</h3>
+              {shareLinks.length === 0 ? (
+                <div className="empty-state">No active share links.</div>
+              ) : (
+                shareLinks.map((s) => (
+                  <div className="settings-row" key={s.share_token}>
+                    <div>
+                      <div className="settings-label">{s.filename}</div>
+                      <div className="settings-value mono" style={{ fontSize: '12px' }}>
+                        Shared with {s.recipient_email} · Expires {formatTime(s.expires_at)}
+                      </div>
+                    </div>
+                    <button className="icon-btn danger" onClick={() => handleRevokeShareLink(s.share_token)}>
+                      Revoke
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </>
         )}

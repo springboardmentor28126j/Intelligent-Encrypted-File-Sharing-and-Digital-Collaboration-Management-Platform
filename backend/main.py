@@ -14,7 +14,7 @@ from database import engine, Base, SessionLocal
 import models
 import schemas
 import auth
-import encryption  # AES-256-GCM encrypt/decrypt helpers (Milestone 2)
+import encryption
 from storage_client import upload_to_storage, download_from_storage, delete_from_storage
 from email_service import send_email
 
@@ -38,7 +38,6 @@ def get_db():
         db.close()
 
 
-# Single helper so every action logs with the SAME field names.
 def log_activity(action: str, filename: str, performed_by: str, **extra):
     try:
         entry = {
@@ -83,10 +82,6 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
             redis_client.expire(fail_key, 900)
 
             if fail_count >= 3:
-                # FIX: these were incorrectly nested — log_activity(send_email(...))
-                # meant send_email's True/False return value was being passed in as
-                # the "performed_by" argument, and log_activity was never actually
-                # called with the right data. Now they run as two separate calls.
                 log_activity(
                     "suspicious_activity",
                     "N/A",
@@ -112,7 +107,7 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
         except Exception:
             pass
         send_email(db_user.email, "TrustShare — Login Verification Code",
-                f"Your login verification code is: {otp_code}\nThis code expires in 5 minutes.")
+                   f"Your login verification code is: {otp_code}\nThis code expires in 5 minutes.")
         return {"mfa_required": True, "email": db_user.email, "message": "Verification code sent to your email"}
 
     try:
@@ -193,7 +188,7 @@ def delete_file(file_id: int, email: str, role: str, db: Session = Depends(get_d
     if role != "admin" and record.owner_email != email:
         raise HTTPException(status_code=403, detail="You do not have permission to delete this file")
 
-    filename = record.filename  # save before the row is deleted
+    filename = record.filename
 
     try:
         delete_from_storage(record.stored_name)
@@ -204,13 +199,12 @@ def delete_file(file_id: int, email: str, role: str, db: Session = Depends(get_d
     db.delete(record)
     db.commit()
 
-    # NEW: rapid-delete detection — same 2-minute window pattern as downloads/logins
     try:
         delete_key = f"delete_count:{email}"
         delete_count = redis_client.incr(delete_key)
         redis_client.expire(delete_key, 120)
 
-        if delete_count == 5:  # fire once, right when it crosses the threshold
+        if delete_count == 5:
             log_activity(
                 "suspicious_activity",
                 "N/A",
@@ -254,13 +248,12 @@ def download_file(file_id: int, email: str, role: str, db: Session = Depends(get
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to decrypt file — data may be corrupted")
 
-    # Rapid-download detection — same pattern as failed-login tracking
     try:
         download_key = f"download_count:{email}"
         download_count = redis_client.incr(download_key)
-        redis_client.expire(download_key, 120)  # 2-minute rolling window
+        redis_client.expire(download_key, 120)
 
-        if download_count == 3:  # only fire once, right when it crosses the threshold
+        if download_count == 3:
             log_activity(
                 "suspicious_activity",
                 "N/A",
@@ -278,7 +271,6 @@ def download_file(file_id: int, email: str, role: str, db: Session = Depends(get
 
     log_activity("file_download", record.filename, email)
 
-    # Notify the file owner whenever someone else (e.g. an admin) accesses their file
     if record.owner_email != email:
         send_email(
             record.owner_email,
@@ -295,8 +287,6 @@ def download_file(file_id: int, email: str, role: str, db: Session = Depends(get
     )
 
 
-# The Activity Log tab calls this. Standard users see only their own activity;
-# admins see everything.
 @app.get("/activity-log")
 def get_activity_log(email: str, role: str):
     try:
@@ -327,16 +317,13 @@ def forgot_password(payload: dict, db: Session = Depends(get_db)):
     token = secrets.token_hex(4)
 
     try:
-        redis_client.set(f"reset_token:{token}", email, ex=300)  # 5 minutes
+        redis_client.set(f"reset_token:{token}", email, ex=300)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Could not generate reset token, try again")
 
     reset_link_text = f"Your TrustShare password reset code is: {token}\nThis code expires in 5 minutes."
     send_email(email, "TrustShare — Password Reset Code", reset_link_text)
 
-    # NOTE: reset_token is no longer needed by the frontend now that email
-    # delivery works, but it's left in the response as a fallback in case
-    # email sending fails silently. It is not displayed on screen anymore.
     return {
         "message": "Reset code sent to your email",
         "reset_token": token,
@@ -374,7 +361,6 @@ def reset_password(payload: dict, db: Session = Depends(get_db)):
 
 @app.post("/share/{file_id}")
 def create_share_link(file_id: int, payload: dict, db: Session = Depends(get_db)):
-    """Create a secure, time-limited share link for a file, tied to a recipient email."""
     record = db.query(models.FileRecord).filter(models.FileRecord.id == file_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="File not found")
@@ -424,7 +410,6 @@ def create_share_link(file_id: int, payload: dict, db: Session = Depends(get_db)
 
 @app.get("/shared/{share_token}")
 def access_shared_file(share_token: str, db: Session = Depends(get_db)):
-    """Access a file via its share link — checks expiration before allowing download."""
     share = db.query(models.ShareLink).filter(models.ShareLink.share_token == share_token).first()
     if not share:
         raise HTTPException(status_code=404, detail="Invalid share link")
@@ -463,7 +448,6 @@ def access_shared_file(share_token: str, db: Session = Depends(get_db)):
 
 @app.get("/share-info/{share_token}")
 def share_link_info(share_token: str, db: Session = Depends(get_db)):
-    """Check share link validity and get file info without downloading (for the frontend page)."""
     share = db.query(models.ShareLink).filter(models.ShareLink.share_token == share_token).first()
     if not share:
         raise HTTPException(status_code=404, detail="Invalid share link")
@@ -478,9 +462,53 @@ def share_link_info(share_token: str, db: Session = Depends(get_db)):
         "is_expired": is_expired,
         "shared_by": share.created_by
     }
+
+
+# NEW: list + revoke share links (used by the Settings page)
+@app.get("/share-links")
+def list_share_links(email: str, role: str, db: Session = Depends(get_db)):
+    """List active (non-expired) share links owned by this user, or all if admin."""
+    now = datetime.utcnow()
+    if role == "admin":
+        shares = db.query(models.ShareLink).filter(models.ShareLink.expires_at > now).all()
+    else:
+        shares = db.query(models.ShareLink).filter(
+            models.ShareLink.created_by == email,
+            models.ShareLink.expires_at > now
+        ).all()
+
+    result = []
+    for s in shares:
+        record = db.query(models.FileRecord).filter(models.FileRecord.id == s.file_id).first()
+        result.append({
+            "share_token": s.share_token,
+            "filename": record.filename if record else "Unknown",
+            "recipient_email": s.recipient_email,
+            "expires_at": s.expires_at.isoformat(),
+            "created_by": s.created_by,
+        })
+    return result
+
+
+@app.delete("/share-links/{share_token}")
+def revoke_share_link(share_token: str, email: str, role: str, db: Session = Depends(get_db)):
+    """Revoke (delete) a share link before it expires."""
+    share = db.query(models.ShareLink).filter(models.ShareLink.share_token == share_token).first()
+    if not share:
+        raise HTTPException(status_code=404, detail="Share link not found")
+
+    if role != "admin" and share.created_by != email:
+        raise HTTPException(status_code=403, detail="You do not have permission to revoke this link")
+
+    db.delete(share)
+    db.commit()
+
+    log_activity("share_link_revoked", "N/A", email)
+    return {"message": "Share link revoked successfully"}
+
+
 @app.get("/analytics")
 def get_analytics(email: str, role: str, db: Session = Depends(get_db)):
-    """Storage & usage analytics — admin sees everything, standard user sees their own."""
     if role == "admin":
         files = db.query(models.FileRecord).all()
     else:
@@ -517,15 +545,16 @@ def get_analytics(email: str, role: str, db: Session = Depends(get_db)):
         "total_shares": total_shares,
         "suspicious_count": suspicious_count,
     }
+
+
 @app.post("/mfa/enable-request")
 def mfa_enable_request(payload: dict, db: Session = Depends(get_db)):
-    """Step 1 of enabling MFA — send a verification code to confirm the user owns this email."""
     email = payload.get("email")
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    code = secrets.token_hex(3)  # 6-char code
+    code = secrets.token_hex(3)
     try:
         redis_client.set(f"mfa_setup:{email}", code, ex=600)
     except Exception:
@@ -539,7 +568,6 @@ def mfa_enable_request(payload: dict, db: Session = Depends(get_db)):
 
 @app.post("/mfa/enable-confirm")
 def mfa_enable_confirm(payload: dict, db: Session = Depends(get_db)):
-    """Step 2 — verify the code and actually turn MFA on."""
     email = payload.get("email")
     code = payload.get("code")
 
@@ -580,7 +608,6 @@ def mfa_disable(payload: dict, db: Session = Depends(get_db)):
 
 @app.post("/verify-mfa")
 def verify_mfa(payload: dict, db: Session = Depends(get_db)):
-    """Step 2 of login when MFA is enabled — verify the OTP and issue the real token."""
     email = payload.get("email")
     code = payload.get("code")
 
@@ -606,9 +633,10 @@ def verify_mfa(payload: dict, db: Session = Depends(get_db)):
         print(f"Redis caching failed (non-critical): {e}")
 
     return {"access_token": token, "token_type": "bearer", "role": db_user.role, "name": db_user.name}
+
+
 @app.get("/report")
 def get_report(email: str, role: str, days: int = 7):
-    """Generate a security/activity report summary for the last N days."""
     since = datetime.utcnow() - timedelta(days=days)
 
     try:
