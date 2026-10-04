@@ -185,6 +185,12 @@ class FileShare(Base):
         nullable=False
     )
 
+    can_download = Column(
+    Boolean,
+    nullable=False,
+    default=False
+    )
+
     is_revoked = Column(
         Boolean,
         nullable=False,
@@ -202,16 +208,8 @@ class FileShare(Base):
         nullable=True
     )
 
-    recipient_email = Column(
-        String(255),
-        nullable=True
-    )
-
-    share_token = Column(
-        String(255),
-        nullable=True
-    )
-
+   
+    
     expires_at = Column(
         DateTime,
         nullable=True
@@ -228,11 +226,7 @@ class FileShare(Base):
         default=0
     )
 
-    shared_with_user_id = Column(
-        Integer,
-        ForeignKey("users.id"),
-        nullable=True
-    )
+   
 
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
@@ -250,7 +244,7 @@ class PasswordResetToken(Base):
     )
 
     token_hash = Column(
-        String(255),
+        String(128),
         nullable=False
     )
 
@@ -259,16 +253,11 @@ class PasswordResetToken(Base):
         nullable=False
     )
 
-    used = Column(
-        Boolean,
-        nullable=False,
-        default=False
+    used_at = Column(
+        DateTime,
+        nullable=True
     )
 
-    created_at = Column(
-        DateTime,
-        nullable=False
-    )
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

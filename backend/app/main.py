@@ -288,7 +288,7 @@ def reset_password(
 
         # Make sure token has not been used
 
-        if db_token.used:
+        if db_token.used_at is not None:
             raise HTTPException(
                 status_code=400,
                 detail="Password reset token has already been used",
@@ -306,7 +306,9 @@ def reset_password(
         # Invalidate token
         # -------------------------
 
-        db_token.used = True
+        from datetime import datetime, timezone
+
+        db_token.used_at = datetime.now(timezone.utc)
 
         db.commit()
 

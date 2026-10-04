@@ -18,7 +18,10 @@ from .models import User, PasswordResetToken
 load_dotenv()
 
 
-# JWT configuration
+# ============================================================
+# JWT CONFIGURATION
+# ============================================================
+
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 
 if not SECRET_KEY:
@@ -157,17 +160,16 @@ def create_password_reset_token(user_id: int):
         # Invalidate previous unused reset tokens
         db.query(PasswordResetToken).filter(
             PasswordResetToken.user_id == user_id,
-            PasswordResetToken.used == False
+            PasswordResetToken.used_at.is_(None)
         ).update({
-            PasswordResetToken.used: True
+            PasswordResetToken.used_at: datetime.now(timezone.utc)
         })
 
+        # Create new reset token
         reset_token = PasswordResetToken(
             user_id=user_id,
             token_hash=token_hash,
-            expires_at=expires_at,
-            used=False,
-            created_at=datetime.now(timezone.utc)
+            expires_at=expires_at
         )
 
         db.add(reset_token)
@@ -206,7 +208,7 @@ def verify_password_reset_token(token: str):
             db.query(PasswordResetToken)
             .filter(
                 PasswordResetToken.token_hash == token_hash,
-                PasswordResetToken.used == False
+                PasswordResetToken.used_at.is_(None)
             )
             .first()
         )
@@ -227,7 +229,7 @@ def verify_password_reset_token(token: str):
 
         # Check whether token has expired
         if expires_at <= now:
-            reset_token.used = True
+            reset_token.used_at = now
             db.commit()
             return None
 
