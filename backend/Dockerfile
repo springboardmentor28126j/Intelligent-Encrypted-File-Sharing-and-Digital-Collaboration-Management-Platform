@@ -2,6 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Refresh CA certificates. Without this, some slim base images ship a
+# stale cert bundle that fails the TLS handshake MongoDB Atlas requires
+# (seen as "SSLError ... TLSV1_ALERT_INTERNAL_ERROR" at runtime).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
