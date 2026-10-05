@@ -58,14 +58,19 @@ export default function Dashboard() {
   const [email, setEmail] = useState("");
   const [stats, setStats] = useState({ total_files: 0, total_bytes: 0 });
   const [files, setFiles] = useState([]);
+  const [folderCount, setFolderCount] = useState(0);
 
   useEffect(() => {
-    api.get("/auth/me").then((res) => setEmail(res.data.email)).catch(() => {});
-    api.get("/files/stats").then((res) => setStats(res.data)).catch(() => {});
+    api.get("/auth/me").then((res) => setEmail(res.data.email)).catch(() => { });
+    api.get("/files/stats").then((res) => setStats(res.data)).catch(() => { });
     api
       .get("/files")
       .then((res) => setFiles(res.data))
-      .catch(() => {});
+      .catch(() => { });
+    api
+      .get("/folders")
+      .then((res) => setFolderCount(res.data.length))
+      .catch(() => { });
   }, []);
 
   const firstName = email ? email.split("@")[0] : "";
@@ -119,7 +124,7 @@ export default function Dashboard() {
       <div style={{ display: "flex", gap: 16, marginBottom: 32, flexWrap: "wrap" }}>
         <StatCard label="Total files" value={stats.total_files} />
         <StatCard label="Storage used" value={formatBytes(stats.total_bytes)} />
-        <StatCard label="Folders" value={0} />
+        <StatCard label="Folders" value={folderCount} />
       </div>
 
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
