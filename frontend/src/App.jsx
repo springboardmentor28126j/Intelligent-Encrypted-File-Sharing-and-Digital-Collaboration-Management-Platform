@@ -392,7 +392,7 @@ function App() {
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("uploaded_file", file);
 
       await apiRequest("/files/upload", {
         method: "POST",
