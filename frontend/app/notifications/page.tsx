@@ -21,6 +21,12 @@ export default function NotificationsPage() {
   // ==========================================
 
   const loadNotifications = async () => {
+    await fetch(
+  "http://127.0.0.1:8000/notifications/expiration-reminders",
+  {
+    method: "POST",
+  }
+);
     try {
       const email =
         localStorage.getItem("userEmail") || "";

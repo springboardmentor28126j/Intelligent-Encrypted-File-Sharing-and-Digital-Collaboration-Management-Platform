@@ -40,7 +40,13 @@ export default function AuditLogsPage() {
         );
       }
 
-      setLogs(Array.isArray(data.logs) ? data.logs : []);
+      setLogs(
+  Array.isArray(data.audit_logs)
+    ? data.audit_logs
+    : Array.isArray(data.logs)
+    ? data.logs
+    : []
+);
     } catch (error) {
       console.error("Audit log error:", error);
       setMessage("Unable to load audit logs from backend.");

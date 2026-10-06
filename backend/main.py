@@ -27,6 +27,8 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 load_dotenv()
 
 
+
+
 # =========================
 # PostgreSQL Connection
 # =========================
@@ -45,6 +47,7 @@ conn = psycopg2.connect(
 # =========================
 
 cur = conn.cursor()
+
 cur.execute(
     """
     CREATE TABLE IF NOT EXISTS notifications (
@@ -52,11 +55,21 @@ cur.execute(
         user_email VARCHAR(150) NOT NULL,
         notification_type VARCHAR(50) NOT NULL,
         message TEXT NOT NULL,
+        share_token TEXT,
         is_read BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """
 )
+
+# Add share_token to an existing notifications table.
+cur.execute(
+    """
+    ALTER TABLE notifications
+    ADD COLUMN IF NOT EXISTS share_token TEXT
+    """
+)
+
 conn.commit()
 cur.close()
 
@@ -305,27 +318,38 @@ def log_activity(
 def create_notification(
     user_email: str,
     notification_type: str,
-    message: str
+    message: str,
+    share_token: str = None
 ):
     try:
+
         cur = conn.cursor()
+
         cur.execute(
             """
             INSERT INTO notifications
-            (user_email, notification_type, message)
-            VALUES (%s, %s, %s)
+            (user_email, notification_type, message, share_token)
+            VALUES (%s, %s, %s, %s)
             """,
             (
                 user_email,
                 notification_type,
-                message
+                message,
+                share_token
             )
         )
+
         conn.commit()
         cur.close()
-    except Exception:
-        conn.rollback()
 
+    except Exception as e:
+
+        print("Notification creation error:", e)
+
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
 # =========================
 # Encrypt File Key
@@ -1129,7 +1153,12 @@ def share_file(
     create_notification(
         allowed_email,
         "FILE_SHARED",
-        f"File '{filename}' was shared with you with {permission} permission. The share expires in {expiry_minutes} minutes."
+        (
+            f"{owner_email} shared '{filename}' with you. "
+            f"Permission: {permission}. "
+            f"Expires in {expiry_minutes} minutes."
+        ),
+        share_token
     )
 
     return {
@@ -1144,18 +1173,175 @@ def share_file(
 # Access Shared File
 # =========================
 
+# =========================
+# Access Shared File
+# =========================
+
 @app.get("/shared/{share_token}")
 def access_shared_file(
     share_token: str,
     email: str
 ):
+
+    # Import datetime inside this function
     from datetime import datetime
 
     cur = conn.cursor()
 
     cur.execute(
         """
-        SELECT filename, owner_email, allowed_email, permission, expires_at
+        SELECT
+            filename,
+            owner_email,
+            allowed_email,
+            permission,
+            expires_at
+        FROM shared_files
+        WHERE share_token=%s
+        """,
+        (share_token,)
+    )
+
+    share = cur.fetchone()
+
+    cur.close()
+
+    # -------------------------
+    # Token Check
+    # -------------------------
+
+    if not share:
+
+        log_activity(
+            email,
+            "SHARED_ACCESS",
+            status="FAILED",
+            details="Invalid share link"
+        )
+
+        return {
+            "message": "Invalid share link"
+        }
+
+    # -------------------------
+    # Get Share Details
+    # -------------------------
+
+    filename = share[0]
+    owner_email = share[1]
+    allowed_email = share[2]
+    permission = share[3]
+    expires_at = share[4]
+
+    # -------------------------
+    # Email Authorization Check
+    # -------------------------
+
+    if email.lower() != allowed_email.lower():
+
+        log_activity(
+            email,
+            "SHARED_ACCESS",
+            filename=filename,
+            status="FAILED",
+            details="Unauthorized shared-file access attempt"
+        )
+
+        create_notification(
+            owner_email,
+            "SECURITY_ALERT",
+            (
+                f"Unauthorized access attempt detected "
+                f"for shared file '{filename}' from {email}."
+            )
+        )
+
+        return {
+            "message":
+                "You are not authorized to access this file"
+        }
+
+    # -------------------------
+    # Expiry Check
+    # -------------------------
+
+    if datetime.now() > expires_at:
+
+        log_activity(
+            email,
+            "SHARED_ACCESS",
+            filename=filename,
+            status="FAILED",
+            details="Share link has expired"
+        )
+
+        create_notification(
+            owner_email,
+            "SECURITY_ALERT",
+            (
+                f"Expired share link for "
+                f"'{filename}' was accessed by {email}."
+            )
+        )
+
+        return {
+            "message":
+                "Share link has expired"
+        }
+
+    # -------------------------
+    # Successful Access
+    # -------------------------
+
+    log_activity(
+        email,
+        "SHARED_ACCESS",
+        filename=filename,
+        status="SUCCESS",
+        details=f"Access granted with permission={permission}"
+    )
+
+    create_notification(
+        owner_email,
+        "ACCESS_ALERT",
+        f"Shared file '{filename}' was accessed by {email}."
+    )
+
+    # -------------------------
+    # Return Share Details
+    # -------------------------
+
+    return {
+        "message": "Access granted",
+        "filename": filename,
+        "owner_email": owner_email,
+        "allowed_email": allowed_email,
+        "permission": permission,
+        "expires_at": expires_at
+    }
+
+
+# =========================
+# Download Shared File
+# Token + Email + Permission + Expiry Check
+# =========================
+
+@app.get("/download-shared/{share_token}")
+def download_shared_file(
+    share_token: str,
+    email: str
+):
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT
+            filename,
+            owner_email,
+            allowed_email,
+            permission,
+            expires_at
         FROM shared_files
         WHERE share_token=%s
         """,
@@ -1165,17 +1351,16 @@ def access_shared_file(
     share = cur.fetchone()
     cur.close()
 
-    # Check share link
     if not share:
+
         log_activity(
             email,
-            "SHARED_ACCESS",
+            "DOWNLOAD",
             status="FAILED",
-            details="Invalid share link"
+            details="Invalid shared download token"
         )
-        return {
-            "message": "Invalid share link"
-        }
+
+        return {"message": "Invalid share link"}
 
     filename = share[0]
     owner_email = share[1]
@@ -1183,84 +1368,258 @@ def access_shared_file(
     permission = share[3]
     expires_at = share[4]
 
-    # Check authorized email
+    # Authorized recipient check.
     if email.lower() != allowed_email.lower():
+
         log_activity(
             email,
-            "SHARED_ACCESS",
+            "DOWNLOAD",
             filename=filename,
             status="FAILED",
-            details="Unauthorized shared-file access attempt"
+            details="Unauthorized shared download attempt"
         )
+
         create_notification(
             owner_email,
             "SECURITY_ALERT",
-            f"Unauthorized access attempt detected for shared file '{filename}' from {email}."
+            f"Unauthorized download attempt for '{filename}' from {email}."
         )
+
         return {
-            "message": "You are not authorized to access this file"
+            "message":
+                "You are not authorized to download this file"
         }
 
-    # Check expiry
+    # Temporary share link expiry check.
     if datetime.now() > expires_at:
+
         log_activity(
             email,
-            "SHARED_ACCESS",
+            "DOWNLOAD",
             filename=filename,
             status="FAILED",
-            details="Share link has expired"
+            details="Shared download link expired"
         )
-        create_notification(
-            owner_email,
-            "SECURITY_ALERT",
-            f"An expired share link for '{filename}' was accessed by {email}."
-        )
+
         return {
             "message": "Share link has expired"
         }
 
-    log_activity(
-        email,
-        "SHARED_ACCESS",
-        filename=filename,
-        status="SUCCESS",
-        details=f"Access granted with permission={permission}"
-    )
-    create_notification(
-        owner_email,
-        "ACCESS_ALERT",
-        f"Shared file '{filename}' was accessed by {email}."
-    )
+    # Download is allowed only for a download permission.
+    if permission != "download":
 
-    return {
-        "message": "Access granted",
-        "filename": filename,
-        "permission": permission,
-        "expires_at": expires_at
-    }
+        log_activity(
+            email,
+            "DOWNLOAD",
+            filename=filename,
+            status="FAILED",
+            details="Download permission not granted"
+        )
+
+        return {
+            "message":
+                "Download permission is not granted"
+        }
+
+    s3_key = f"encrypted/{filename}"
+
+    try:
+
+        response = s3.get_object(
+            Bucket=BUCKET_NAME,
+            Key=s3_key
+        )
+
+        encrypted_file = response["Body"].read()
+
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            SELECT encryption_key
+            FROM file_keys
+            WHERE filename=%s
+            """,
+            (filename,)
+        )
+
+        result = cur.fetchone()
+        cur.close()
+
+        if not result:
+
+            log_activity(
+                email,
+                "DOWNLOAD",
+                filename=filename,
+                status="FAILED",
+                details="Encryption key not found"
+            )
+
+            return {
+                "message": "Encryption key not found"
+            }
+
+        file_key = unprotect_file_key(result[0])
+
+        file_nonce = encrypted_file[:12]
+        encrypted_data = encrypted_file[12:]
+
+        aesgcm = AESGCM(file_key)
+
+        original_file = aesgcm.decrypt(
+            file_nonce,
+            encrypted_data,
+            None
+        )
+
+        content_type = "application/octet-stream"
+
+        if filename.lower().endswith(".pdf"):
+            content_type = "application/pdf"
+        elif filename.lower().endswith(".txt"):
+            content_type = "text/plain"
+        elif filename.lower().endswith(".jpg"):
+            content_type = "image/jpeg"
+        elif filename.lower().endswith(".jpeg"):
+            content_type = "image/jpeg"
+        elif filename.lower().endswith(".png"):
+            content_type = "image/png"
+
+        log_activity(
+            email,
+            "DOWNLOAD",
+            filename=filename,
+            status="SUCCESS",
+            details="Shared file decrypted and downloaded using share token"
+        )
+
+        # Notify owner after a successful shared download.
+        try:
+
+            notification_message = (
+                f"Your file '{filename}' was downloaded by {email}."
+            )
+
+            create_notification(
+                owner_email,
+                "FILE_DOWNLOADED",
+                notification_message
+            )
+
+            send_notification_email(
+                owner_email,
+                "TrustShare - File Downloaded",
+                (
+                    f"Hello,\n\n"
+                    f"Your file '{filename}' was downloaded by {email}.\n\n"
+                    f"TrustShare Security Notification\n"
+                    f"TrustShare Team"
+                )
+            )
+
+        except Exception as notification_error:
+
+            print(
+                "Shared download notification error:",
+                notification_error
+            )
+
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
+        return Response(
+            content=original_file,
+            media_type=content_type,
+            headers={
+                "Content-Disposition":
+                    f'attachment; filename="{filename}"'
+            }
+        )
+
+    except ClientError as e:
+
+        log_activity(
+            email,
+            "DOWNLOAD",
+            filename=filename,
+            status="FAILED",
+            details="Encrypted shared file not found in S3"
+        )
+
+        return {
+            "message":
+                "Encrypted file not found in S3",
+            "error":
+                str(e)
+        }
+
+    except Exception as e:
+
+        log_activity(
+            email,
+            "DOWNLOAD",
+            filename=filename,
+            status="FAILED",
+            details="Shared file decryption failed"
+        )
+
+        return {
+            "message":
+                "File decryption failed",
+            "error":
+                str(e)
+        }
 
 # =========================
 # View Activity Logs
 # =========================
 
 @app.get("/logs")
-def get_activity_logs(limit: int = 100):
+def get_activity_logs(
+    limit: int = 100,
+    user_email: str = None,
+    action: str = None,
+    status: str = None
+):
+    """
+    Milestone 3 - Audit Logging.
+
+    Returns the detailed audit trail of security-sensitive actions.
+    This is intentionally different from /reports/activity, which is
+    the Activity Monitoring dashboard.
+    """
 
     if limit <= 0:
         limit = 100
 
     cur = conn.cursor()
 
-    cur.execute(
-        """
+    query = """
         SELECT id, user_email, action, filename, status, details, created_at
         FROM access_logs
-        ORDER BY created_at DESC
-        LIMIT %s
-        """,
-        (limit,)
-    )
+        WHERE 1=1
+    """
+    params = []
 
+    if user_email:
+        query += " AND user_email=%s"
+        params.append(user_email)
+
+    if action:
+        query += " AND action=%s"
+        params.append(action)
+
+    if status:
+        query += " AND status=%s"
+        params.append(status)
+
+    query += " ORDER BY created_at DESC LIMIT %s"
+    params.append(limit)
+
+    cur.execute(query, tuple(params))
     rows = cur.fetchall()
     cur.close()
 
@@ -1278,8 +1637,31 @@ def get_activity_logs(limit: int = 100):
         })
 
     return {
-        "logs": logs
+        "report": "Audit Log",
+        "total_records": len(logs),
+        "filters": {
+            "user_email": user_email,
+            "action": action,
+            "status": status
+        },
+        "audit_logs": logs
     }
+
+
+@app.get("/audit/logs")
+def audit_logs(
+    limit: int = 100,
+    user_email: str = None,
+    action: str = None,
+    status: str = None
+):
+    """Dedicated audit-log endpoint for the Audit Logging page."""
+    return get_activity_logs(
+        limit=limit,
+        user_email=user_email,
+        action=action,
+        status=status
+    )
 
 
 # =========================
@@ -1288,23 +1670,55 @@ def get_activity_logs(limit: int = 100):
 
 @app.get("/reports/activity")
 def activity_report(limit: int = 100):
+    """
+    Milestone 3 - Activity Monitoring Dashboard.
+
+    This endpoint is intentionally different from /logs.
+    Activity Monitoring gives a summarized monitoring view:
+    counts, recent actions, user activity, and current sharing activity.
+    The detailed audit trail is available separately through /logs.
+    """
 
     if limit <= 0:
         limit = 100
 
     cur = conn.cursor()
 
+    # Overall activity summary
     cur.execute(
         """
-        SELECT action, status, COUNT(*)
+        SELECT action, COUNT(*) AS total
         FROM access_logs
-        GROUP BY action, status
-        ORDER BY action, status
+        GROUP BY action
+        ORDER BY total DESC
         """
     )
-
     summary_rows = cur.fetchall()
 
+    # Success / failed activity summary
+    cur.execute(
+        """
+        SELECT status, COUNT(*) AS total
+        FROM access_logs
+        GROUP BY status
+        ORDER BY total DESC
+        """
+    )
+    status_rows = cur.fetchall()
+
+    # Most active users
+    cur.execute(
+        """
+        SELECT user_email, COUNT(*) AS total_actions
+        FROM access_logs
+        GROUP BY user_email
+        ORDER BY total_actions DESC
+        LIMIT 20
+        """
+    )
+    user_rows = cur.fetchall()
+
+    # Recent activity for monitoring
     cur.execute(
         """
         SELECT id, user_email, action, filename, status, details, created_at
@@ -1314,21 +1728,39 @@ def activity_report(limit: int = 100):
         """,
         (limit,)
     )
-
     recent_rows = cur.fetchall()
+
+    # Current / recent sharing activity
+    cur.execute(
+        """
+        SELECT filename, owner_email, allowed_email, permission, expires_at
+        FROM shared_files
+        WHERE expires_at > CURRENT_TIMESTAMP
+        ORDER BY expires_at ASC
+        LIMIT 50
+        """
+    )
+    sharing_rows = cur.fetchall()
+
     cur.close()
 
-    summary = []
-    for row in summary_rows:
-        summary.append({
-            "action": row[0],
-            "status": row[1],
-            "count": row[2]
-        })
+    summary = [
+        {"action": row[0], "total": row[1]}
+        for row in summary_rows
+    ]
 
-    recent_activity = []
-    for row in recent_rows:
-        recent_activity.append({
+    status_summary = [
+        {"status": row[0], "total": row[1]}
+        for row in status_rows
+    ]
+
+    user_activity = [
+        {"user_email": row[0], "total_actions": row[1]}
+        for row in user_rows
+    ]
+
+    recent_activity = [
+        {
             "id": row[0],
             "user_email": row[1],
             "action": row[2],
@@ -1336,12 +1768,28 @@ def activity_report(limit: int = 100):
             "status": row[4],
             "details": row[5],
             "created_at": row[6]
-        })
+        }
+        for row in recent_rows
+    ]
+
+    active_shares = [
+        {
+            "filename": row[0],
+            "owner_email": row[1],
+            "allowed_email": row[2],
+            "permission": row[3],
+            "expires_at": row[4]
+        }
+        for row in sharing_rows
+    ]
 
     return {
-        "report": "File Activity Report",
+        "report": "Activity Monitoring Dashboard",
         "summary": summary,
-        "recent_activity": recent_activity
+        "status_summary": status_summary,
+        "user_activity": user_activity,
+        "recent_activity": recent_activity,
+        "active_shares": active_shares
     }
 
 
@@ -1408,28 +1856,104 @@ def security_report(limit: int = 100):
 # =========================
 # View Notifications
 # =========================
+# =========================
+# Expiration Reminders
+# =========================
 
+@app.post("/notifications/expiration-reminders")
+def create_expiration_reminders():
+
+    cur = conn.cursor()
+
+    # Find shared files that will expire within 24 hours
+    # and have not already received an expiration reminder.
+    cur.execute(
+        """
+        SELECT
+            sf.filename,
+            sf.allowed_email,
+            sf.share_token,
+            sf.expires_at
+        FROM shared_files sf
+        WHERE sf.expires_at > NOW()
+          AND sf.expires_at <= NOW() + INTERVAL '24 hours'
+          AND NOT EXISTS (
+              SELECT 1
+              FROM notifications n
+              WHERE n.user_email = sf.allowed_email
+                AND n.notification_type = 'EXPIRATION_REMINDER'
+                AND n.share_token = sf.share_token
+          )
+        ORDER BY sf.expires_at ASC
+        """
+    )
+
+    rows = cur.fetchall()
+    cur.close()
+
+    reminder_count = 0
+
+    for row in rows:
+
+        filename = row[0]
+        allowed_email = row[1]
+        share_token = row[2]
+        expires_at = row[3]
+
+        create_notification(
+            allowed_email,
+            "EXPIRATION_REMINDER",
+            (
+                f"Your shared file '{filename}' "
+                f"will expire soon at {expires_at}."
+            ),
+            share_token
+        )
+
+        reminder_count += 1
+
+    return {
+        "message": "Expiration reminders processed",
+        "reminders_created": reminder_count
+    }
 @app.get("/notifications")
 def get_notifications(email: str, unread_only: bool = False):
+
     cur = conn.cursor()
 
     if unread_only:
+
         cur.execute(
             """
-            SELECT id, user_email, notification_type, message,
-                   is_read, created_at
+            SELECT
+                id,
+                user_email,
+                notification_type,
+                message,
+                share_token,
+                is_read,
+                created_at
             FROM notifications
-            WHERE user_email=%s AND is_read=FALSE
+            WHERE user_email=%s
+              AND is_read=FALSE
             ORDER BY created_at DESC
             LIMIT 100
             """,
             (email,)
         )
+
     else:
+
         cur.execute(
             """
-            SELECT id, user_email, notification_type, message,
-                   is_read, created_at
+            SELECT
+                id,
+                user_email,
+                notification_type,
+                message,
+                share_token,
+                is_read,
+                created_at
             FROM notifications
             WHERE user_email=%s
             ORDER BY created_at DESC
@@ -1444,13 +1968,15 @@ def get_notifications(email: str, unread_only: bool = False):
     notifications = []
 
     for row in rows:
+
         notifications.append({
             "id": row[0],
             "user_email": row[1],
             "notification_type": row[2],
             "message": row[3],
-            "is_read": row[4],
-            "created_at": row[5]
+            "share_token": row[4],
+            "is_read": row[5],
+            "created_at": row[6]
         })
 
     return {

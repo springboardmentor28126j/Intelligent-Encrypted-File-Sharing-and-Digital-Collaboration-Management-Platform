@@ -563,7 +563,7 @@ export default function Dashboard() {
 
             {/* ACTIVITY MONITORING */}
             <button
-              onClick={() => router.push("/audit-logs")}
+              onClick={() => router.push("/reports")}
               className="text-left bg-blue-50 border border-blue-200 p-5 rounded-xl hover:shadow-md transition"
             >
               <h3 className="text-xl font-semibold text-blue-700">
