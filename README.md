@@ -249,6 +249,5 @@ The project focuses on making digital file sharing **secure, controlled and easy
 ## 👨‍💻 Team
 
 **Project:** TrustShare
-**Type:** Academic Project
-**Domain:** Cybersecurity / Secure File Sharing
+**Domain:** Secure File Sharing
 
