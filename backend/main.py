@@ -1909,6 +1909,19 @@ def create_expiration_reminders():
             ),
             share_token
         )
+                # Send expiration reminder email
+        try:
+            send_notification_email(
+                allowed_email,
+                "TrustShare - File Expiration Reminder",
+                (
+                    f"Your shared file '{filename}' "
+                    f"will expire soon at {expires_at}.\n\n"
+                    "Please access the file before it expires."
+                )
+            )
+        except Exception as e:
+            print("Expiration reminder email failed:", e)
 
         reminder_count += 1
 

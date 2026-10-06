@@ -9,6 +9,7 @@ type Notification = {
   message: string;
   is_read: boolean;
   created_at: string;
+  share_token?: string | null;
 };
 
 export default function NotificationsPage() {
@@ -167,6 +168,9 @@ export default function NotificationsPage() {
       case "SECURITY_ALERT":
         return "⚠️";
 
+      case "EXPIRATION_REMINDER":
+        return "⏰";
+
       default:
         return "🔔";
     }
@@ -189,6 +193,9 @@ export default function NotificationsPage() {
 
       case "SECURITY_ALERT":
         return "Security Alert";
+
+      case "EXPIRATION_REMINDER":
+        return "Expiration Reminder";
 
       default:
         return "Notification";
@@ -354,18 +361,35 @@ export default function NotificationsPage() {
 
                       {/* RIGHT SIDE */}
 
-                      {!notification.is_read && (
-                        <button
-                          onClick={() =>
-                            markAsRead(
-                              notification.id
-                            )
-                          }
-                          className="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 whitespace-nowrap"
-                        >
-                          Mark as Read
-                        </button>
-                      )}
+<div className="flex flex-col gap-2">
+
+  {notification.notification_type === "FILE_SHARED" &&
+    notification.share_token && (
+      <button
+        onClick={() => {
+          window.location.href =
+            `/shared-file?token=${encodeURIComponent(
+              notification.share_token!
+            )}`;
+        }}
+        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 whitespace-nowrap"
+      >
+        Open Shared File
+      </button>
+    )}
+
+  {!notification.is_read && (
+    <button
+      onClick={() =>
+        markAsRead(notification.id)
+      }
+      className="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 whitespace-nowrap"
+    >
+      Mark as Read
+    </button>
+  )}
+
+</div>
 
                     </div>
 
