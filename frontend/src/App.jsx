@@ -5,14 +5,20 @@ const API_URL = "http://127.0.0.1:8001";
 
 function App() {
   const [token, setToken] = useState(
-    localStorage.getItem("trustshare_token")
+    () => localStorage.getItem("trustshare_token") || ""
   );
 
   const [user, setUser] = useState(null);
 
   const [authMode, setAuthMode] = useState("login");
+  const [authLoading, setAuthLoading] = useState(false);
 
-  const [authForm, setAuthForm] = useState({
+  const [loginForm, setLoginForm] = useState({
+    email: "",
+    password: "",
+  });
+
+  const [registerForm, setRegisterForm] = useState({
     name: "",
     email: "",
     password: "",
@@ -23,69 +29,33 @@ function App() {
   const [sharedByMe, setSharedByMe] = useState([]);
 
   const [selectedFile, setSelectedFile] = useState(null);
-  const [shareEmail, setShareEmail] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [shareDuration, setShareDuration] = useState("none");
 
-  const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // ============================================================
-  // MILESTONE 3 MONITORING STATE
-  // ============================================================
+  const [activePage, setActivePage] = useState("dashboard");
 
-  const [monitoring, setMonitoring] = useState({
-    dashboard: null,
-    activity: [],
-    alerts: [],
-    notifications: [],
-    storage: null,
-    suspicious: [],
-    fileReport: null,
-  });
+  const [monitoringDashboard, setMonitoringDashboard] = useState(null);
+  const [activity, setActivity] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [storageAnalytics, setStorageAnalytics] = useState(null);
+  const [suspiciousActivity, setSuspiciousActivity] = useState([]);
+  const [fileReports, setFileReports] = useState(null);
 
-  const [monitoringLoading, setMonitoringLoading] = useState(false);
-
-  // ============================================================
-  // AUTH / DASHBOARD INITIALIZATION
-  // ============================================================
-
-  useEffect(() => {
-    if (token) {
-      loadUser();
-    }
-  }, [token]);
-
-  useEffect(() => {
-    if (token && user) {
-      loadDashboard();
-      loadMonitoring();
-    }
-  }, [token, user]);
+  const [temporaryLinkFile, setTemporaryLinkFile] = useState(null);
+  const [temporaryLinkDuration, setTemporaryLinkDuration] = useState("1h");
+  const [temporaryLinkResult, setTemporaryLinkResult] = useState("");
 
   const clearMessages = () => {
     setError("");
     setSuccess("");
   };
-
-  const showSuccess = (message) => {
-    setError("");
-    setSuccess(message);
-
-    setTimeout(() => {
-      setSuccess("");
-    }, 4000);
-  };
-
-  const showError = (message) => {
-    setSuccess("");
-    setError(message);
-  };
-
-  // ============================================================
-  // API REQUEST
-  // ============================================================
 
   const apiRequest = async (endpoint, options = {}) => {
     const headers = {
@@ -93,10 +63,10 @@ function App() {
     };
 
     if (token) {
-      headers.Authorization = `Bearer ${token}`;
+      headers.Authorization = "Bearer " + token;
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    const response = await fetch(API_URL + endpoint, {
       ...options,
       headers,
     });
@@ -113,7 +83,7 @@ function App() {
       const message =
         data?.detail ||
         data?.message ||
-        `Request failed with status ${response.status}`;
+        "Request failed with status " + response.status;
 
       throw new Error(message);
     }
@@ -121,261 +91,295 @@ function App() {
     return data;
   };
 
-  // ============================================================
-  // LOAD USER
-  // ============================================================
+  const getExpiryFromDuration = (duration) => {
+    if (duration === "none") {
+      return null;
+    }
+
+    const minutesMap = {
+      "5m": 5,
+      "15m": 15,
+      "1h": 60,
+      "6h": 360,
+      "24h": 1440,
+      "7d": 10080,
+    };
+
+    const minutes = minutesMap[duration];
+
+    if (!minutes) {
+      return null;
+    }
+
+    return new Date(Date.now() + minutes * 60 * 1000).toISOString();
+  };
+
+  const formatDate = (dateValue) => {
+    if (!dateValue) {
+      return "—";
+    }
+
+    try {
+      return new Date(dateValue).toLocaleString();
+    } catch {
+      return dateValue;
+    }
+  };
+
+  const formatBytes = (bytes) => {
+    if (bytes === null || bytes === undefined) {
+      return "—";
+    }
+
+    if (bytes === 0) {
+      return "0 Bytes";
+    }
+
+    const units = ["Bytes", "KB", "MB", "GB", "TB"];
+    const index = Math.floor(Math.log(bytes) / Math.log(1024));
+
+    return (
+      (bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 2) +
+      " " +
+      units[index]
+    );
+  };
+
+  const isExpired = (item) => {
+    if (!item?.expires_at) {
+      return false;
+    }
+
+    return new Date(item.expires_at).getTime() <= Date.now();
+  };
 
   const loadUser = async () => {
     try {
       const data = await apiRequest("/auth/me");
       setUser(data);
-    } catch {
-      localStorage.removeItem("trustshare_token");
-      setToken(null);
-      setUser(null);
-    }
-  };
-
-  // ============================================================
-  // LOAD FILE DASHBOARD
-  // ============================================================
-
-  const loadDashboard = async () => {
-    try {
-      const [filesData, receivedData, sentData] =
-        await Promise.all([
-          apiRequest("/files/"),
-          apiRequest("/files/shared-with-me"),
-          apiRequest("/files/shared-by-me"),
-        ]);
-
-      setFiles(Array.isArray(filesData) ? filesData : []);
-
-      setSharedWithMe(
-        Array.isArray(receivedData) ? receivedData : []
-      );
-
-      setSharedByMe(
-        Array.isArray(sentData) ? sentData : []
-      );
+      return data;
     } catch (err) {
-      showError(err.message);
+      localStorage.removeItem("trustshare_token");
+      setToken("");
+      setUser(null);
+      throw err;
     }
   };
 
-  // ============================================================
-  // MILESTONE 3 MONITORING
-  // ============================================================
+  const loadFiles = async () => {
+    const data = await apiRequest("/files/");
+    setFiles(Array.isArray(data) ? data : []);
+  };
+
+  const loadSharedFiles = async () => {
+    const [received, sent] = await Promise.all([
+      apiRequest("/files/shared-with-me"),
+      apiRequest("/files/shared-by-me"),
+    ]);
+
+    setSharedWithMe(Array.isArray(received) ? received : []);
+    setSharedByMe(Array.isArray(sent) ? sent : []);
+  };
 
   const loadMonitoring = async () => {
     try {
-      setMonitoringLoading(true);
-
-      const [
-        dashboardData,
-        activityData,
-        alertsData,
-        notificationsData,
-        storageData,
-        suspiciousData,
-        fileReportData,
-      ] = await Promise.all([
-        apiRequest("/monitoring/dashboard"),
-        apiRequest("/monitoring/activity?limit=20"),
-        apiRequest("/monitoring/alerts"),
-        apiRequest("/monitoring/notifications"),
-        apiRequest("/monitoring/analytics/storage"),
-        apiRequest("/monitoring/suspicious"),
-        apiRequest("/monitoring/reports/files"),
-      ]);
-
-      setMonitoring({
-        dashboard: dashboardData,
-        activity: activityData?.activities || [],
-        alerts: alertsData?.alerts || [],
-        notifications: notificationsData?.notifications || [],
-        storage: storageData || null,
-        suspicious: suspiciousData?.events || [],
-        fileReport: fileReportData || null,
-      });
-    } catch (err) {
-      console.error("Monitoring load error:", err);
-    } finally {
-      setMonitoringLoading(false);
-    }
-  };
-
-  // ============================================================
-  // AUTH FORM
-  // ============================================================
-
-  const handleAuthChange = (event) => {
-    const { name, value } = event.target;
-
-    setAuthForm((previous) => ({
-      ...previous,
-      [name]: value,
-    }));
-  };
-
-  // ============================================================
-  // LOGIN
-  // ============================================================
-
-  const handleLogin = async (event) => {
-    event.preventDefault();
-
-    clearMessages();
-
-    if (!authForm.email || !authForm.password) {
-      showError("Please enter your email and password.");
-      return;
+      const dashboard = await apiRequest("/monitoring/dashboard");
+      setMonitoringDashboard(dashboard);
+    } catch {
+      setMonitoringDashboard(null);
     }
 
     try {
-      setLoading(true);
+      const data = await apiRequest("/monitoring/activity?limit=20");
+      setActivity(Array.isArray(data) ? data : data?.activities || []);
+    } catch {
+      setActivity([]);
+    }
 
-      const response = await fetch(`${API_URL}/auth/login`, {
+    try {
+      const data = await apiRequest("/monitoring/alerts");
+      setAlerts(Array.isArray(data) ? data : data?.alerts || []);
+    } catch {
+      setAlerts([]);
+    }
+
+    try {
+      const data = await apiRequest("/monitoring/notifications");
+      setNotifications(
+        Array.isArray(data) ? data : data?.notifications || []
+      );
+    } catch {
+      setNotifications([]);
+    }
+
+    try {
+      const data = await apiRequest("/monitoring/analytics/storage");
+      setStorageAnalytics(data);
+    } catch {
+      setStorageAnalytics(null);
+    }
+
+    try {
+      const data = await apiRequest("/monitoring/suspicious");
+      setSuspiciousActivity(
+        Array.isArray(data) ? data : data?.activities || []
+      );
+    } catch {
+      setSuspiciousActivity([]);
+    }
+
+    try {
+      const data = await apiRequest("/monitoring/reports/files");
+      setFileReports(data);
+    } catch {
+      setFileReports(null);
+    }
+  };
+
+  const loadAllData = async () => {
+    setLoading(true);
+
+    try {
+      await Promise.all([loadFiles(), loadSharedFiles(), loadMonitoring()]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    const initialize = async () => {
+      try {
+        await loadUser();
+        await loadAllData();
+      } catch (err) {
+        setError(err.message);
+      }
+    };
+
+    initialize();
+  }, [token]);
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    clearMessages();
+    setAuthLoading(true);
+
+    try {
+      const data = await fetch(API_URL + "/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          email: authForm.email.trim(),
-          password: authForm.password,
-        }),
+        body: JSON.stringify(loginForm),
       });
 
-      const data = await response.json();
+      let result = null;
 
-      if (!response.ok) {
+      try {
+        result = await data.json();
+      } catch {
+        result = null;
+      }
+
+      if (!data.ok) {
         throw new Error(
-          data?.detail || "Invalid email or password."
+          result?.detail ||
+            result?.message ||
+            "Login failed with status " + data.status
         );
       }
 
-      localStorage.setItem(
-        "trustshare_token",
-        data.access_token
-      );
+      const accessToken = result?.access_token;
 
-      setToken(data.access_token);
+      if (!accessToken) {
+        throw new Error("Login succeeded but no access token was returned.");
+      }
 
-      setAuthForm({
+      localStorage.setItem("trustshare_token", accessToken);
+      setToken(accessToken);
+
+      setLoginForm({
+        email: "",
+        password: "",
+      });
+
+      setSuccess("Login successful.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleRegister = async (event) => {
+    event.preventDefault();
+    clearMessages();
+    setAuthLoading(true);
+
+    try {
+      await fetch(API_URL + "/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(registerForm),
+      }).then(async (response) => {
+        let data = null;
+
+        try {
+          data = await response.json();
+        } catch {
+          data = null;
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            data?.detail ||
+              data?.message ||
+              "Registration failed with status " + response.status
+          );
+        }
+
+        return data;
+      });
+
+      setSuccess("Registration successful. You can now log in.");
+
+      setRegisterForm({
         name: "",
         email: "",
         password: "",
       });
 
-      showSuccess("Login successful.");
-    } catch (err) {
-      showError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ============================================================
-  // REGISTER
-  // ============================================================
-
-  const handleRegister = async (event) => {
-    event.preventDefault();
-
-    clearMessages();
-
-    if (!authForm.name.trim()) {
-      showError("Please enter your name.");
-      return;
-    }
-
-    if (!authForm.email.trim()) {
-      showError("Please enter your email.");
-      return;
-    }
-
-    if (authForm.password.length < 6) {
-      showError(
-        "Password must contain at least 6 characters."
-      );
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const response = await fetch(
-        `${API_URL}/auth/register`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: authForm.name.trim(),
-            email: authForm.email.trim(),
-            password: authForm.password,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data?.detail || "Registration failed."
-        );
-      }
-
       setAuthMode("login");
-
-      setAuthForm({
-        name: "",
-        email: authForm.email,
-        password: "",
-      });
-
-      showSuccess(
-        "Account created successfully. You can now sign in."
-      );
     } catch (err) {
-      showError(err.message);
+      setError(err.message);
     } finally {
-      setLoading(false);
+      setAuthLoading(false);
     }
   };
 
-  // ============================================================
-  // LOGOUT
-  // ============================================================
-
-  const logout = () => {
+  const handleLogout = () => {
     localStorage.removeItem("trustshare_token");
-
-    setToken(null);
+    setToken("");
     setUser(null);
     setFiles([]);
     setSharedWithMe([]);
     setSharedByMe([]);
-
-    setMonitoring({
-      dashboard: null,
-      activity: [],
-      alerts: [],
-      notifications: [],
-      storage: null,
-      suspicious: [],
-      fileReport: null,
-    });
-
+    setSelectedFile(null);
+    setTemporaryLinkFile(null);
+    setTemporaryLinkResult("");
+    setActivePage("dashboard");
     clearMessages();
   };
 
-  // ============================================================
-  // FILE UPLOAD
-  // ============================================================
-
-  const handleFileUpload = async (event) => {
+  const handleUpload = async (event) => {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -383,127 +387,77 @@ function App() {
     }
 
     clearMessages();
-
-    const MAX_SIZE = 10 * 1024 * 1024;
-
-    if (file.size > MAX_SIZE) {
-      showError(
-        "File is too large. Maximum allowed size is 10 MB."
-      );
-
-      event.target.value = "";
-      return;
-    }
+    setUploading(true);
 
     try {
-      setUploading(true);
-
       const formData = new FormData();
+      formData.append("file", file);
 
-      formData.append("uploaded_file", file);
+      await apiRequest("/files/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-      const response = await fetch(
-        `${API_URL}/files/upload`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
+      setSuccess(file.name + " uploaded successfully.");
 
-      let data = null;
+      event.target.value = "";
 
-      try {
-        data = await response.json();
-      } catch {
-        data = null;
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          data?.detail || "File upload failed."
-        );
-      }
-
-      showSuccess(
-        `${file.name} uploaded and encrypted successfully.`
-      );
-
-      await loadDashboard();
+      await loadFiles();
       await loadMonitoring();
     } catch (err) {
-      showError(err.message);
+      setError(err.message);
     } finally {
       setUploading(false);
-      event.target.value = "";
     }
   };
-
-  // ============================================================
-  // DOWNLOAD
-  // ============================================================
 
   const handleDownload = async (fileId, filename) => {
     clearMessages();
 
     try {
       const response = await fetch(
-        `${API_URL}/files/${fileId}/download`,
+        API_URL + "/files/" + fileId + "/download",
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: "Bearer " + token,
           },
         }
       );
 
       if (!response.ok) {
-        let message = "Unable to download file.";
+        let message = "Download failed.";
 
         try {
           const data = await response.json();
           message = data?.detail || message;
         } catch {
-          // Ignore parsing error.
+          // Ignore invalid JSON response.
         }
 
         throw new Error(message);
       }
 
       const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
 
-      const downloadUrl =
-        window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename || "download";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
 
-      const link = document.createElement("a");
+      window.URL.revokeObjectURL(url);
 
-      link.href = downloadUrl;
-      link.download = filename;
-
-      document.body.appendChild(link);
-
-      link.click();
-
-      link.remove();
-
-      window.URL.revokeObjectURL(downloadUrl);
-
-      showSuccess("File downloaded successfully.");
-
-      await loadMonitoring();
+      setSuccess("Download started.");
     } catch (err) {
-      showError(err.message);
+      setError(err.message);
     }
   };
 
-  // ============================================================
-  // DELETE
-  // ============================================================
-
-  const handleDelete = async (fileId, filename) => {
+  const handleDelete = async (file) => {
     const confirmed = window.confirm(
-      `Delete "${filename}" permanently?`
+      'Are you sure you want to delete "' + file.filename + '"?'
     );
 
     if (!confirmed) {
@@ -513,55 +467,46 @@ function App() {
     clearMessages();
 
     try {
-      await apiRequest(`/files/${fileId}`, {
+      await apiRequest("/files/" + file.id, {
         method: "DELETE",
       });
 
-      showSuccess("File deleted successfully.");
+      setSuccess(file.filename + " deleted successfully.");
 
-      await loadDashboard();
+      if (selectedFile?.id === file.id) {
+        setSelectedFile(null);
+      }
+
+      if (temporaryLinkFile?.id === file.id) {
+        setTemporaryLinkFile(null);
+        setTemporaryLinkResult("");
+      }
+
+      await loadFiles();
+      await loadSharedFiles();
       await loadMonitoring();
     } catch (err) {
-      showError(err.message);
+      setError(err.message);
     }
   };
-
-  // ============================================================
-  // SHARE
-  // ============================================================
 
   const handleShare = async (event) => {
     event.preventDefault();
 
+    if (!selectedFile) {
+      setError("Please select a file first.");
+      return;
+    }
+
+    if (!recipientEmail.trim()) {
+      setError("Please enter the recipient email.");
+      return;
+    }
+
     clearMessages();
 
-    if (!selectedFile) {
-      showError("Please select a file to share.");
-      return;
-    }
-
-    const recipientEmail = shareEmail.trim().toLowerCase();
-
-    if (!recipientEmail) {
-      showError("Please enter the recipient email.");
-      return;
-    }
-
-    if (!recipientEmail.includes("@")) {
-      showError("Please enter a valid email address.");
-      return;
-    }
-
-    if (
-      user &&
-      recipientEmail === user.email.toLowerCase()
-    ) {
-      showError("You cannot share a file with yourself.");
-      return;
-    }
-
     try {
-      setLoading(true);
+      const expiresAt = getExpiryFromDuration(shareDuration);
 
       await apiRequest("/files/share", {
         method: "POST",
@@ -570,1621 +515,1879 @@ function App() {
         },
         body: JSON.stringify({
           file_id: selectedFile.id,
-          shared_with_email: recipientEmail,
+          shared_with_email: recipientEmail.trim(),
           permission: "view",
+          expires_at: expiresAt,
         }),
       });
 
-      showSuccess(
-        `${selectedFile.filename} shared successfully.`
-      );
+      if (expiresAt) {
+        setSuccess(
+          "File shared successfully. Access expires on " +
+            formatDate(expiresAt) +
+            "."
+        );
+      } else {
+        setSuccess("File shared successfully with permanent access.");
+      }
 
+      setRecipientEmail("");
+      setShareDuration("none");
       setSelectedFile(null);
-      setShareEmail("");
 
-      await loadDashboard();
+      await loadSharedFiles();
       await loadMonitoring();
     } catch (err) {
-      showError(err.message);
-    } finally {
-      setLoading(false);
+      setError(err.message);
     }
   };
 
-  // ============================================================
-  // REVOKE
-  // ============================================================
-
-  const handleRevoke = async (shareId) => {
-    const confirmed = window.confirm(
-      "Revoke access to this file?"
-    );
-
-    if (!confirmed) {
+  const handleCreateTemporaryLink = async () => {
+    if (!temporaryLinkFile) {
+      setError("Please select a file for temporary access.");
       return;
     }
 
     clearMessages();
+    setTemporaryLinkResult("");
 
     try {
-      await apiRequest(`/files/share/${shareId}`, {
-        method: "DELETE",
+      const expiresAt = getExpiryFromDuration(temporaryLinkDuration);
+
+      if (!expiresAt) {
+        setError("Please select a temporary link duration.");
+        return;
+      }
+
+      const data = await apiRequest("/files/temporary-link", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          file_id: temporaryLinkFile.id,
+          expires_at: expiresAt,
+        }),
       });
 
-      showSuccess(
-        "File sharing access revoked successfully."
+      let downloadPath = data?.download_path;
+
+      if (!downloadPath && data?.token) {
+        downloadPath = "/files/temporary/" + data.token;
+      }
+
+      if (!downloadPath) {
+        throw new Error("Temporary link was created but no link was returned.");
+      }
+
+      const fullLink = API_URL + downloadPath;
+
+      setTemporaryLinkResult(fullLink);
+
+      setSuccess(
+        "Temporary access link created. It expires on " +
+          formatDate(expiresAt) +
+          "."
       );
-
-      await loadDashboard();
-      await loadMonitoring();
     } catch (err) {
-      showError(err.message);
+      setError(err.message);
     }
   };
 
-  // ============================================================
-  // FORMATTING
-  // ============================================================
-
-  const formatSize = (bytes) => {
-    if (bytes === 0) {
-      return "0 Bytes";
+  const copyTemporaryLink = async () => {
+    if (!temporaryLinkResult) {
+      return;
     }
 
-    if (!bytes) {
-      return "Unknown size";
+    try {
+      await navigator.clipboard.writeText(temporaryLinkResult);
+      setSuccess("Temporary link copied to clipboard.");
+    } catch {
+      setError("Could not copy the link automatically.");
     }
-
-    const units = [
-      "Bytes",
-      "KB",
-      "MB",
-      "GB",
-    ];
-
-    const index = Math.floor(
-      Math.log(bytes) / Math.log(1024)
-    );
-
-    return `${(
-      bytes / Math.pow(1024, index)
-    ).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
   };
 
-  const formatDate = (dateValue) => {
-    if (!dateValue) {
-      return "—";
-    }
+  const handleRefresh = async () => {
+    clearMessages();
 
-    return new Date(dateValue).toLocaleString();
+    try {
+      await loadAllData();
+      setSuccess("Data refreshed.");
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
-  const getInitials = () => {
-    if (!user?.name) {
-      return "U";
+  const renderExpiration = (item) => {
+    if (!item?.expires_at) {
+      return (
+        <span style={styles.permanentBadge}>
+          Permanent
+        </span>
+      );
     }
 
-    return user.name
-      .split(" ")
-      .map((part) => part[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase();
-  };
+    const expired = isExpired(item);
 
-  // ============================================================
-  // ICONS
-  // ============================================================
-
-  const renderLogo = () => (
-    <div className="logo-mark">
-      <svg
-        width="25"
-        height="25"
-        viewBox="0 0 24 24"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
+    return (
+      <span
+        style={expired ? styles.expiredBadge : styles.expiringBadge}
       >
-        <path
-          d="M12 3L19 6V11.5C19 16.3 16.1 19.7 12 21C7.9 19.7 5 16.3 5 11.5V6L12 3Z"
-          fill="white"
-          fillOpacity="0.18"
-          stroke="white"
-          strokeWidth="1.5"
-        />
+        {expired
+          ? "Expired"
+          : "Expires " + formatDate(item.expires_at)}
+      </span>
+    );
+  };
 
-        <path
-          d="M9.2 12.1L11.2 14.1L15.2 10"
-          stroke="white"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </div>
+  const totalStorage = files.reduce(
+    (total, file) => total + (file.size_bytes || 0),
+    0
   );
 
-  const renderSecurityIcon = (type) => {
-    if (type === "lock") {
-      return (
-        <svg
-          width="17"
-          height="17"
-          viewBox="0 0 24 24"
-          fill="none"
-        >
-          <rect
-            x="5"
-            y="10"
-            width="14"
-            height="10"
-            rx="2"
-            stroke="currentColor"
-            strokeWidth="1.7"
-          />
-
-          <path
-            d="M8 10V7a4 4 0 0 1 8 0v3"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-          />
-        </svg>
-      );
-    }
-
-    if (type === "share") {
-      return (
-        <svg
-          width="17"
-          height="17"
-          viewBox="0 0 24 24"
-          fill="none"
-        >
-          <circle
-            cx="18"
-            cy="5"
-            r="2.5"
-            stroke="currentColor"
-            strokeWidth="1.6"
-          />
-
-          <circle
-            cx="6"
-            cy="12"
-            r="2.5"
-            stroke="currentColor"
-            strokeWidth="1.6"
-          />
-
-          <circle
-            cx="18"
-            cy="19"
-            r="2.5"
-            stroke="currentColor"
-            strokeWidth="1.6"
-          />
-
-          <path
-            d="M8.2 10.8L15.7 6.5M8.2 13.2L15.7 17.5"
-            stroke="currentColor"
-            strokeWidth="1.6"
-          />
-        </svg>
-      );
-    }
-
-    if (type === "shield") {
-      return (
-        <svg
-          width="17"
-          height="17"
-          viewBox="0 0 24 24"
-          fill="none"
-        >
-          <path
-            d="M12 3L19 6V11.5C19 16.3 16.1 19.7 12 21C7.9 19.7 5 16.3 5 11.5V6L12 3Z"
-            stroke="currentColor"
-            strokeWidth="1.7"
-          />
-
-          <path
-            d="M9.2 12.1L11.2 14.1L15.2 10"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
-    }
-
+  if (!token) {
     return (
-      <svg
-        width="17"
-        height="17"
-        viewBox="0 0 24 24"
-        fill="none"
-      >
-        <circle
-          cx="12"
-          cy="12"
-          r="8.5"
-          stroke="currentColor"
-          strokeWidth="1.7"
-        />
+      <div style={styles.authPage}>
+        <div style={styles.authCard}>
+          <div style={styles.logoCircle}>T</div>
 
-        <path
-          d="M12 7V12L15 14"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-        />
-      </svg>
-    );
-  };
+          <h1 style={styles.authTitle}>TrustShare</h1>
 
-  // ============================================================
-  // LOGIN / REGISTER PAGE
-  // ============================================================
+          <p style={styles.authSubtitle}>
+            Secure Collaboration & Encrypted File Sharing
+          </p>
 
-  if (!token || !user) {
-    const isLogin = authMode === "login";
+          {error && <div style={styles.errorBox}>{error}</div>}
+          {success && <div style={styles.successBox}>{success}</div>}
 
-    return (
-      <div className="app">
-        <div className="auth-page">
-          <section className="auth-brand">
-            <div className="brand-content">
-              <div className="brand-logo">
-                {renderLogo()}
-
-                <div className="brand-name">
-                  TrustShare
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "8px 12px",
-                  marginBottom: "20px",
-                  borderRadius: "999px",
-                  border:
-                    "1px solid rgba(129,140,248,0.2)",
-                  background:
-                    "rgba(99,102,241,0.08)",
-                  color: "#c7d2fe",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  letterSpacing: "0.3px",
-                }}
-              >
-                <span
-                  style={{
-                    width: "7px",
-                    height: "7px",
-                    borderRadius: "50%",
-                    background: "#818cf8",
-                    boxShadow:
-                      "0 0 10px rgba(129,140,248,0.8)",
-                  }}
+          {authMode === "login" ? (
+            <form onSubmit={handleLogin}>
+              <div style={styles.formGroup}>
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={loginForm.email}
+                  onChange={(event) =>
+                    setLoginForm({
+                      ...loginForm,
+                      email: event.target.value,
+                    })
+                  }
+                  placeholder="Enter your email"
+                  required
+                  style={styles.input}
                 />
-
-                SECURE COLLABORATION PLATFORM
               </div>
 
-              <h1 className="brand-tagline">
-                Your files.
-                <br />
-                <span>Your control.</span>
-              </h1>
-
-              <p className="brand-description">
-                Securely store, encrypt, share and
-                collaborate on your files with complete
-                control over who can access them.
-              </p>
-
-              <div className="security-points">
-                <div className="security-point">
-                  <span className="security-icon">
-                    {renderSecurityIcon("lock")}
-                  </span>
-
-                  <span>
-                    Encrypted file storage
-                  </span>
-                </div>
-
-                <div className="security-point">
-                  <span className="security-icon">
-                    {renderSecurityIcon("share")}
-                  </span>
-
-                  <span>
-                    Controlled file sharing
-                  </span>
-                </div>
-
-                <div className="security-point">
-                  <span className="security-icon">
-                    {renderSecurityIcon("shield")}
-                  </span>
-
-                  <span>
-                    JWT-secured access
-                  </span>
-                </div>
-
-                <div className="security-point">
-                  <span className="security-icon">
-                    {renderSecurityIcon("clock")}
-                  </span>
-
-                  <span>
-                    Controlled permissions
-                  </span>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="auth-panel">
-            <div className="auth-card">
-              <div className="auth-card-header">
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "22px",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "42px",
-                      height: "42px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRadius: "12px",
-                      background:
-                        "rgba(99,102,241,0.12)",
-                      color: "#a5b4fc",
-                    }}
-                  >
-                    {renderSecurityIcon(
-                      isLogin ? "lock" : "shield"
-                    )}
-                  </div>
-
-                  <div
-                    style={{
-                      color: "#475569",
-                      fontSize: "11px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    TRUSTSHARE
-                  </div>
-                </div>
-
-                <h1>
-                  {isLogin
-                    ? "Welcome back"
-                    : "Create your account"}
-                </h1>
-
-                <p>
-                  {isLogin
-                    ? "Sign in to securely manage and share your files."
-                    : "Join TrustShare and take control of your secure collaboration."}
-                </p>
+              <div style={styles.formGroup}>
+                <label>Password</label>
+                <input
+                  type="password"
+                  value={loginForm.password}
+                  onChange={(event) =>
+                    setLoginForm({
+                      ...loginForm,
+                      password: event.target.value,
+                    })
+                  }
+                  placeholder="Enter your password"
+                  required
+                  style={styles.input}
+                />
               </div>
 
-              {error && (
-                <div className="alert alert-error">
-                  {error}
-                </div>
-              )}
-
-              {success && (
-                <div className="alert alert-success">
-                  {success}
-                </div>
-              )}
-
-              <form
-                className="auth-form"
-                onSubmit={
-                  isLogin
-                    ? handleLogin
-                    : handleRegister
-                }
+              <button
+                type="submit"
+                disabled={authLoading}
+                style={styles.primaryButton}
               >
-                {!isLogin && (
-                  <div className="form-group">
-                    <label htmlFor="name">
-                      FULL NAME
-                    </label>
+                {authLoading ? "Logging in..." : "Login"}
+              </button>
 
-                    <input
-                      id="name"
-                      name="name"
-                      type="text"
-                      placeholder="Enter your full name"
-                      value={authForm.name}
-                      onChange={handleAuthChange}
-                      autoComplete="name"
-                    />
-                  </div>
-                )}
-
-                <div className="form-group">
-                  <label htmlFor="email">
-                    EMAIL ADDRESS
-                  </label>
-
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={authForm.email}
-                    onChange={handleAuthChange}
-                    autoComplete="email"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="password">
-                    PASSWORD
-                  </label>
-
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    placeholder={
-                      isLogin
-                        ? "Enter your password"
-                        : "At least 6 characters"
-                    }
-                    value={authForm.password}
-                    onChange={handleAuthChange}
-                    autoComplete={
-                      isLogin
-                        ? "current-password"
-                        : "new-password"
-                    }
-                  />
-                </div>
-
-                <button
-                  className="primary-button"
-                  type="submit"
-                  disabled={loading}
-                >
-                  {loading
-                    ? isLogin
-                      ? "Signing in..."
-                      : "Creating account..."
-                    : isLogin
-                    ? "Sign in securely"
-                    : "Create secure account"}
-                </button>
-              </form>
-
-              <div className="auth-switch">
-                {isLogin ? (
-                  <>
-                    Don't have an account?{" "}
-                    <button
-                      className="link-button"
-                      type="button"
-                      onClick={() => {
-                        clearMessages();
-                        setAuthMode("register");
-                      }}
-                    >
-                      Create one
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    Already have an account?{" "}
-                    <button
-                      className="link-button"
-                      type="button"
-                      onClick={() => {
-                        clearMessages();
-                        setAuthMode("login");
-                      }}
-                    >
-                      Sign in
-                    </button>
-                  </>
-                )}
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "7px",
-                  marginTop: "22px",
-                  color: "#475569",
-                  fontSize: "11px",
+              <button
+                type="button"
+                onClick={() => {
+                  clearMessages();
+                  setAuthMode("register");
                 }}
+                style={styles.secondaryButton}
               >
-                <span>
-                  {renderSecurityIcon("shield")}
-                </span>
-
-                Protected by secure authentication
+                Create New Account
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleRegister}>
+              <div style={styles.formGroup}>
+                <label>Name</label>
+                <input
+                  type="text"
+                  value={registerForm.name}
+                  onChange={(event) =>
+                    setRegisterForm({
+                      ...registerForm,
+                      name: event.target.value,
+                    })
+                  }
+                  placeholder="Enter your name"
+                  required
+                  style={styles.input}
+                />
               </div>
-            </div>
-          </section>
+
+              <div style={styles.formGroup}>
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={registerForm.email}
+                  onChange={(event) =>
+                    setRegisterForm({
+                      ...registerForm,
+                      email: event.target.value,
+                    })
+                  }
+                  placeholder="Enter your email"
+                  required
+                  style={styles.input}
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label>Password</label>
+                <input
+                  type="password"
+                  value={registerForm.password}
+                  onChange={(event) =>
+                    setRegisterForm({
+                      ...registerForm,
+                      password: event.target.value,
+                    })
+                  }
+                  placeholder="Create a password"
+                  required
+                  minLength={6}
+                  style={styles.input}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={authLoading}
+                style={styles.primaryButton}
+              >
+                {authLoading ? "Creating..." : "Create Account"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  clearMessages();
+                  setAuthMode("login");
+                }}
+                style={styles.secondaryButton}
+              >
+                Back to Login
+              </button>
+            </form>
+          )}
+
+          <div style={styles.securityText}>
+            🔒 AES-256-GCM encrypted file storage
+          </div>
         </div>
       </div>
     );
   }
 
-  // ============================================================
-  // DASHBOARD VALUES
-  // ============================================================
-
-  const totalShared = sharedByMe.length;
-  const receivedCount = sharedWithMe.length;
-
-  const monitoringDashboard = monitoring.dashboard;
-
-  const totalRequests =
-    monitoringDashboard?.activity?.total_requests || 0;
-
-  const successfulRequests =
-    monitoringDashboard?.activity?.successful_requests || 0;
-
-  const failedRequests =
-    monitoringDashboard?.activity?.failed_requests || 0;
-
-  const storageFileCount =
-    monitoring.storage?.file_count ?? files.length;
-
-  const storageMb =
-    monitoring.storage?.total_mb ?? 0;
-
-  const alertCount = monitoring.alerts.length;
-
-  const suspiciousCount =
-    monitoring.suspicious.length;
-
   return (
-    <div className="app">
-      <div className="dashboard">
-        <nav className="navbar">
-          <div className="navbar-brand">
-            <div className="navbar-logo">
-              <svg
-                width="19"
-                height="19"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <path
-                  d="M12 3L19 6V11.5C19 16.3 16.1 19.7 12 21C7.9 19.7 5 16.3 5 11.5V6L12 3Z"
-                  stroke="white"
-                  strokeWidth="1.7"
-                />
+    <div style={styles.app}>
+      <header style={styles.header}>
+        <div style={styles.headerLeft}>
+          <div style={styles.smallLogo}>T</div>
 
-                <path
-                  d="M9.2 12.1L11.2 14.1L15.2 10"
-                  stroke="white"
-                  strokeWidth="1.7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+          <div>
+            <h2 style={styles.headerTitle}>TrustShare</h2>
+            <div style={styles.headerSubtitle}>
+              Secure Collaboration Platform
             </div>
+          </div>
+        </div>
 
-            TrustShare
+        <div style={styles.headerRight}>
+          <div style={styles.userInfo}>
+            <strong>{user?.name || "User"}</strong>
+            <span>{user?.email || ""}</span>
           </div>
 
-          <div className="navbar-right">
-            <div className="user-info">
-              <div className="user-avatar">
-                {getInitials()}
-              </div>
+          <button
+            onClick={handleLogout}
+            style={styles.logoutButton}
+          >
+            Logout
+          </button>
+        </div>
+      </header>
 
-              <div className="user-details">
-                <strong>{user.name}</strong>
-                <span>{user.email}</span>
-              </div>
-            </div>
+      <div style={styles.layout}>
+        <aside style={styles.sidebar}>
+          <button
+            onClick={() => setActivePage("dashboard")}
+            style={
+              activePage === "dashboard"
+                ? styles.activeNavButton
+                : styles.navButton
+            }
+          >
+            📊 Dashboard
+          </button>
 
+          <button
+            onClick={() => setActivePage("files")}
+            style={
+              activePage === "files"
+                ? styles.activeNavButton
+                : styles.navButton
+            }
+          >
+            📁 My Files
+          </button>
+
+          <button
+            onClick={() => setActivePage("shared")}
+            style={
+              activePage === "shared"
+                ? styles.activeNavButton
+                : styles.navButton
+            }
+          >
+            🤝 Shared Files
+          </button>
+
+          <button
+            onClick={() => setActivePage("temporary")}
+            style={
+              activePage === "temporary"
+                ? styles.activeNavButton
+                : styles.navButton
+            }
+          >
+            ⏳ Temporary Access
+          </button>
+
+          <button
+            onClick={() => setActivePage("monitoring")}
+            style={
+              activePage === "monitoring"
+                ? styles.activeNavButton
+                : styles.navButton
+            }
+          >
+            📈 Monitoring
+          </button>
+
+          <div style={styles.sidebarBottom}>
             <button
-              className="logout-button"
-              onClick={logout}
+              onClick={handleRefresh}
+              style={styles.refreshButton}
+              disabled={loading}
             >
-              Sign out
+              🔄 {loading ? "Refreshing..." : "Refresh"}
             </button>
           </div>
-        </nav>
+        </aside>
 
-        <main className="dashboard-container">
-          <div className="page-heading">
-            <div
-              style={{
-                color: "#818cf8",
-                fontSize: "11px",
-                fontWeight: 700,
-                letterSpacing: "1px",
-                marginBottom: "8px",
-              }}
-            >
-              SECURE WORKSPACE
-            </div>
-
-            <h1>
-              Good to see you,{" "}
-              {user.name.split(" ")[0]}.
-            </h1>
-
-            <p>
-              Manage your files and collaboration securely
-              from one place.
-            </p>
-          </div>
-
+        <main style={styles.main}>
           {error && (
-            <div className="alert alert-error">
-              {error}
+            <div style={styles.errorBox}>
+              <strong>Error:</strong> {error}
+              <button
+                onClick={() => setError("")}
+                style={styles.messageClose}
+              >
+                ×
+              </button>
             </div>
           )}
 
           {success && (
-            <div className="alert alert-success">
-              {success}
+            <div style={styles.successBox}>
+              <strong>Success:</strong> {success}
+              <button
+                onClick={() => setSuccess("")}
+                style={styles.messageClose}
+              >
+                ×
+              </button>
             </div>
           )}
 
-          {/* =====================================================
-              BASIC FILE STATISTICS
-          ===================================================== */}
-
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-label">
-                MY FILES
-              </div>
-
-              <div className="stat-value">
-                {files.length}
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-label">
-                SHARED BY ME
-              </div>
-
-              <div className="stat-value">
-                {totalShared}
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-label">
-                SHARED WITH ME
-              </div>
-
-              <div className="stat-value">
-                {receivedCount}
-              </div>
-            </div>
-          </div>
-
-          {/* =====================================================
-              MILESTONE 3 MONITORING DASHBOARD
-          ===================================================== */}
-
-          <div className="section-card monitoring-card">
-            <div className="section-header">
-              <div>
-                <h2>
-                  Security Monitoring & Analytics
-                </h2>
-
-                <p>
-                  Real-time activity, security alerts,
-                  audit monitoring and storage analytics.
-                </p>
-              </div>
-
-              <button
-                className="action-button primary"
-                onClick={loadMonitoring}
-                disabled={monitoringLoading}
-              >
-                {monitoringLoading
-                  ? "Refreshing..."
-                  : "Refresh"}
-              </button>
-            </div>
-
-            <div className="monitoring-stats">
-              <div className="monitoring-stat">
-                <div className="monitoring-stat-icon">
-                  {renderSecurityIcon("clock")}
-                </div>
-
+          {activePage === "dashboard" && (
+            <>
+              <div style={styles.pageHeading}>
                 <div>
-                  <div className="monitoring-stat-label">
-                    API ACTIVITY
-                  </div>
-
-                  <div className="monitoring-stat-value">
-                    {totalRequests}
-                  </div>
-
-                  <div className="monitoring-stat-detail">
-                    Last 24 hours
-                  </div>
+                  <h1>Dashboard</h1>
+                  <p>Welcome back, {user?.name || "User"}.</p>
                 </div>
               </div>
 
-              <div className="monitoring-stat">
-                <div className="monitoring-stat-icon success-icon">
-                  {renderSecurityIcon("shield")}
-                </div>
-
-                <div>
-                  <div className="monitoring-stat-label">
-                    SUCCESSFUL
-                  </div>
-
-                  <div className="monitoring-stat-value">
-                    {successfulRequests}
-                  </div>
-
-                  <div className="monitoring-stat-detail">
-                    Successful requests
-                  </div>
-                </div>
-              </div>
-
-              <div className="monitoring-stat">
-                <div className="monitoring-stat-icon warning-icon">
-                  {renderSecurityIcon("shield")}
-                </div>
-
-                <div>
-                  <div className="monitoring-stat-label">
-                    FAILED
-                  </div>
-
-                  <div className="monitoring-stat-value">
-                    {failedRequests}
-                  </div>
-
-                  <div className="monitoring-stat-detail">
-                    Failed requests
-                  </div>
-                </div>
-              </div>
-
-              <div className="monitoring-stat">
-                <div className="monitoring-stat-icon">
-                  {renderSecurityIcon("lock")}
-                </div>
-
-                <div>
-                  <div className="monitoring-stat-label">
-                    STORAGE
-                  </div>
-
-                  <div className="monitoring-stat-value">
-                    {storageMb}
-                    <span className="small-unit">
-                      {" "}
-                      MB
-                    </span>
-                  </div>
-
-                  <div className="monitoring-stat-detail">
-                    {storageFileCount} files
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="monitoring-grid">
-              {/* SECURITY ALERTS */}
-
-              <div className="monitoring-panel">
-                <div className="monitoring-panel-header">
+              <div style={styles.statsGrid}>
+                <div style={styles.statCard}>
+                  <div style={styles.statIcon}>📁</div>
                   <div>
-                    <h3>Security Alerts</h3>
-                    <span>
-                      {alertCount} active alert
-                      {alertCount !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-
-                  <div
-                    className={
-                      alertCount > 0
-                        ? "status-badge danger"
-                        : "status-badge success"
-                    }
-                  >
-                    {alertCount > 0
-                      ? "Attention"
-                      : "Secure"}
+                    <div style={styles.statNumber}>{files.length}</div>
+                    <div style={styles.statLabel}>My Files</div>
                   </div>
                 </div>
 
-                {monitoring.alerts.length === 0 ? (
-                  <div className="monitoring-empty">
-                    <div className="monitoring-empty-icon">
-                      ✓
-                    </div>
-
-                    <strong>
-                      No security alerts
-                    </strong>
-
-                    <span>
-                      No security events require
-                      attention.
-                    </span>
-                  </div>
-                ) : (
-                  <div className="monitoring-list">
-                    {monitoring.alerts.map(
-                      (alert, index) => (
-                        <div
-                          className="monitoring-list-item alert-item"
-                          key={`${alert.type}-${index}`}
-                        >
-                          <div>
-                            <strong>
-                              {alert.title ||
-                                alert.type}
-                            </strong>
-
-                            <span>
-                              {alert.message}
-                            </span>
-                          </div>
-
-                          <span
-                            className={`severity-badge ${
-                              alert.severity ||
-                              "medium"
-                            }`}
-                          >
-                            {alert.severity ||
-                              "medium"}
-                          </span>
-                        </div>
-                      )
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* NOTIFICATIONS */}
-
-              <div className="monitoring-panel">
-                <div className="monitoring-panel-header">
+                <div style={styles.statCard}>
+                  <div style={styles.statIcon}>🤝</div>
                   <div>
-                    <h3>Notifications</h3>
-                    <span>
-                      {monitoring.notifications.length}{" "}
-                      notification
-                      {monitoring.notifications.length !==
-                      1
-                        ? "s"
-                        : ""}
-                    </span>
+                    <div style={styles.statNumber}>
+                      {sharedWithMe.length}
+                    </div>
+                    <div style={styles.statLabel}>Shared With Me</div>
                   </div>
                 </div>
 
-                {monitoring.notifications.length ===
-                0 ? (
-                  <div className="monitoring-empty">
-                    <div className="monitoring-empty-icon">
-                      ✓
-                    </div>
-
-                    <strong>
-                      No new notifications
-                    </strong>
-
-                    <span>
-                      Everything looks normal.
-                    </span>
-                  </div>
-                ) : (
-                  <div className="monitoring-list">
-                    {monitoring.notifications.map(
-                      (notification, index) => (
-                        <div
-                          className="monitoring-list-item"
-                          key={`${notification.type}-${index}`}
-                        >
-                          <div>
-                            <strong>
-                              {notification.title ||
-                                notification.type}
-                            </strong>
-
-                            <span>
-                              {notification.message}
-                            </span>
-
-                            <small>
-                              {formatDate(
-                                notification.created_at
-                              )}
-                            </small>
-                          </div>
-
-                          <span
-                            className={`severity-badge ${
-                              notification.severity ||
-                              "info"
-                            }`}
-                          >
-                            {notification.severity ||
-                              "info"}
-                          </span>
-                        </div>
-                      )
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* FILE REPORT + STORAGE */}
-
-            <div className="monitoring-grid">
-              <div className="monitoring-panel">
-                <div className="monitoring-panel-header">
+                <div style={styles.statCard}>
+                  <div style={styles.statIcon}>📤</div>
                   <div>
-                    <h3>File Activity Report</h3>
-                    <span>
-                      Activity summary
-                    </span>
+                    <div style={styles.statNumber}>
+                      {sharedByMe.length}
+                    </div>
+                    <div style={styles.statLabel}>Shared By Me</div>
                   </div>
                 </div>
 
-                {monitoring.fileReport ? (
-                  <div className="report-grid">
-                    <div>
-                      <span>Uploads</span>
-                      <strong>
-                        {monitoring.fileReport.uploads ??
-                          0}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>Downloads</span>
-                      <strong>
-                        {monitoring.fileReport.downloads ??
-                          0}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>Deletions</span>
-                      <strong>
-                        {monitoring.fileReport.deletions ??
-                          0}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>Total files</span>
-                      <strong>
-                        {monitoring.fileReport
-                          .total_owned_files ??
-                          0}
-                      </strong>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="monitoring-empty">
-                    Loading report...
-                  </div>
-                )}
-              </div>
-
-              <div className="monitoring-panel">
-                <div className="monitoring-panel-header">
+                <div style={styles.statCard}>
+                  <div style={styles.statIcon}>💾</div>
                   <div>
-                    <h3>Storage Analytics</h3>
-                    <span>
-                      Current encrypted storage usage
-                    </span>
-                  </div>
-                </div>
-
-                <div className="storage-analytics">
-                  <div className="storage-circle">
-                    <strong>
-                      {storageMb}
-                    </strong>
-
-                    <span>MB</span>
-                  </div>
-
-                  <div className="storage-details">
-                    <div>
-                      <span>Files stored</span>
-                      <strong>
-                        {storageFileCount}
-                      </strong>
+                    <div style={styles.statNumber}>
+                      {formatBytes(totalStorage)}
                     </div>
-
-                    <div>
-                      <span>Total bytes</span>
-                      <strong>
-                        {monitoring.storage
-                          ?.total_bytes ??
-                          0}
-                      </strong>
-                    </div>
+                    <div style={styles.statLabel}>Storage Used</div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* SUSPICIOUS ACTIVITY */}
-
-            <div className="monitoring-panel suspicious-panel">
-              <div className="monitoring-panel-header">
-                <div>
-                  <h3>
-                    Suspicious Activity Detection
-                  </h3>
-
-                  <span>
-                    Automated security monitoring
-                  </span>
-                </div>
-
-                <div
-                  className={
-                    suspiciousCount > 0
-                      ? "status-badge danger"
-                      : "status-badge success"
-                  }
-                >
-                  {suspiciousCount > 0
-                    ? `${suspiciousCount} detected`
-                    : "No suspicious activity"}
-                </div>
-              </div>
-
-              {monitoring.suspicious.length === 0 ? (
-                <div className="monitoring-empty">
-                  <div className="monitoring-empty-icon">
-                    ✓
+              <div style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <div>
+                    <h2>Quick Upload</h2>
+                    <p>Upload an encrypted file to TrustShare.</p>
                   </div>
+                </div>
+
+                <label style={styles.uploadBox}>
+                  <span style={styles.uploadIcon}>📤</span>
 
                   <strong>
-                    No suspicious activity detected
+                    {uploading
+                      ? "Uploading..."
+                      : "Click to choose a file"}
                   </strong>
 
                   <span>
-                    Automated checks found no
-                    suspicious events during the last
-                    24 hours.
+                    Your file will be encrypted before storage.
                   </span>
-                </div>
-              ) : (
-                <div className="monitoring-list">
-                  {monitoring.suspicious.map(
-                    (event, index) => (
-                      <div
-                        className="monitoring-list-item alert-item"
-                        key={`${event.type}-${index}`}
-                      >
-                        <div>
-                          <strong>
-                            {event.type}
-                          </strong>
-
-                          <span>
-                            {event.message}
-                          </span>
-                        </div>
-
-                        <span
-                          className={`severity-badge ${
-                            event.severity ||
-                            "medium"
-                          }`}
-                        >
-                          {event.severity ||
-                            "medium"}
-                        </span>
-                      </div>
-                    )
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* RECENT ACTIVITY / AUDIT */}
-
-            <div className="monitoring-panel">
-              <div className="monitoring-panel-header">
-                <div>
-                  <h3>
-                    Recent Activity & Audit Log
-                  </h3>
-
-                  <span>
-                    Latest monitored API activity
-                  </span>
-                </div>
-              </div>
-
-              {monitoring.activity.length === 0 ? (
-                <div className="monitoring-empty">
-                  No activity recorded yet.
-                </div>
-              ) : (
-                <div className="audit-table-wrapper">
-                  <table className="audit-table">
-                    <thead>
-                      <tr>
-                        <th>Action</th>
-                        <th>Method</th>
-                        <th>Endpoint</th>
-                        <th>Status</th>
-                        <th>Time</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {monitoring.activity.map(
-                        (activity) => (
-                          <tr key={activity.id}>
-                            <td>
-                              <strong>
-                                {activity.action}
-                              </strong>
-                            </td>
-
-                            <td>
-                              <span className="method-badge">
-                                {activity.method}
-                              </span>
-                            </td>
-
-                            <td>
-                              <span className="endpoint-text">
-                                {activity.path}
-                              </span>
-                            </td>
-
-                            <td>
-                              <span
-                                className={
-                                  activity.status_code <
-                                  400
-                                    ? "status-code success"
-                                    : "status-code danger"
-                                }
-                              >
-                                {activity.status_code}
-                              </span>
-                            </td>
-
-                            <td>
-                              {formatDate(
-                                activity.created_at
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* =====================================================
-              UPLOAD
-          ===================================================== */}
-
-          <div className="section-card">
-            <div className="section-header">
-              <div>
-                <h2>Upload a file</h2>
-
-                <p>
-                  Your uploaded file is encrypted before
-                  being stored.
-                </p>
-              </div>
-            </div>
-
-            <div className="upload-area">
-              <label className="upload-label">
-                <svg
-                  width="17"
-                  height="17"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
-                  <path
-                    d="M12 16V4M12 4L7 9M12 4L17 9"
-                    stroke="white"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-
-                  <path
-                    d="M5 20H19"
-                    stroke="white"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                  />
-                </svg>
-
-                {uploading
-                  ? "Encrypting & uploading..."
-                  : "Choose a file"}
-
-                <input
-                  className="file-input"
-                  type="file"
-                  onChange={handleFileUpload}
-                  disabled={uploading}
-                />
-              </label>
-
-              <p className="upload-text">
-                Maximum file size: 10 MB
-              </p>
-            </div>
-          </div>
-
-          {/* =====================================================
-              MY FILES
-          ===================================================== */}
-
-          <div className="section-card">
-            <div className="section-header">
-              <div>
-                <h2>My Files</h2>
-
-                <p>
-                  Files owned and managed by you.
-                </p>
-              </div>
-            </div>
-
-            {files.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">📁</div>
-                No files uploaded yet.
-              </div>
-            ) : (
-              <div className="file-list">
-                {files.map((file) => (
-                  <div
-                    className="file-row"
-                    key={file.id}
-                  >
-                    <div className="file-info">
-                      <div className="file-name">
-                        🔒 {file.filename}
-                      </div>
-
-                      <div className="file-meta">
-                        {formatSize(file.size_bytes)}
-                        {" • "}
-                        {formatDate(file.uploaded_at)}
-                      </div>
-                    </div>
-
-                    <div className="file-actions">
-                      <button
-                        className="action-button primary"
-                        onClick={() =>
-                          handleDownload(
-                            file.id,
-                            file.filename
-                          )
-                        }
-                      >
-                        Download
-                      </button>
-
-                      <button
-                        className="action-button"
-                        onClick={() =>
-                          setSelectedFile(file)
-                        }
-                      >
-                        Share
-                      </button>
-
-                      <button
-                        className="action-button danger"
-                        onClick={() =>
-                          handleDelete(
-                            file.id,
-                            file.filename
-                          )
-                        }
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* =====================================================
-              SHARE FILE
-          ===================================================== */}
-
-          {selectedFile && (
-            <div className="section-card">
-              <div className="section-header">
-                <div>
-                  <h2>Share File</h2>
-
-                  <p>
-                    Sharing:{" "}
-                    <strong>
-                      {selectedFile.filename}
-                    </strong>
-                  </p>
-                </div>
-
-                <button
-                  className="action-button"
-                  onClick={() => {
-                    setSelectedFile(null);
-                    setShareEmail("");
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-
-              <form
-                className="share-form"
-                onSubmit={handleShare}
-              >
-                <div className="form-group">
-                  <label>
-                    RECIPIENT EMAIL
-                  </label>
 
                   <input
-                    type="email"
-                    placeholder="recipient@example.com"
-                    value={shareEmail}
-                    onChange={(event) =>
-                      setShareEmail(
-                        event.target.value
-                      )
-                    }
+                    type="file"
+                    onChange={handleUpload}
+                    disabled={uploading}
+                    style={{ display: "none" }}
                   />
+                </label>
+              </div>
+
+              <div style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <div>
+                    <h2>Recent Files</h2>
+                    <p>Your latest uploaded files.</p>
+                  </div>
+
+                  <button
+                    onClick={() => setActivePage("files")}
+                    style={styles.smallButton}
+                  >
+                    View All
+                  </button>
                 </div>
 
-                <div
-                  style={{
-                    marginBottom: "18px",
-                    color: "#64748b",
-                    fontSize: "12px",
-                  }}
-                >
-                  Permission: <strong>View</strong>
+                {files.length === 0 ? (
+                  <div style={styles.emptyState}>
+                    No files uploaded yet.
+                  </div>
+                ) : (
+                  <div style={styles.fileList}>
+                    {files.slice(0, 5).map((file) => (
+                      <div key={file.id} style={styles.fileRow}>
+                        <div style={styles.fileMain}>
+                          <div style={styles.fileIcon}>📄</div>
+
+                          <div>
+                            <strong>{file.filename}</strong>
+
+                            <div style={styles.fileMeta}>
+                              {formatBytes(file.size_bytes)} •{" "}
+                              {formatDate(file.uploaded_at)}
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() =>
+                            handleDownload(file.id, file.filename)
+                          }
+                          style={styles.smallButton}
+                        >
+                          Download
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {activePage === "files" && (
+            <>
+              <div style={styles.pageHeading}>
+                <div>
+                  <h1>My Files</h1>
+                  <p>Manage your encrypted files.</p>
+                </div>
+              </div>
+
+              <div style={styles.card}>
+                <label style={styles.uploadBox}>
+                  <span style={styles.uploadIcon}>📤</span>
+
+                  <strong>
+                    {uploading
+                      ? "Uploading..."
+                      : "Click to upload a new file"}
+                  </strong>
+
+                  <span>
+                    Files are encrypted using AES-256-GCM.
+                  </span>
+
+                  <input
+                    type="file"
+                    onChange={handleUpload}
+                    disabled={uploading}
+                    style={{ display: "none" }}
+                  />
+                </label>
+              </div>
+
+              <div style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <div>
+                    <h2>Uploaded Files</h2>
+                    <p>{files.length} file(s)</p>
+                  </div>
                 </div>
 
-                <button
-                  className="primary-button"
-                  type="submit"
-                  disabled={loading}
-                  style={{
-                    width: "auto",
-                    padding: "0 22px",
-                  }}
-                >
-                  {loading
-                    ? "Sharing..."
-                    : "Share securely"}
-                </button>
-              </form>
+                {files.length === 0 ? (
+                  <div style={styles.emptyState}>
+                    You have not uploaded any files.
+                  </div>
+                ) : (
+                  <div style={styles.fileList}>
+                    {files.map((file) => (
+                      <div key={file.id} style={styles.fileRow}>
+                        <div style={styles.fileMain}>
+                          <div style={styles.fileIcon}>📄</div>
+
+                          <div>
+                            <strong>{file.filename}</strong>
+
+                            <div style={styles.fileMeta}>
+                              {formatBytes(file.size_bytes)}
+                              {" • "}
+                              Uploaded {formatDate(file.uploaded_at)}
+                            </div>
+
+                            <div style={styles.fileId}>
+                              ID: {file.id}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={styles.actions}>
+                          <button
+                            onClick={() =>
+                              handleDownload(file.id, file.filename)
+                            }
+                            style={styles.smallButton}
+                          >
+                            Download
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setSelectedFile(file);
+                              setActivePage("share");
+                            }}
+                            style={styles.shareButton}
+                          >
+                            Share
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setTemporaryLinkFile(file);
+                              setTemporaryLinkResult("");
+                              setActivePage("temporary");
+                            }}
+                            style={styles.tempButton}
+                          >
+                            Temp Link
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(file)}
+                            style={styles.deleteButton}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <div>
+                    <h2>Share a File</h2>
+                    <p>
+                      Share a file with another TrustShare user.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label>Select File</label>
+
+                  <select
+                    value={selectedFile?.id || ""}
+                    onChange={(event) => {
+                      const file = files.find(
+                        (item) => item.id === event.target.value
+                      );
+                      setSelectedFile(file || null);
+                    }}
+                    style={styles.input}
+                  >
+                    <option value="">Select a file</option>
+
+                    {files.map((file) => (
+                      <option key={file.id} value={file.id}>
+                        {file.filename}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <form onSubmit={handleShare}>
+                  <div style={styles.formGroup}>
+                    <label>Recipient Email</label>
+
+                    <input
+                      type="email"
+                      value={recipientEmail}
+                      onChange={(event) =>
+                        setRecipientEmail(event.target.value)
+                      }
+                      placeholder="recipient@example.com"
+                      style={styles.input}
+                      required
+                    />
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label>Access Duration</label>
+
+                    <select
+                      value={shareDuration}
+                      onChange={(event) =>
+                        setShareDuration(event.target.value)
+                      }
+                      style={styles.input}
+                    >
+                      <option value="none">
+                        Permanent Access
+                      </option>
+
+                      <option value="5m">5 Minutes</option>
+                      <option value="15m">15 Minutes</option>
+                      <option value="1h">1 Hour</option>
+                      <option value="6h">6 Hours</option>
+                      <option value="24h">24 Hours</option>
+                      <option value="7d">7 Days</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="submit"
+                    style={styles.primaryButton}
+                    disabled={!selectedFile}
+                  >
+                    Share File
+                  </button>
+                </form>
+              </div>
+            </>
+          )}
+
+          {activePage === "share" && (
+            <div style={styles.card}>
+              <div style={styles.pageHeading}>
+                <div>
+                  <h1>Share File</h1>
+                  <p>Give another user controlled access.</p>
+                </div>
+              </div>
+
+              {selectedFile ? (
+                <>
+                  <div style={styles.selectedFile}>
+                    <div style={styles.fileIcon}>📄</div>
+
+                    <div>
+                      <strong>{selectedFile.filename}</strong>
+                      <div style={styles.fileMeta}>
+                        {formatBytes(selectedFile.size_bytes)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleShare}>
+                    <div style={styles.formGroup}>
+                      <label>Recipient Email</label>
+
+                      <input
+                        type="email"
+                        value={recipientEmail}
+                        onChange={(event) =>
+                          setRecipientEmail(event.target.value)
+                        }
+                        placeholder="recipient@example.com"
+                        style={styles.input}
+                        required
+                      />
+                    </div>
+
+                    <div style={styles.formGroup}>
+                      <label>Access Duration</label>
+
+                      <select
+                        value={shareDuration}
+                        onChange={(event) =>
+                          setShareDuration(event.target.value)
+                        }
+                        style={styles.input}
+                      >
+                        <option value="none">
+                          Permanent Access
+                        </option>
+                        <option value="5m">5 Minutes</option>
+                        <option value="15m">15 Minutes</option>
+                        <option value="1h">1 Hour</option>
+                        <option value="6h">6 Hours</option>
+                        <option value="24h">24 Hours</option>
+                        <option value="7d">7 Days</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="submit"
+                      style={styles.primaryButton}
+                    >
+                      Share File
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <div style={styles.emptyState}>
+                  Select a file from My Files first.
+                </div>
+              )}
             </div>
           )}
 
-          {/* =====================================================
-              SHARED BY ME
-          ===================================================== */}
-
-          <div className="section-card">
-            <div className="section-header">
-              <div>
-                <h2>Shared By Me</h2>
-
-                <p>
-                  Manage files you have shared with
-                  other users.
-                </p>
+          {activePage === "shared" && (
+            <>
+              <div style={styles.pageHeading}>
+                <div>
+                  <h1>Shared Files</h1>
+                  <p>Manage files shared with you and by you.</p>
+                </div>
               </div>
-            </div>
 
-            {sharedByMe.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">🔗</div>
-                You haven't shared any files yet.
+              <div style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <div>
+                    <h2>Shared With Me</h2>
+                    <p>
+                      Files other users have shared with your account.
+                    </p>
+                  </div>
+                </div>
+
+                {sharedWithMe.length === 0 ? (
+                  <div style={styles.emptyState}>
+                    No files have been shared with you.
+                  </div>
+                ) : (
+                  <div style={styles.fileList}>
+                    {sharedWithMe.map((item) => {
+                      const expired =
+                        item.expired || isExpired(item);
+
+                      return (
+                        <div key={item.id} style={styles.fileRow}>
+                          <div style={styles.fileMain}>
+                            <div style={styles.fileIcon}>🤝</div>
+
+                            <div>
+                              <strong>{item.filename}</strong>
+
+                              <div style={styles.fileMeta}>
+                                Permission:{" "}
+                                {item.permission || "view"}
+                                {" • "}
+                                Shared {formatDate(item.created_at)}
+                              </div>
+
+                              <div style={{ marginTop: "8px" }}>
+                                {renderExpiration(item)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() =>
+                              handleDownload(
+                                item.file_id,
+                                item.filename
+                              )
+                            }
+                            disabled={expired}
+                            style={
+                              expired
+                                ? styles.disabledButton
+                                : styles.smallButton
+                            }
+                          >
+                            {expired ? "Expired" : "Download"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="file-list">
-                {sharedByMe.map((share) => (
-                  <div
-                    className="file-row"
-                    key={share.id}
+
+              <div style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <div>
+                    <h2>Shared By Me</h2>
+                    <p>
+                      Files you have shared with other users.
+                    </p>
+                  </div>
+                </div>
+
+                {sharedByMe.length === 0 ? (
+                  <div style={styles.emptyState}>
+                    You have not shared any files.
+                  </div>
+                ) : (
+                  <div style={styles.fileList}>
+                    {sharedByMe.map((item) => (
+                      <div key={item.id} style={styles.fileRow}>
+                        <div style={styles.fileMain}>
+                          <div style={styles.fileIcon}>📤</div>
+
+                          <div>
+                            <strong>{item.filename}</strong>
+
+                            <div style={styles.fileMeta}>
+                              To: {item.shared_with_email}
+                            </div>
+
+                            <div style={styles.fileMeta}>
+                              Permission:{" "}
+                              {item.permission || "view"}
+                              {" • "}
+                              Shared {formatDate(item.created_at)}
+                            </div>
+
+                            <div style={{ marginTop: "8px" }}>
+                              {renderExpiration(item)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {activePage === "temporary" && (
+            <>
+              <div style={styles.pageHeading}>
+                <div>
+                  <h1>Temporary Access</h1>
+                  <p>
+                    Create a secure link that automatically expires.
+                  </p>
+                </div>
+              </div>
+
+              <div style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <div>
+                    <h2>Create Temporary Link</h2>
+                    <p>
+                      Anyone with the generated link can download
+                      the file until it expires.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label>Select File</label>
+
+                  <select
+                    value={temporaryLinkFile?.id || ""}
+                    onChange={(event) => {
+                      const file = files.find(
+                        (item) => item.id === event.target.value
+                      );
+
+                      setTemporaryLinkFile(file || null);
+                      setTemporaryLinkResult("");
+                    }}
+                    style={styles.input}
                   >
-                    <div className="file-info">
-                      <div className="file-name">
-                        🔗 File #{share.file_id}
-                      </div>
+                    <option value="">Select a file</option>
 
-                      <div className="file-meta">
-                        Shared with:{" "}
-                        {share.shared_with_email}
-                        {" • "}
-                        Permission:{" "}
-                        {share.permission}
-                      </div>
+                    {files.map((file) => (
+                      <option key={file.id} value={file.id}>
+                        {file.filename}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                      <div className="file-meta">
-                        Shared on:{" "}
-                        {formatDate(
-                          share.created_at
-                        )}
-                      </div>
-                    </div>
+                <div style={styles.formGroup}>
+                  <label>Link Duration</label>
 
-                    <div className="file-actions">
+                  <select
+                    value={temporaryLinkDuration}
+                    onChange={(event) =>
+                      setTemporaryLinkDuration(event.target.value)
+                    }
+                    style={styles.input}
+                  >
+                    <option value="5m">5 Minutes</option>
+                    <option value="15m">15 Minutes</option>
+                    <option value="1h">1 Hour</option>
+                    <option value="6h">6 Hours</option>
+                    <option value="24h">24 Hours</option>
+                    <option value="7d">7 Days</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={handleCreateTemporaryLink}
+                  disabled={!temporaryLinkFile}
+                  style={
+                    temporaryLinkFile
+                      ? styles.primaryButton
+                      : styles.disabledButton
+                  }
+                >
+                  🔗 Create Temporary Link
+                </button>
+
+                {temporaryLinkResult && (
+                  <div style={styles.linkResult}>
+                    <label>Temporary Download Link</label>
+
+                    <div style={styles.linkRow}>
+                      <input
+                        type="text"
+                        value={temporaryLinkResult}
+                        readOnly
+                        style={styles.input}
+                      />
+
                       <button
-                        className="action-button danger"
-                        onClick={() =>
-                          handleRevoke(
-                            share.id
-                          )
-                        }
+                        onClick={copyTemporaryLink}
+                        style={styles.smallButton}
                       >
-                        Revoke
+                        Copy
                       </button>
                     </div>
+
+                    <p style={styles.warningText}>
+                      ⚠️ Anyone who has this link can download the
+                      file until the expiration time.
+                    </p>
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
 
-          {/* =====================================================
-              SHARED WITH ME
-          ===================================================== */}
+              <div style={styles.card}>
+                <h2>How Temporary Access Works</h2>
 
-          <div className="section-card">
-            <div className="section-header">
-              <div>
-                <h2>Shared With Me</h2>
-
-                <p>
-                  Files other users have shared with
-                  you.
-                </p>
-              </div>
-            </div>
-
-            {sharedWithMe.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">📥</div>
-                No files have been shared with you.
-              </div>
-            ) : (
-              <div className="file-list">
-                {sharedWithMe.map((share) => (
-                  <div
-                    className="file-row"
-                    key={share.id}
-                  >
-                    <div className="file-info">
-                      <div className="file-name">
-                        📥 {share.filename}
-                      </div>
-
-                      <div className="file-meta">
-                        Shared by{" "}
-                        <strong>
-                          {share.owner_name}
-                        </strong>
-                      </div>
-
-                      <div className="file-meta">
-                        Owner email:{" "}
-                        {share.owner_email}
-                        {" • "}
-                        Permission:{" "}
-                        {share.permission}
-                      </div>
-
-                      <div className="file-meta">
-                        Shared on:{" "}
-                        {formatDate(
-                          share.created_at
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="file-actions">
-                      <button
-                        className="action-button primary"
-                        onClick={() =>
-                          handleDownload(
-                            share.file_id,
-                            share.filename
-                          )
-                        }
-                      >
-                        Download
-                      </button>
+                <div style={styles.steps}>
+                  <div style={styles.step}>
+                    <div style={styles.stepNumber}>1</div>
+                    <div>
+                      <strong>Select a file</strong>
+                      <p>
+                        Choose one of your encrypted files.
+                      </p>
                     </div>
                   </div>
-                ))}
+
+                  <div style={styles.step}>
+                    <div style={styles.stepNumber}>2</div>
+                    <div>
+                      <strong>Choose expiration</strong>
+                      <p>
+                        Set how long the temporary link should
+                        remain valid.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={styles.step}>
+                    <div style={styles.stepNumber}>3</div>
+                    <div>
+                      <strong>Share the link</strong>
+                      <p>
+                        Send the generated link to the intended
+                        recipient.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={styles.step}>
+                    <div style={styles.stepNumber}>4</div>
+                    <div>
+                      <strong>Automatic expiration</strong>
+                      <p>
+                        The backend rejects the link after its
+                        expiration time.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
+            </>
+          )}
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              padding: "20px",
-              color: "#475569",
-              fontSize: "11px",
-            }}
-          >
-            <span>
-              {renderSecurityIcon("shield")}
-            </span>
+          {activePage === "monitoring" && (
+            <>
+              <div style={styles.pageHeading}>
+                <div>
+                  <h1>Monitoring</h1>
+                  <p>
+                    Security activity and system information.
+                  </p>
+                </div>
+              </div>
 
-            TrustShare • Secure collaboration
-            workspace • Encrypted storage • Security
-            monitoring
-          </div>
+              {monitoringDashboard && (
+                <div style={styles.statsGrid}>
+                  {Object.entries(monitoringDashboard)
+                    .slice(0, 4)
+                    .map(([key, value]) => (
+                      <div style={styles.statCard} key={key}>
+                        <div style={styles.statIcon}>📊</div>
+
+                        <div>
+                          <div style={styles.statNumber}>
+                            {typeof value === "object"
+                              ? JSON.stringify(value)
+                              : String(value)}
+                          </div>
+
+                          <div style={styles.statLabel}>
+                            {key
+                              .replaceAll("_", " ")
+                              .replace(/\b\w/g, (letter) =>
+                                letter.toUpperCase()
+                              )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              <div style={styles.monitorGrid}>
+                <div style={styles.card}>
+                  <h2>Recent Activity</h2>
+
+                  {activity.length === 0 ? (
+                    <div style={styles.emptyState}>
+                      No recent activity.
+                    </div>
+                  ) : (
+                    <div style={styles.monitorList}>
+                      {activity.map((item, index) => (
+                        <div
+                          key={item.id || index}
+                          style={styles.monitorItem}
+                        >
+                          <div>
+                            <strong>
+                              {item.action ||
+                                item.event ||
+                                item.activity ||
+                                "Activity"}
+                            </strong>
+
+                            <div style={styles.fileMeta}>
+                              {item.description ||
+                                item.message ||
+                                ""}
+                            </div>
+                          </div>
+
+                          <span style={styles.monitorDate}>
+                            {formatDate(
+                              item.created_at ||
+                                item.timestamp ||
+                                item.occurred_at
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={styles.card}>
+                  <h2>Alerts</h2>
+
+                  {alerts.length === 0 ? (
+                    <div style={styles.emptyState}>
+                      No alerts.
+                    </div>
+                  ) : (
+                    <div style={styles.monitorList}>
+                      {alerts.map((item, index) => (
+                        <div
+                          key={item.id || index}
+                          style={styles.alertItem}
+                        >
+                          <strong>
+                            {item.title ||
+                              item.alert_type ||
+                              "Security Alert"}
+                          </strong>
+
+                          <p>
+                            {item.message ||
+                              item.description ||
+                              JSON.stringify(item)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={styles.card}>
+                  <h2>Notifications</h2>
+
+                  {notifications.length === 0 ? (
+                    <div style={styles.emptyState}>
+                      No notifications.
+                    </div>
+                  ) : (
+                    <div style={styles.monitorList}>
+                      {notifications.map((item, index) => (
+                        <div
+                          key={item.id || index}
+                          style={styles.monitorItem}
+                        >
+                          <div>
+                            <strong>
+                              {item.title ||
+                                item.type ||
+                                "Notification"}
+                            </strong>
+
+                            <div style={styles.fileMeta}>
+                              {item.message ||
+                                item.description ||
+                                ""}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={styles.card}>
+                  <h2>Suspicious Activity</h2>
+
+                  {suspiciousActivity.length === 0 ? (
+                    <div style={styles.emptyState}>
+                      No suspicious activity detected.
+                    </div>
+                  ) : (
+                    <div style={styles.monitorList}>
+                      {suspiciousActivity.map((item, index) => (
+                        <div
+                          key={item.id || index}
+                          style={styles.alertItem}
+                        >
+                          <strong>
+                            {item.action ||
+                              item.event ||
+                              "Suspicious Activity"}
+                          </strong>
+
+                          <p>
+                            {item.description ||
+                              item.message ||
+                              JSON.stringify(item)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={styles.card}>
+                <h2>Storage Analytics</h2>
+
+                {storageAnalytics ? (
+                  <pre style={styles.jsonBox}>
+                    {JSON.stringify(storageAnalytics, null, 2)}
+                  </pre>
+                ) : (
+                  <div style={styles.emptyState}>
+                    Storage analytics are not available.
+                  </div>
+                )}
+              </div>
+
+              <div style={styles.card}>
+                <h2>File Report</h2>
+
+                {fileReports ? (
+                  <pre style={styles.jsonBox}>
+                    {JSON.stringify(fileReports, null, 2)}
+                  </pre>
+                ) : (
+                  <div style={styles.emptyState}>
+                    File report is not available.
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </main>
       </div>
     </div>
   );
 }
+
+const styles = {
+  authPage: {
+    minHeight: "100vh",
+    background: "#0f172a",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: "24px",
+    fontFamily: "Arial, sans-serif",
+  },
+
+  authCard: {
+    width: "100%",
+    maxWidth: "430px",
+    background: "#ffffff",
+    borderRadius: "20px",
+    padding: "40px",
+    boxShadow: "0 25px 60px rgba(0,0,0,0.3)",
+  },
+
+  logoCircle: {
+    width: "64px",
+    height: "64px",
+    borderRadius: "18px",
+    background: "#2563eb",
+    color: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "32px",
+    fontWeight: "bold",
+    margin: "0 auto 20px",
+  },
+
+  authTitle: {
+    textAlign: "center",
+    margin: "0",
+    fontSize: "32px",
+    color: "#111827",
+  },
+
+  authSubtitle: {
+    textAlign: "center",
+    color: "#64748b",
+    marginBottom: "30px",
+    lineHeight: 1.5,
+  },
+
+  securityText: {
+    textAlign: "center",
+    marginTop: "24px",
+    fontSize: "13px",
+    color: "#64748b",
+  },
+
+  app: {
+    minHeight: "100vh",
+    background: "#f1f5f9",
+    fontFamily: "Arial, sans-serif",
+    color: "#0f172a",
+  },
+
+  header: {
+    height: "72px",
+    background: "#ffffff",
+    borderBottom: "1px solid #e2e8f0",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "0 28px",
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+  },
+
+  headerLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  },
+
+  smallLogo: {
+    width: "42px",
+    height: "42px",
+    borderRadius: "12px",
+    background: "#2563eb",
+    color: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "22px",
+    fontWeight: "bold",
+  },
+
+  headerTitle: {
+    margin: 0,
+    fontSize: "19px",
+  },
+
+  headerSubtitle: {
+    fontSize: "12px",
+    color: "#64748b",
+    marginTop: "2px",
+  },
+
+  headerRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: "18px",
+  },
+
+  userInfo: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    fontSize: "13px",
+  },
+
+  logoutButton: {
+    border: "none",
+    background: "#fee2e2",
+    color: "#b91c1c",
+    padding: "10px 16px",
+    borderRadius: "9px",
+    cursor: "pointer",
+    fontWeight: "600",
+  },
+
+  layout: {
+    display: "flex",
+    minHeight: "calc(100vh - 72px)",
+  },
+
+  sidebar: {
+    width: "230px",
+    background: "#0f172a",
+    padding: "24px 14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+  },
+
+  navButton: {
+    border: "none",
+    background: "transparent",
+    color: "#cbd5e1",
+    padding: "13px 15px",
+    borderRadius: "9px",
+    textAlign: "left",
+    cursor: "pointer",
+    fontSize: "14px",
+  },
+
+  activeNavButton: {
+    border: "none",
+    background: "#2563eb",
+    color: "#ffffff",
+    padding: "13px 15px",
+    borderRadius: "9px",
+    textAlign: "left",
+    cursor: "pointer",
+    fontSize: "14px",
+    fontWeight: "600",
+  },
+
+  sidebarBottom: {
+    marginTop: "auto",
+  },
+
+  refreshButton: {
+    width: "100%",
+    border: "1px solid #334155",
+    background: "#1e293b",
+    color: "#e2e8f0",
+    padding: "12px",
+    borderRadius: "9px",
+    cursor: "pointer",
+  },
+
+  main: {
+    flex: 1,
+    padding: "30px",
+    maxWidth: "1500px",
+    margin: "0 auto",
+    width: "100%",
+    boxSizing: "border-box",
+  },
+
+  pageHeading: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "24px",
+  },
+
+  card: {
+    background: "#ffffff",
+    borderRadius: "14px",
+    padding: "24px",
+    marginBottom: "22px",
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 2px 8px rgba(15,23,42,0.04)",
+  },
+
+  cardHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "20px",
+  },
+
+  statsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+    gap: "16px",
+    marginBottom: "22px",
+  },
+
+  statCard: {
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "14px",
+    padding: "20px",
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+  },
+
+  statIcon: {
+    fontSize: "28px",
+  },
+
+  statNumber: {
+    fontSize: "24px",
+    fontWeight: "700",
+  },
+
+  statLabel: {
+    color: "#64748b",
+    fontSize: "13px",
+    marginTop: "3px",
+  },
+
+  uploadBox: {
+    minHeight: "150px",
+    border: "2px dashed #93c5fd",
+    borderRadius: "12px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    cursor: "pointer",
+    background: "#eff6ff",
+    color: "#334155",
+  },
+
+  uploadIcon: {
+    fontSize: "32px",
+  },
+
+  fileList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+  },
+
+  fileRow: {
+    border: "1px solid #e2e8f0",
+    borderRadius: "10px",
+    padding: "15px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "15px",
+  },
+
+  fileMain: {
+    display: "flex",
+    alignItems: "center",
+    gap: "13px",
+    minWidth: 0,
+  },
+
+  fileIcon: {
+    width: "42px",
+    height: "42px",
+    borderRadius: "10px",
+    background: "#eff6ff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "21px",
+    flexShrink: 0,
+  },
+
+  fileMeta: {
+    color: "#64748b",
+    fontSize: "12px",
+    marginTop: "5px",
+  },
+
+  fileId: {
+    color: "#94a3b8",
+    fontSize: "10px",
+    marginTop: "5px",
+    wordBreak: "break-all",
+  },
+
+  actions: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "7px",
+    justifyContent: "flex-end",
+  },
+
+  primaryButton: {
+    width: "100%",
+    border: "none",
+    background: "#2563eb",
+    color: "#ffffff",
+    padding: "12px 18px",
+    borderRadius: "9px",
+    cursor: "pointer",
+    fontWeight: "600",
+    marginTop: "8px",
+  },
+
+  secondaryButton: {
+    width: "100%",
+    border: "1px solid #cbd5e1",
+    background: "#ffffff",
+    color: "#334155",
+    padding: "12px 18px",
+    borderRadius: "9px",
+    cursor: "pointer",
+    fontWeight: "600",
+    marginTop: "10px",
+  },
+
+  smallButton: {
+    border: "none",
+    background: "#2563eb",
+    color: "#ffffff",
+    padding: "9px 13px",
+    borderRadius: "7px",
+    cursor: "pointer",
+    fontSize: "12px",
+    fontWeight: "600",
+  },
+
+  shareButton: {
+    border: "none",
+    background: "#7c3aed",
+    color: "#ffffff",
+    padding: "9px 13px",
+    borderRadius: "7px",
+    cursor: "pointer",
+    fontSize: "12px",
+    fontWeight: "600",
+  },
+
+  tempButton: {
+    border: "none",
+    background: "#0891b2",
+    color: "#ffffff",
+    padding: "9px 13px",
+    borderRadius: "7px",
+    cursor: "pointer",
+    fontSize: "12px",
+    fontWeight: "600",
+  },
+
+  deleteButton: {
+    border: "none",
+    background: "#fee2e2",
+    color: "#b91c1c",
+    padding: "9px 13px",
+    borderRadius: "7px",
+    cursor: "pointer",
+    fontSize: "12px",
+    fontWeight: "600",
+  },
+
+  disabledButton: {
+    border: "none",
+    background: "#cbd5e1",
+    color: "#64748b",
+    padding: "9px 13px",
+    borderRadius: "7px",
+    cursor: "not-allowed",
+    fontSize: "12px",
+    fontWeight: "600",
+  },
+
+  formGroup: {
+    marginBottom: "17px",
+  },
+
+  input: {
+    width: "100%",
+    boxSizing: "border-box",
+    border: "1px solid #cbd5e1",
+    borderRadius: "8px",
+    padding: "12px",
+    marginTop: "7px",
+    fontSize: "14px",
+    outline: "none",
+    background: "#ffffff",
+  },
+
+  errorBox: {
+    background: "#fef2f2",
+    color: "#991b1b",
+    border: "1px solid #fecaca",
+    padding: "13px 16px",
+    borderRadius: "9px",
+    marginBottom: "18px",
+  },
+
+  successBox: {
+    background: "#f0fdf4",
+    color: "#166534",
+    border: "1px solid #bbf7d0",
+    padding: "13px 16px",
+    borderRadius: "9px",
+    marginBottom: "18px",
+  },
+
+  messageClose: {
+    float: "right",
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    fontSize: "18px",
+    color: "inherit",
+  },
+
+  emptyState: {
+    padding: "35px 15px",
+    textAlign: "center",
+    color: "#64748b",
+    border: "1px dashed #cbd5e1",
+    borderRadius: "10px",
+  },
+
+  selectedFile: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    padding: "15px",
+    borderRadius: "10px",
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    marginBottom: "22px",
+  },
+
+  permanentBadge: {
+    display: "inline-block",
+    background: "#dcfce7",
+    color: "#166534",
+    padding: "5px 9px",
+    borderRadius: "999px",
+    fontSize: "11px",
+    fontWeight: "600",
+  },
+
+  expiredBadge: {
+    display: "inline-block",
+    background: "#fee2e2",
+    color: "#b91c1c",
+    padding: "5px 9px",
+    borderRadius: "999px",
+    fontSize: "11px",
+    fontWeight: "600",
+  },
+
+  expiringBadge: {
+    display: "inline-block",
+    background: "#fef3c7",
+    color: "#92400e",
+    padding: "5px 9px",
+    borderRadius: "999px",
+    fontSize: "11px",
+    fontWeight: "600",
+  },
+
+  linkResult: {
+    marginTop: "25px",
+    padding: "18px",
+    background: "#f0fdfa",
+    border: "1px solid #99f6e4",
+    borderRadius: "10px",
+  },
+
+  linkRow: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+  },
+
+  warningText: {
+    color: "#92400e",
+    fontSize: "12px",
+    marginBottom: 0,
+  },
+
+  steps: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "15px",
+    marginTop: "20px",
+  },
+
+  step: {
+    display: "flex",
+    gap: "14px",
+    alignItems: "flex-start",
+  },
+
+  stepNumber: {
+    width: "30px",
+    height: "30px",
+    borderRadius: "50%",
+    background: "#2563eb",
+    color: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: "700",
+    flexShrink: 0,
+  },
+
+  monitorGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+    gap: "20px",
+  },
+
+  monitorList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+    marginTop: "15px",
+  },
+
+  monitorItem: {
+    padding: "12px",
+    border: "1px solid #e2e8f0",
+    borderRadius: "8px",
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "10px",
+  },
+
+  monitorDate: {
+    color: "#64748b",
+    fontSize: "11px",
+    whiteSpace: "nowrap",
+  },
+
+  alertItem: {
+    padding: "13px",
+    borderRadius: "8px",
+    background: "#fff7ed",
+    border: "1px solid #fed7aa",
+  },
+
+  jsonBox: {
+    background: "#0f172a",
+    color: "#e2e8f0",
+    padding: "16px",
+    borderRadius: "8px",
+    overflowX: "auto",
+    fontSize: "12px",
+  },
+};
 
 export default App;
