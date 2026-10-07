@@ -1,7 +1,735 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* TrustShare dark design system */
+:root {
+  color-scheme: dark;
+  --ts-bg: #06111f;
+  --ts-panel: #0b1b2c;
+  --ts-panel-light: #10263b;
+  --ts-border: #203b52;
+  --ts-text: #edf5ff;
+  --ts-muted: #91a7bf;
+  --ts-teal: #00d6c5;
+  --ts-teal-dark: #00a99f;
+}
+
+html {
+  min-height: 100%;
+  background: var(--ts-bg);
+}
+
 body {
-  @apply bg-gray-50 text-gray-900;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--ts-bg);
+  color: var(--ts-text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(0, 214, 197, 0.28);
+  color: white;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  transition: background-color 0.2s ease, border-color 0.2s ease,
+    color 0.2s ease, transform 0.2s ease;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ts-teal);
+  outline-offset: 3px;
+}
+
+/* Shared dark cards and panels */
+.ts-card {
+  background: var(--ts-panel);
+  border: 1px solid var(--ts-border);
+  border-radius: 16px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.12);
+}
+
+.ts-card-hover {
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.ts-card-hover:hover {
+  border-color: rgba(0, 214, 197, 0.45);
+  transform: translateY(-2px);
+}
+
+/* Teal buttons */
+.ts-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 10px 16px;
+  background: linear-gradient(105deg, #00d6c5, #00b8c9);
+  color: #031820;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.ts-button:hover {
+  filter: brightness(1.08);
+}
+
+.ts-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ts-button-secondary {
+  background: #10263b;
+  color: var(--ts-text);
+  border-color: var(--ts-border);
+}
+
+/* Inputs throughout the application */
+.ts-input,
+input.ts-input,
+select.ts-input,
+textarea.ts-input {
+  width: 100%;
+  border: 1px solid var(--ts-border);
+  border-radius: 10px;
+  padding: 11px 13px;
+  background: #071626;
+  color: var(--ts-text);
+}
+
+.ts-input::placeholder {
+  color: #7189a3;
+}
+
+.ts-input:focus {
+  outline: none;
+  border-color: var(--ts-teal);
+  box-shadow: 0 0 0 3px rgba(0, 214, 197, 0.09);
+}
+
+/* Status labels */
+.ts-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(0, 214, 197, 0.24);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: rgba(0, 214, 197, 0.1);
+  color: #5ef4df;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ts-muted {
+  color: var(--ts-muted);
+}
+
+/* Tables */
+.ts-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--ts-border);
+  border-radius: 14px;
+}
+
+.ts-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.ts-table th {
+  padding: 13px 16px;
+  background: #0c2033;
+  color: var(--ts-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ts-table td {
+  padding: 14px 16px;
+  border-top: 1px solid rgba(32, 59, 82, 0.7);
+  color: #dce8f5;
+}
+
+.ts-table tbody tr:hover {
+  background: rgba(16, 38, 59, 0.7);
+}
+
+/* LOGIN PAGE — centered card and abstract teal waves */
+.auth-scene {
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 24px 16px;
+  background:
+    radial-gradient(ellipse at 10% 45%, #004a50 0%, transparent 35%),
+    radial-gradient(ellipse at 90% 75%, #003d50 0%, transparent 36%),
+    linear-gradient(135deg, #020c18, #031c2d, #020b18);
+  color: #effaff;
+}
+
+.auth-scene::before,
+.auth-scene::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  width: 150%;
+  height: 45%;
+  left: -25%;
+  border-radius: 50%;
+  border-top: 2px solid rgba(0, 255, 225, 0.8);
+  box-shadow: 0 -12px 45px rgba(0, 240, 220, 0.18);
+  transform: rotate(-12deg);
+}
+
+.auth-scene::before {
+  top: 18%;
+}
+
+.auth-scene::after {
+  bottom: 5%;
+  transform: rotate(-18deg);
+  border-top-color: rgba(0, 210, 240, 0.65);
+}
+
+.auth-card {
+  width: min(100%, 480px);
+  padding: 38px;
+  border: 1px solid rgba(0, 230, 220, 0.75);
+  border-radius: 22px;
+  background: rgba(2, 16, 31, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.4);
+}
+
+.auth-logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.auth-title {
+  text-align: center;
+  color: #f4fbff;
+  font-size: 1.8rem;
+  font-weight: 650;
+  margin: 0;
+}
+
+.auth-subtitle {
+  text-align: center;
+  color: #91a9c4;
+  margin: 10px 0 26px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 0 15px;
+  border: 1px solid #18506d;
+  border-radius: 12px;
+  background: rgba(5, 29, 48, 0.9);
+  color: #8fb4d8;
+}
+
+.auth-field:focus-within {
+  border-color: #00e0cf;
+  box-shadow: 0 0 0 3px rgba(0, 224, 207, 0.1);
+}
+
+.auth-field input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f4fbff;
+  font: inherit;
+}
+
+.auth-field input::placeholder {
+  color: #819bb8;
+}
+
+.auth-field button {
+  flex-shrink: 0;
+}
+
+.auth-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.88rem;
+}
+
+.auth-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c5d6e8;
+}
+
+.auth-check input {
+  accent-color: #00d8c7;
+}
+
+.auth-options a,
+.auth-footer a {
+  color: #00e0cf;
+  text-decoration: none;
+}
+
+.auth-submit {
+  min-height: 56px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(100deg, #00d8c6, #00b9cc);
+  color: #00141d;
+  font-size: 1rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.auth-submit:hover {
+  filter: brightness(1.08);
+}
+
+.auth-submit:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.auth-google {
+  min-height: 52px;
+  border: 1px solid #18506d;
+  border-radius: 12px;
+  background: #071c30;
+  color: #effaff;
+  cursor: pointer;
+}
+
+.auth-alert {
+  padding: 12px;
+  border: 1px solid #713d4b;
+  border-radius: 10px;
+  color: #ffb5bf;
+  background: #311924;
+}
+
+.auth-footer {
+  text-align: center;
+  color: #91a9c4;
+  margin: 24px 0 0;
+}
+
+@media (max-width: 520px) {
+  .auth-card {
+    padding: 28px 20px;
+  }
+}
+
+
+/* ===== TrustShare presentation theme ===== */
+
+/* Dark backgrounds */
+body,
+.bg-white,
+.bg-gray-50,
+.bg-gray-100,
+.bg-slate-50,
+.bg-slate-100 {
+  background-color: #06111f !important;
+  color: #edf5ff;
+}
+
+/* Panels and cards */
+.bg-gray-800,
+.bg-gray-900,
+.bg-slate-800,
+.bg-slate-900,
+.bg-white\/80 {
+  background-color: #0b1b2c !important;
+}
+
+/* Text colors */
+.text-gray-900,
+.text-gray-800,
+.text-gray-700,
+.text-slate-900,
+.text-slate-800,
+.text-slate-700 {
+  color: #edf5ff !important;
+}
+
+.text-gray-600,
+.text-gray-500,
+.text-slate-600,
+.text-slate-500 {
+  color: #91a7bf !important;
+}
+
+/* Borders */
+.border-gray-100,
+.border-gray-200,
+.border-gray-300,
+.border-slate-100,
+.border-slate-200,
+.border-slate-300 {
+  border-color: #203b52 !important;
+}
+
+/* Sidebar and navigation */
+aside,
+nav {
+  color: #edf5ff;
+}
+
+aside a,
+nav a {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+aside a:hover,
+nav a:hover {
+  background-color: #102d40;
+  color: #00d6c5;
+}
+
+/* Inputs and search boxes */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  background-color: #071626;
+  color: #edf5ff;
+  border-color: #29445c;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #8299b2;
+}
+
+/* Buttons */
+button {
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  border-color: #00d6c5;
+}
+
+/* Primary teal buttons */
+.bg-blue-600,
+.bg-blue-500,
+.bg-indigo-600,
+.bg-indigo-500,
+.bg-emerald-600 {
+  background-color: #00bfae !important;
+  color: #031820 !important;
+}
+
+.bg-blue-600:hover,
+.bg-indigo-600:hover,
+.bg-emerald-600:hover {
+  background-color: #00d6c5 !important;
+}
+
+/* Tables */
+table {
+  color: #edf5ff;
+}
+
+thead,
+thead tr {
+  background-color: #0c2033 !important;
+}
+
+th {
+  color: #91a7bf;
+}
+
+td,
+th {
+  border-color: #203b52 !important;
+}
+
+tbody tr:hover {
+  background-color: #10263b !important;
+}
+
+/* Teal links and accents */
+.text-blue-600,
+.text-indigo-600,
+.text-emerald-600 {
+  color: #00d6c5 !important;
+}
+
+/* Dashboard cards */
+.rounded-xl,
+.rounded-2xl {
+  border-color: #203b52;
+}
+
+/* Scrollbars */
+* {
+  scrollbar-color: #29445c #06111f;
+  scrollbar-width: thin;
+}
+
+/* Mobile layout */
+@media (max-width: 640px) {
+  main {
+    max-width: 100%;
+  }
+}
+/* TrustShare left sidebar */
+.ts-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  width: 248px;
+  padding: 0 14px 16px;
+  background: #07131f;
+  border-right: 1px solid #172b3b;
+  color: #dce8f3;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.ts-brand {
+  height: 86px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 9px;
+  border-bottom: 1px solid #172b3b;
+}
+.ts-logo {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: #08bce9;
+  color: #03111d;
+  font-size: 23px;
+  font-weight: 800;
+}
+.ts-brand-name { color: #f4f9ff; font-size: 19px; font-weight: 750; }
+.ts-brand-subtitle { color: #8095a9; font-size: 11px; margin-top: 4px; }
+.ts-section-label {
+  margin: 27px 10px 12px;
+  color: #70879c;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+}
+.ts-nav { display: flex; flex-direction: column; gap: 7px; }
+.ts-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 45px;
+  padding: 0 13px;
+  border-radius: 8px;
+  color: #a9bdce;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background .18s ease, color .18s ease;
+}
+.ts-nav-item:hover { background: #102536; color: #fff; }
+.ts-nav-item.ts-active {
+  background: #08bce9;
+  color: #041522;
+  font-weight: 700;
+  box-shadow: 0 5px 18px #08bce926;
+}
+.ts-nav-icon { width: 20px; text-align: center; font-size: 19px; }
+.ts-security-card {
+  margin-top: auto;
+  padding: 17px 14px;
+  border: 1px solid #1c4054;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #10283a, #0a1928);
+}
+.ts-security-icon { color: #08c5ed; font-size: 23px; }
+.ts-security-title { margin-top: 8px; font-size: 13px; font-weight: 700; color: #f1f8ff; }
+.ts-security-card p { margin: 7px 0 0; color: #92a9bc; font-size: 11px; line-height: 1.6; }
+.ts-sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 16px 8px 0;
+  padding-top: 15px;
+  border-top: 1px solid #172b3b;
+  color: #8ea4b7;
+  font-size: 11px;
+}
+.ts-status-dot { width: 7px; height: 7px; border-radius: 50%; background: #28d7a0; }
+
+/* Leave room for the sidebar on desktop */
+@media (min-width: 768px) {
+  body:has(.ts-sidebar) main { margin-left: 248px; }
+}
+@media (max-width: 767px) {
+  .ts-sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    padding-bottom: 10px;
+  }
+  .ts-brand { height: 65px; }
+  .ts-section-label { margin-top: 14px; }
+  .ts-nav { flex-direction: row; flex-wrap: wrap; }
+  .ts-nav-item { flex: 1; min-width: 125px; }
+  .ts-security-card, .ts-sidebar-footer { display: none; }
+}
+
+/* TrustShare left sidebar */
+.ts-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  width: 248px;
+  padding: 0 14px 16px;
+  background: #07131f;
+  border-right: 1px solid #172b3b;
+  color: #dce8f3;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.ts-brand {
+  height: 86px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 9px;
+  border-bottom: 1px solid #172b3b;
+}
+.ts-logo {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: #08bce9;
+  color: #03111d;
+  font-size: 23px;
+  font-weight: 800;
+}
+.ts-brand-name { color: #f4f9ff; font-size: 19px; font-weight: 750; }
+.ts-brand-subtitle { color: #8095a9; font-size: 11px; margin-top: 4px; }
+.ts-section-label {
+  margin: 27px 10px 12px;
+  color: #70879c;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+}
+.ts-nav { display: flex; flex-direction: column; gap: 7px; }
+.ts-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 45px;
+  padding: 0 13px;
+  border-radius: 8px;
+  color: #a9bdce;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background .18s ease, color .18s ease;
+}
+.ts-nav-item:hover { background: #102536; color: #fff; }
+.ts-nav-item.ts-active {
+  background: #08bce9;
+  color: #041522;
+  font-weight: 700;
+  box-shadow: 0 5px 18px #08bce926;
+}
+.ts-nav-icon { width: 20px; text-align: center; font-size: 19px; }
+.ts-security-card {
+  margin-top: auto;
+  padding: 17px 14px;
+  border: 1px solid #1c4054;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #10283a, #0a1928);
+}
+.ts-security-icon { color: #08c5ed; font-size: 23px; }
+.ts-security-title { margin-top: 8px; font-size: 13px; font-weight: 700; color: #f1f8ff; }
+.ts-security-card p { margin: 7px 0 0; color: #92a9bc; font-size: 11px; line-height: 1.6; }
+.ts-sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 16px 8px 0;
+  padding-top: 15px;
+  border-top: 1px solid #172b3b;
+  color: #8ea4b7;
+  font-size: 11px;
+}
+.ts-status-dot { width: 7px; height: 7px; border-radius: 50%; background: #28d7a0; }
+
+/* Leave room for the sidebar on desktop */
+@media (min-width: 768px) {
+  body:has(.ts-sidebar) main { margin-left: 248px; }
+}
+@media (max-width: 767px) {
+  .ts-sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    padding-bottom: 10px;
+  }
+  .ts-brand { height: 65px; }
+  .ts-section-label { margin-top: 14px; }
+  .ts-nav { flex-direction: row; flex-wrap: wrap; }
+  .ts-nav-item { flex: 1; min-width: 125px; }
+  .ts-security-card, .ts-sidebar-footer { display: none; }
 }
