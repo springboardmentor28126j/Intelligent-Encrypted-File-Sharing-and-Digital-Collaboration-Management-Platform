@@ -13,19 +13,25 @@ from app.services.security_service import (
 
 
 def test_failed_login_brute_force_detection(db_session, test_user):
-    """Verify that 5 failed logins triggers a security alert notification and audit event."""
+    """Verify that 5 failed logins triggers a security alert notification, account lockout, and audit event."""
     email = test_user.email
     ip = "203.0.113.42"
 
-    # Attempt 1-4: logged as standard failed logins, not flagged yet
+    # Attempt 1-4: logged as standard failed logins, not locked yet
     for i in range(4):
-        flagged, count = record_failed_login(db=db_session, email=email, ip_address=ip)
-        assert flagged is False
+        is_locked, count, remaining = record_failed_login(db=db_session, email=email, ip_address=ip)
+        assert is_locked is False
+        assert count == i + 1
 
-    # Attempt 5: triggers threshold
-    flagged, count = record_failed_login(db=db_session, email=email, ip_address=ip)
-    assert flagged is True
+    # Attempt 5: triggers threshold and locks account
+    is_locked, count, remaining = record_failed_login(db=db_session, email=email, ip_address=ip)
+    assert is_locked is True
     assert count == 5
+    assert remaining > 0
+
+    # Check that user is locked in database
+    db_session.refresh(test_user)
+    assert test_user.is_locked() is True
 
     # Check that a security alert notification was dispatched
     notifs = (
@@ -34,12 +40,12 @@ def test_failed_login_brute_force_detection(db_session, test_user):
         .all()
     )
     assert len(notifs) >= 1
-    assert "failed login attempts" in notifs[0].message
+    assert "locked" in notifs[0].message.lower()
 
     # Check that a security_incident audit log was written
     security_logs = (
         db_session.query(AuditLog)
-        .filter(AuditLog.action == "multiple_failed_logins")
+        .filter(AuditLog.action.in_(["account_locked", "multiple_failed_logins"]))
         .all()
     )
     assert len(security_logs) >= 1

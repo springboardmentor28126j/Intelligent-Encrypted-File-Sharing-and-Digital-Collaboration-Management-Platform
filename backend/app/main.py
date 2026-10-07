@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.database import Base, engine, is_sqlite
+from app.database import Base, engine, is_sqlite, init_database_schema
 from app.mongodb import init_mongo_indexes
 from app.routers import auth as auth_router
 from app.routers import audit as audit_router
@@ -25,6 +25,7 @@ from app.routers import analytics as analytics_router
 from app.routers import files as files_router
 from app.routers import health as health_router
 from app.routers import notifications as notifications_router
+from app.routers import security as security_router
 from app.routers import shares as shares_router
 from app.services.file_service import ensure_upload_dir
 
@@ -39,20 +40,16 @@ logger = logging.getLogger("trustshare.main")
 async def lifespan(app: FastAPI):
     """
     Application lifespan handler.
-    - Creates SQL tables (for local SQLite)
+    - Creates SQL tables and verifies schema migrations
     - Initializes local secure upload directory
     - Non-blocking MongoDB index setup
     """
     logger.info("Initializing TrustShare backend services...")
-    # SQL Database tables
-    if is_sqlite:
-        try:
-            Base.metadata.create_all(bind=engine)
-            logger.info("SQLite local database schema verified.")
-        except Exception as exc:
-            logger.warning(f"Database schema auto-creation note: {exc}")
-    else:
-        logger.info("PostgreSQL database connection active.")
+    # SQL Database tables & schema migrations
+    try:
+        init_database_schema()
+    except Exception as exc:
+        logger.warning(f"Database schema initialization note: {exc}")
 
     # File storage directory
     try:
@@ -108,6 +105,8 @@ app.include_router(shares_router.router)
 app.include_router(audit_router.router)
 app.include_router(notifications_router.router)
 app.include_router(analytics_router.router)
+app.include_router(security_router.router)
+
 
 
 # ─── Root Status Endpoint ─────────────────────────────────────────────────────

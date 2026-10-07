@@ -70,11 +70,13 @@ def register(
         )
 
     hashed = hash_password(user_data.password)
+    role_val = user_data.role.value if hasattr(user_data.role, "value") else str(user_data.role or "user")
 
     new_user = User(
         full_name=user_data.full_name,
         email=user_data.email,
         hashed_password=hashed,
+        role=role_val,
     )
     db.add(new_user)
     db.commit()
@@ -98,7 +100,7 @@ def register(
     "/login",
     response_model=Token,
     summary="Login and receive a JWT access token",
-    description="Authenticates with email and password. Returns Bearer JWT.",
+    description="Authenticates with email and password. Enforces account lockout rules upon repeated failures.",
 )
 def login(
     credentials: UserLogin,
@@ -107,24 +109,57 @@ def login(
 ) -> Token:
     ip_addr = get_client_ip(request)
     ua = get_user_agent(request)
-    user = db.query(User).filter(User.email == credentials.email).first()
+    clean_email = credentials.email.lower().strip()
+    user = db.query(User).filter(User.email == clean_email).first()
 
+    # 1. Check whether account is currently locked
+    if user and user.is_locked():
+        remaining_min = user.remaining_lockout_minutes()
+        log_audit_event(
+            db=db,
+            user_id=user.id,
+            action="account_locked_attempt",
+            ip_address=ip_addr,
+            user_agent=ua,
+            details=f"Login rejected: account is temporarily locked (remaining: {remaining_min}m)",
+            status="failure",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Too many failed login attempts. Your account has been temporarily locked. Please try again after {remaining_min} minutes.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # 2. Verify password
     if not user or not verify_password(credentials.password, user.hashed_password):
         # Record failed login attempt and check for brute-force triggers
-        record_failed_login(
+        is_locked, count, remaining_info = record_failed_login(
             db=db,
             email=credentials.email,
             ip_address=ip_addr,
             user_agent=ua,
         )
+
+        if is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Too many failed login attempts. Your account has been temporarily locked. Please try again after {remaining_info or settings.LOCKOUT_DURATION_MINUTES} minutes.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        if remaining_info is not None and remaining_info <= 3:
+            detail_msg = f"Invalid email or password. {remaining_info} attempt(s) remaining before temporary account lockout."
+        else:
+            detail_msg = "Invalid email or password."
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password.",
+            detail=detail_msg,
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Success: clear failed login counter
-    clear_failed_logins(email=user.email, ip_address=ip_addr)
+    # 3. Success: reset failed login attempts and clear lockout state
+    clear_failed_logins(db=db, user=user, email=user.email, ip_address=ip_addr)
 
     # Detect new IP address
     detect_new_ip_access(db=db, user=user, ip_address=ip_addr, user_agent=ua)

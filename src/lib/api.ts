@@ -714,3 +714,151 @@ export async function getAnalyticsDashboard(days = 7): Promise<AnalyticsDashboar
   return apiFetch<AnalyticsDashboard>(`/analytics/dashboard?days=${days}`, { method: "GET" });
 }
 
+// ─── Security Monitoring & Account Lockout APIs ───────────────────────────────
+
+export interface SecurityAlert {
+  id: number;
+  user_id?: number | null;
+  user_email?: string | null;
+  title: string;
+  description: string;
+  event_type: string;
+  severity: "INFO" | "WARNING" | "HIGH" | "CRITICAL";
+  status: "OPEN" | "INVESTIGATING" | "RESOLVED";
+  ip_address?: string | null;
+  details?: string | null;
+  created_at: string;
+  resolved_at?: string | null;
+}
+
+export interface SuspiciousActivity {
+  id: number;
+  user_id?: number | null;
+  user_email?: string | null;
+  activity_type: string;
+  description: string;
+  attempt_count: number;
+  severity: "INFO" | "WARNING" | "HIGH" | "CRITICAL";
+  status: "OPEN" | "INVESTIGATING" | "RESOLVED";
+  ip_address?: string | null;
+  first_detected: string;
+  last_detected: string;
+  details?: string | null;
+}
+
+export interface LockedAccount {
+  user_id: number;
+  id?: number;
+  email: string;
+  full_name: string;
+  role?: string;
+  failed_login_attempts: number;
+  locked_until: string;
+  locked_at?: string;
+  remaining_minutes: number;
+  lock_reason: string;
+  status: string;
+}
+
+export interface SecuritySummary {
+  total_security_events: number;
+  total_events?: number;
+  suspicious_activities_count: number;
+  failed_login_attempts: number;
+  locked_accounts_count: number;
+  unauthorized_access_attempts: number;
+  unauthorized_access_count?: number;
+  open_alerts_count: number;
+  severity_breakdown: {
+    INFO: number;
+    WARNING: number;
+    HIGH: number;
+    CRITICAL: number;
+  };
+}
+
+export interface SecurityTrendPoint {
+  date: string;
+  failed_logins: number;
+  account_lockouts: number;
+  unauthorized_access: number;
+  other_events: number;
+}
+
+export interface SecurityAnalytics {
+  daily_trends: SecurityTrendPoint[];
+  failed_logins_trend?: SecurityTrendPoint[];
+  events_by_type: Record<string, number>;
+  severity_distribution: Record<string, number>;
+}
+
+export async function getSecuritySummary(): Promise<SecuritySummary> {
+  return apiFetch<SecuritySummary>("/security/summary", { method: "GET" });
+}
+
+export async function getSecurityEvents(params?: {
+  action?: string;
+  status_filter?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<AuditLog[]> {
+  const query = new URLSearchParams();
+  if (params?.action && params.action !== "all") query.set("action", params.action);
+  if (params?.status_filter && params.status_filter !== "all") query.set("status_filter", params.status_filter);
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.offset) query.set("offset", String(params.offset));
+
+  const qs = query.toString();
+  return apiFetch<AuditLog[]>(`/security/events${qs ? `?${qs}` : ""}`, { method: "GET" });
+}
+
+export async function getSecurityAlerts(status = "all", severity = "all"): Promise<SecurityAlert[]> {
+  const query = new URLSearchParams();
+  if (status && status !== "all") query.set("status", status);
+  if (severity && severity !== "all") query.set("severity", severity);
+  const qs = query.toString();
+  return apiFetch<SecurityAlert[]>(`/security/alerts${qs ? `?${qs}` : ""}`, { method: "GET" });
+}
+
+export async function updateSecurityAlertStatus(
+  alertId: number,
+  newStatus: "OPEN" | "INVESTIGATING" | "RESOLVED"
+): Promise<MessageResponse> {
+  return apiFetch<MessageResponse>(`/security/alerts/${alertId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: newStatus }),
+  });
+}
+
+export async function getSuspiciousActivities(status = "all"): Promise<SuspiciousActivity[]> {
+  const query = new URLSearchParams();
+  if (status && status !== "all") query.set("status", status);
+  const qs = query.toString();
+  return apiFetch<SuspiciousActivity[]>(`/security/suspicious-activities${qs ? `?${qs}` : ""}`, {
+    method: "GET",
+  });
+}
+
+export async function updateSuspiciousActivityStatus(
+  activityId: number,
+  newStatus: "OPEN" | "INVESTIGATING" | "RESOLVED" | "IGNORED"
+): Promise<MessageResponse> {
+  return apiFetch<MessageResponse>(`/security/suspicious-activities/${activityId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: newStatus }),
+  });
+}
+
+export async function getLockedAccounts(): Promise<LockedAccount[]> {
+  return apiFetch<LockedAccount[]>("/security/locked-accounts", { method: "GET" });
+}
+
+export async function unlockUserAccount(userId: number): Promise<MessageResponse> {
+  return apiFetch<MessageResponse>(`/security/unlock-account/${userId}`, { method: "POST" });
+}
+
+export async function getSecurityAnalytics(days = 7): Promise<SecurityAnalytics> {
+  return apiFetch<SecurityAnalytics>(`/security/analytics?days=${days}`, { method: "GET" });
+}
+
+

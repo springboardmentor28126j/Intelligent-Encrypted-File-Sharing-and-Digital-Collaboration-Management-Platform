@@ -26,6 +26,15 @@ import {
   getAuditLogs,
   getAuditStats,
   getAnalyticsDashboard,
+  getSecuritySummary,
+  getSecurityEvents,
+  getSecurityAlerts,
+  updateSecurityAlertStatus,
+  getSuspiciousActivities,
+  updateSuspiciousActivityStatus,
+  getLockedAccounts,
+  unlockUserAccount,
+  getSecurityAnalytics,
   UserOut,
   FileSummary,
   StorageStats,
@@ -39,6 +48,11 @@ import {
   AuditStats,
   AnalyticsDashboard as AnalyticsData,
   ShareLink,
+  SecurityAlert,
+  SuspiciousActivity,
+  LockedAccount,
+  SecuritySummary,
+  SecurityAnalytics,
 } from "@/lib/api";
 
 function formatBytes(bytes: number): string {
@@ -82,11 +96,23 @@ export default function DashboardPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
-  // Audit Logs State
+  // Audit Logs & Security Monitoring State
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [auditStats, setAuditStats] = useState<AuditStats | null>(null);
   const [auditActionFilter, setAuditActionFilter] = useState("all");
   const [auditStatusFilter, setAuditStatusFilter] = useState("all");
+
+  // Milestone 3 Security State
+  const [securitySummary, setSecuritySummary] = useState<SecuritySummary | null>(null);
+  const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
+  const [suspiciousActivities, setSuspiciousActivities] = useState<SuspiciousActivity[]>([]);
+  const [lockedAccounts, setLockedAccounts] = useState<LockedAccount[]>([]);
+  const [securityAnalytics, setSecurityAnalytics] = useState<SecurityAnalytics | null>(null);
+  const [alertFilterStatus, setAlertFilterStatus] = useState("all");
+  const [alertFilterSeverity, setAlertFilterSeverity] = useState("all");
+  const [unlockingUserId, setUnlockingUserId] = useState<number | null>(null);
+  const [securityFeedback, setSecurityFeedback] = useState<string | null>(null);
+  const [securityLoading, setSecurityLoading] = useState(false);
 
   // Analytics State
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
@@ -153,9 +179,9 @@ export default function DashboardPage() {
     } else if (activeTab === "notifications") {
       fetchNotifications();
     } else if (activeTab === "audit") {
-      fetchAuditLogs();
+      fetchSecurityAndAuditData();
     }
-  }, [activeTab, analyticsDays, auditActionFilter, auditStatusFilter]);
+  }, [activeTab, analyticsDays, auditActionFilter, auditStatusFilter, alertFilterStatus, alertFilterSeverity]);
 
   const refreshAllData = async () => {
     setRefreshing(true);
@@ -201,18 +227,65 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchAuditLogs = async () => {
+  const fetchSecurityAndAuditData = async () => {
+    setSecurityLoading(true);
     try {
       const action = auditActionFilter === "all" ? undefined : auditActionFilter;
       const statusF = auditStatusFilter === "all" ? undefined : auditStatusFilter;
-      const [logs, statsRes] = await Promise.all([
+      const [logs, statsRes, secSummary, alerts, suspicious, locked, secAnalytics] = await Promise.all([
         getAuditLogs({ action, status_filter: statusF, limit: 100 }),
         getAuditStats().catch(() => null),
+        getSecuritySummary().catch(() => null),
+        getSecurityAlerts(alertFilterStatus, alertFilterSeverity).catch(() => []),
+        getSuspiciousActivities().catch(() => []),
+        user?.role === "admin" ? getLockedAccounts().catch(() => []) : Promise.resolve([]),
+        getSecurityAnalytics(7).catch(() => null),
       ]);
       setAuditLogs(logs);
       if (statsRes) setAuditStats(statsRes);
+      if (secSummary) setSecuritySummary(secSummary);
+      setSecurityAlerts(alerts);
+      setSuspiciousActivities(suspicious);
+      setLockedAccounts(locked);
+      if (secAnalytics) setSecurityAnalytics(secAnalytics);
     } catch (e) {
-      console.error("Failed to load audit logs:", e);
+      console.error("Failed to load security & audit data:", e);
+    } finally {
+      setSecurityLoading(false);
+    }
+  };
+
+  const handleUnlockAccount = async (userId: number, email: string) => {
+    if (!confirm(`Are you sure you want to unlock the account for ${email}?`)) return;
+    setUnlockingUserId(userId);
+    setSecurityFeedback(null);
+    try {
+      await unlockUserAccount(userId);
+      setSecurityFeedback(`✓ Account for ${email} has been unlocked successfully.`);
+      await fetchSecurityAndAuditData();
+      await refreshAllData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to unlock user account.");
+    } finally {
+      setUnlockingUserId(null);
+    }
+  };
+
+  const handleUpdateAlertStatus = async (alertId: number, newStatus: "OPEN" | "INVESTIGATING" | "RESOLVED") => {
+    try {
+      await updateSecurityAlertStatus(alertId, newStatus);
+      await fetchSecurityAndAuditData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to update alert status.");
+    }
+  };
+
+  const handleUpdateSuspiciousStatus = async (activityId: number, newStatus: "OPEN" | "INVESTIGATING" | "RESOLVED" | "IGNORED") => {
+    try {
+      await updateSuspiciousActivityStatus(activityId, newStatus);
+      await fetchSecurityAndAuditData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to update suspicious activity status.");
     }
   };
 
@@ -1397,153 +1470,581 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── TAB 5: Security Audit Logs ────────────────────────────────────────── */}
+      {/* ── TAB 5: Security Monitoring & Audit ────────────────────────────────────────── */}
       {activeTab === "audit" && (
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap", gap: "1rem" }}>
-            <h2 style={{ fontSize: "var(--font-size-xl)", fontWeight: 700 }}>
-              🛡️ Security & Activity Audit Log
-            </h2>
-            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-              <select
-                value={auditActionFilter}
-                onChange={(e) => setAuditActionFilter(e.target.value)}
-                className="form-input"
-                style={{ width: "auto", padding: "0.4rem 0.8rem", fontSize: "0.85rem" }}
-              >
-                <option value="all">All Actions</option>
-                <option value="login">Login</option>
-                <option value="failed_login">Failed Login</option>
-                <option value="upload">Upload</option>
-                <option value="download">Download</option>
-                <option value="share">Share</option>
-                <option value="delete">Delete</option>
-                <option value="unauthorized_access">Unauthorized Access</option>
-                <option value="suspicious_activity">Suspicious Activity</option>
-              </select>
-
-              <select
-                value={auditStatusFilter}
-                onChange={(e) => setAuditStatusFilter(e.target.value)}
-                className="form-input"
-                style={{ width: "auto", padding: "0.4rem 0.8rem", fontSize: "0.85rem" }}
-              >
-                <option value="all">All Statuses</option>
-                <option value="success">Success</option>
-                <option value="failure">Failure</option>
-                <option value="security_incident">Security Incident</option>
-              </select>
-
+        <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+          {/* Header & Refresh Toolbar */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+            <div>
+              <h2 style={{ fontSize: "var(--font-size-2xl)", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                🛡️ Security Monitoring & Audit Center
+              </h2>
+              <p className="text-muted" style={{ fontSize: "0.9rem", marginTop: "0.25rem" }}>
+                Live suspicious activity detection, brute-force mitigation, account lockout management & real-time analytics.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
               <button
-                onClick={fetchAuditLogs}
+                onClick={fetchSecurityAndAuditData}
+                disabled={securityLoading}
                 className="btn btn-secondary"
-                style={{ padding: "0.4rem 0.8rem", fontSize: "0.85rem" }}
+                style={{ padding: "0.5rem 1rem", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.4rem" }}
               >
-                🔄
+                {securityLoading ? "🔄 Refreshing…" : "🔄 Refresh Security Live Data"}
               </button>
             </div>
           </div>
 
-          {/* Audit Stats Banner */}
-          {auditStats && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
-              <div className="card" style={{ padding: "1rem" }}>
-                <div className="text-muted" style={{ fontSize: "0.75rem" }}>Total Log Entries</div>
-                <div style={{ fontSize: "1.4rem", fontWeight: 700 }}>{auditStats.total_events}</div>
+          {/* ── SECTION 1: Real-time Security Summary Cards ── */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem" }}>
+            <div className="card" style={{ padding: "1.25rem", borderLeft: "4px solid var(--color-brand-primary)" }}>
+              <div className="text-muted" style={{ fontSize: "0.8rem", fontWeight: 600, textTransform: "uppercase" }}>Total Security Events</div>
+              <div style={{ fontSize: "1.8rem", fontWeight: 800, marginTop: "0.35rem" }}>
+                {securitySummary?.total_security_events ?? auditStats?.total_events ?? 0}
               </div>
-              <div className="card" style={{ padding: "1rem" }}>
-                <div className="text-muted" style={{ fontSize: "0.75rem" }}>Logins</div>
-                <div style={{ fontSize: "1.4rem", fontWeight: 700 }}>{auditStats.login_events}</div>
+              <div className="text-muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>Immutable audit records</div>
+            </div>
+
+            <div className="card" style={{ padding: "1.25rem", borderLeft: "4px solid #f59e0b" }}>
+              <div className="text-muted" style={{ fontSize: "0.8rem", fontWeight: 600, textTransform: "uppercase" }}>Suspicious Activities</div>
+              <div style={{ fontSize: "1.8rem", fontWeight: 800, color: (securitySummary?.suspicious_activities_count ?? 0) > 0 ? "#f59e0b" : "inherit", marginTop: "0.35rem" }}>
+                {securitySummary?.suspicious_activities_count ?? 0}
               </div>
-              <div className="card" style={{ padding: "1rem" }}>
-                <div className="text-muted" style={{ fontSize: "0.75rem" }}>Failed Logins</div>
-                <div style={{ fontSize: "1.4rem", fontWeight: 700, color: auditStats.failed_logins > 0 ? "#f87171" : "inherit" }}>
-                  {auditStats.failed_logins}
+              <div className="text-muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>Brute-force & velocity flags</div>
+            </div>
+
+            <div className="card" style={{ padding: "1.25rem", borderLeft: "4px solid #f87171" }}>
+              <div className="text-muted" style={{ fontSize: "0.8rem", fontWeight: 600, textTransform: "uppercase" }}>Failed Logins</div>
+              <div style={{ fontSize: "1.8rem", fontWeight: 800, color: (securitySummary?.failed_login_attempts ?? 0) > 0 ? "#f87171" : "inherit", marginTop: "0.35rem" }}>
+                {securitySummary?.failed_login_attempts ?? auditStats?.failed_logins ?? 0}
+              </div>
+              <div className="text-muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>Threshold: 5 in 10 mins</div>
+            </div>
+
+            <div className="card" style={{ padding: "1.25rem", borderLeft: "4px solid #ef4444" }}>
+              <div className="text-muted" style={{ fontSize: "0.8rem", fontWeight: 600, textTransform: "uppercase" }}>Locked Accounts</div>
+              <div style={{ fontSize: "1.8rem", fontWeight: 800, color: (securitySummary?.locked_accounts_count ?? 0) > 0 ? "#ef4444" : "#10b981", marginTop: "0.35rem" }}>
+                {securitySummary?.locked_accounts_count ?? lockedAccounts.length}
+              </div>
+              <div className="text-muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>15-minute temporary lockout</div>
+            </div>
+
+            <div className="card" style={{ padding: "1.25rem", borderLeft: "4px solid #a855f7" }}>
+              <div className="text-muted" style={{ fontSize: "0.8rem", fontWeight: 600, textTransform: "uppercase" }}>Unauthorized Access</div>
+              <div style={{ fontSize: "1.8rem", fontWeight: 800, color: (securitySummary?.unauthorized_access_attempts ?? 0) > 0 ? "#a855f7" : "inherit", marginTop: "0.35rem" }}>
+                {securitySummary?.unauthorized_access_attempts ?? 0}
+              </div>
+              <div className="text-muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>Forbidden file/token attempts</div>
+            </div>
+
+            <div className="card" style={{ padding: "1.25rem", borderLeft: "4px solid #dc2626" }}>
+              <div className="text-muted" style={{ fontSize: "0.8rem", fontWeight: 600, textTransform: "uppercase" }}>Open Security Alerts</div>
+              <div style={{ fontSize: "1.8rem", fontWeight: 800, color: (securitySummary?.open_alerts_count ?? 0) > 0 ? "#dc2626" : "#10b981", marginTop: "0.35rem" }}>
+                {securitySummary?.open_alerts_count ?? 0}
+              </div>
+              <div className="text-muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>Requires admin review</div>
+            </div>
+          </div>
+
+          {/* ── SECTION 2: Temporarily Locked Accounts (Milestone 3 Core) ── */}
+          <div className="card" style={{ padding: "1.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+              <div>
+                <h3 style={{ fontSize: "1.15rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  🔒 Temporarily Locked Accounts ({lockedAccounts.length})
+                </h3>
+                <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                  Accounts automatically locked by the backend after 5 consecutive failed logins. Backend strictly rejects authentication until lockout expires or admin unlocks.
+                </p>
+              </div>
+            </div>
+
+            {lockedAccounts.length === 0 ? (
+              <div style={{ padding: "2rem", textAlign: "center", background: "rgba(16, 185, 129, 0.05)", borderRadius: "var(--radius-md)", border: "1px dashed rgba(16, 185, 129, 0.3)" }}>
+                <div style={{ fontSize: "2rem", marginBottom: "0.25rem" }}>✅</div>
+                <div style={{ fontWeight: 600, color: "#10b981" }}>No Accounts Currently Locked</div>
+                <div className="text-muted" style={{ fontSize: "0.8rem", marginTop: "0.2rem" }}>
+                  All registered accounts are in good standing with zero active lockout restrictions.
                 </div>
               </div>
-              <div className="card" style={{ padding: "1rem" }}>
-                <div className="text-muted" style={{ fontSize: "0.75rem" }}>File Operations</div>
-                <div style={{ fontSize: "1.4rem", fontWeight: 700 }}>{auditStats.file_operations}</div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
+                      <th style={{ padding: "0.75rem" }}>User / Email</th>
+                      <th style={{ padding: "0.75rem" }}>Lock Reason</th>
+                      <th style={{ padding: "0.75rem" }}>Failed Attempts</th>
+                      <th style={{ padding: "0.75rem" }}>Locked At</th>
+                      <th style={{ padding: "0.75rem" }}>Unlock Time</th>
+                      <th style={{ padding: "0.75rem" }}>Remaining</th>
+                      <th style={{ padding: "0.75rem" }}>Status</th>
+                      <th style={{ padding: "0.75rem", textAlign: "right" }}>Admin Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lockedAccounts.map((acc) => (
+                      <tr key={acc.user_id} style={{ borderBottom: "1px solid var(--color-border)" }} className="table-row">
+                        <td style={{ padding: "0.75rem", fontWeight: 600 }}>
+                          <div>{acc.email}</div>
+                          <div className="text-muted" style={{ fontSize: "0.75rem" }}>ID: {String(acc.user_id).substring(0, 8)}… ({acc.role || "user"})</div>
+                        </td>
+                        <td style={{ padding: "0.75rem" }}>
+                          <span className="badge" style={{ background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", fontSize: "0.75rem" }}>
+                            {acc.lock_reason}
+                          </span>
+                        </td>
+                        <td style={{ padding: "0.75rem", fontWeight: 700, color: "#ef4444" }}>
+                          {acc.failed_login_attempts}
+                        </td>
+                        <td style={{ padding: "0.75rem", color: "var(--color-text-muted)", fontSize: "0.75rem" }}>
+                          {acc.locked_at ? new Date(acc.locked_at).toLocaleTimeString() : "—"}
+                        </td>
+                        <td style={{ padding: "0.75rem", color: "var(--color-text-muted)", fontSize: "0.75rem" }}>
+                          {acc.locked_until ? new Date(acc.locked_until).toLocaleTimeString() : "—"}
+                        </td>
+                        <td style={{ padding: "0.75rem", fontWeight: 600, color: "#f59e0b" }}>
+                          ⏱️ ~{acc.remaining_minutes} min
+                        </td>
+                        <td style={{ padding: "0.75rem" }}>
+                          <span className="badge" style={{ background: "rgba(239, 68, 68, 0.2)", color: "#ef4444", fontSize: "0.75rem" }}>
+                            LOCKED
+                          </span>
+                        </td>
+                        <td style={{ padding: "0.75rem", textAlign: "right" }}>
+                          <button
+                            onClick={() => handleUnlockAccount(acc.user_id, acc.email)}
+                            className="btn btn-primary"
+                            style={{ padding: "0.35rem 0.75rem", fontSize: "0.75rem", background: "#10b981", borderColor: "#10b981" }}
+                          >
+                            🔓 Unlock Account
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <div className="card" style={{ padding: "1rem" }}>
-                <div className="text-muted" style={{ fontSize: "0.75rem" }}>Security Alerts</div>
-                <div style={{ fontSize: "1.4rem", fontWeight: 700, color: auditStats.security_alerts > 0 ? "#ef4444" : "#10b981" }}>
-                  {auditStats.security_alerts}
+            )}
+          </div>
+
+          {/* ── SECTION 3: Active Security Alerts & Investigations ── */}
+          <div className="card" style={{ padding: "1.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.75rem" }}>
+              <div>
+                <h3 style={{ fontSize: "1.15rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  🚨 Security Alerts & Incidents ({securityAlerts.length})
+                </h3>
+                <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                  Automated security alerts generated from brute-force spikes, unauthorized access, and suspicious file operations.
+                </p>
+              </div>
+
+              {/* Filters */}
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <select
+                  value={alertFilterSeverity}
+                  onChange={(e) => setAlertFilterSeverity(e.target.value)}
+                  className="form-input"
+                  style={{ width: "auto", padding: "0.35rem 0.75rem", fontSize: "0.8rem" }}
+                >
+                  <option value="all">All Severities</option>
+                  <option value="CRITICAL">Critical</option>
+                  <option value="HIGH">High</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="LOW">Low</option>
+                </select>
+
+                <select
+                  value={alertFilterStatus}
+                  onChange={(e) => setAlertFilterStatus(e.target.value)}
+                  className="form-input"
+                  style={{ width: "auto", padding: "0.35rem 0.75rem", fontSize: "0.8rem" }}
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="OPEN">Open</option>
+                  <option value="INVESTIGATING">Investigating</option>
+                  <option value="RESOLVED">Resolved</option>
+                </select>
+              </div>
+            </div>
+
+            {securityAlerts.length === 0 ? (
+              <div style={{ padding: "2.5rem", textAlign: "center", color: "var(--color-text-muted)" }}>
+                <div style={{ fontSize: "2rem", marginBottom: "0.25rem" }}>🛡️</div>
+                <div>No security alerts matching current filters</div>
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
+                      <th style={{ padding: "0.75rem" }}>Timestamp</th>
+                      <th style={{ padding: "0.75rem" }}>Severity</th>
+                      <th style={{ padding: "0.75rem" }}>Alert Title</th>
+                      <th style={{ padding: "0.75rem" }}>Description & Context</th>
+                      <th style={{ padding: "0.75rem" }}>IP Address</th>
+                      <th style={{ padding: "0.75rem" }}>Investigation Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {securityAlerts
+                      .filter((a) => alertFilterSeverity === "all" || a.severity.toUpperCase() === alertFilterSeverity.toUpperCase())
+                      .filter((a) => alertFilterStatus === "all" || a.status.toUpperCase() === alertFilterStatus.toUpperCase())
+                      .map((alert) => (
+                        <tr key={alert.id} style={{ borderBottom: "1px solid var(--color-border)" }} className="table-row">
+                          <td style={{ padding: "0.75rem", color: "var(--color-text-muted)", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
+                            {new Date(alert.created_at).toLocaleString()}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            <span
+                              className="badge"
+                              style={{
+                                background:
+                                  alert.severity.toUpperCase() === "CRITICAL"
+                                    ? "rgba(239, 68, 68, 0.25)"
+                                    : alert.severity.toUpperCase() === "HIGH"
+                                    ? "rgba(245, 158, 11, 0.25)"
+                                    : "rgba(59, 130, 246, 0.2)",
+                                color:
+                                  alert.severity.toUpperCase() === "CRITICAL"
+                                    ? "#ef4444"
+                                    : alert.severity.toUpperCase() === "HIGH"
+                                    ? "#f59e0b"
+                                    : "#3b82f6",
+                                fontWeight: 700,
+                                fontSize: "0.75rem",
+                              }}
+                            >
+                              {alert.severity}
+                            </span>
+                          </td>
+                          <td style={{ padding: "0.75rem", fontWeight: 600 }}>
+                            {alert.title}
+                          </td>
+                          <td style={{ padding: "0.75rem", color: "var(--color-text-secondary)", maxWidth: "350px" }}>
+                            <div>{alert.description}</div>
+                            {alert.user_email && (
+                              <div className="text-muted" style={{ fontSize: "0.75rem" }}>Target: {alert.user_email}</div>
+                            )}
+                          </td>
+                          <td style={{ padding: "0.75rem", fontFamily: "monospace", fontSize: "0.8rem" }}>
+                            {alert.ip_address || "127.0.0.1"}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            <select
+                              value={alert.status}
+                              onChange={(e) => handleUpdateAlertStatus(alert.id, e.target.value as "OPEN" | "INVESTIGATING" | "RESOLVED")}
+                              className="form-input"
+                              style={{
+                                padding: "0.3rem 0.6rem",
+                                fontSize: "0.75rem",
+                                width: "auto",
+                                background:
+                                  alert.status === "RESOLVED"
+                                    ? "rgba(16, 185, 129, 0.15)"
+                                    : alert.status === "INVESTIGATING"
+                                    ? "rgba(245, 158, 11, 0.15)"
+                                    : "rgba(239, 68, 68, 0.15)",
+                                color:
+                                  alert.status === "RESOLVED"
+                                    ? "#10b981"
+                                    : alert.status === "INVESTIGATING"
+                                    ? "#f59e0b"
+                                    : "#ef4444",
+                                fontWeight: 600,
+                              }}
+                            >
+                              <option value="OPEN">🔴 OPEN</option>
+                              <option value="INVESTIGATING">🟡 INVESTIGATING</option>
+                              <option value="RESOLVED">🟢 RESOLVED</option>
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* ── SECTION 4: Suspicious Activity Detections (Velocity & Brute-force) ── */}
+          <div className="card" style={{ padding: "1.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+              <div>
+                <h3 style={{ fontSize: "1.15rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  ⚠️ Suspicious Activity Detections ({suspiciousActivities.length})
+                </h3>
+                <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                  Continuous behavioral monitoring tracking failed login spikes, rapid file access, and unauthorized attempts.
+                </p>
+              </div>
+            </div>
+
+            {suspiciousActivities.length === 0 ? (
+              <div style={{ padding: "2.5rem", textAlign: "center", color: "var(--color-text-muted)" }}>
+                <div style={{ fontSize: "2rem", marginBottom: "0.25rem" }}>🔍</div>
+                <div>No suspicious activity patterns detected</div>
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
+                      <th style={{ padding: "0.75rem" }}>Activity Type</th>
+                      <th style={{ padding: "0.75rem" }}>User / Target</th>
+                      <th style={{ padding: "0.75rem" }}>Attempts</th>
+                      <th style={{ padding: "0.75rem" }}>First Seen</th>
+                      <th style={{ padding: "0.75rem" }}>Last Seen</th>
+                      <th style={{ padding: "0.75rem" }}>Severity</th>
+                      <th style={{ padding: "0.75rem" }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {suspiciousActivities.map((act) => (
+                      <tr key={act.id} style={{ borderBottom: "1px solid var(--color-border)" }} className="table-row">
+                        <td style={{ padding: "0.75rem", fontWeight: 600 }}>
+                          <span className="badge" style={{ textTransform: "uppercase", fontSize: "0.75rem" }}>
+                            {act.activity_type.replace(/_/g, " ")}
+                          </span>
+                        </td>
+                        <td style={{ padding: "0.75rem" }}>
+                          <div>{act.user_email || "Unauthenticated User"}</div>
+                          <div className="text-muted" style={{ fontSize: "0.75rem", fontFamily: "monospace" }}>{act.ip_address || "127.0.0.1"}</div>
+                        </td>
+                        <td style={{ padding: "0.75rem", fontWeight: 700, color: act.attempt_count >= 5 ? "#ef4444" : "#f59e0b" }}>
+                          {act.attempt_count}
+                        </td>
+                        <td style={{ padding: "0.75rem", color: "var(--color-text-muted)", fontSize: "0.75rem" }}>
+                          {new Date(act.first_detected).toLocaleTimeString()}
+                        </td>
+                        <td style={{ padding: "0.75rem", color: "var(--color-text-muted)", fontSize: "0.75rem" }}>
+                          {new Date(act.last_detected).toLocaleTimeString()}
+                        </td>
+                        <td style={{ padding: "0.75rem" }}>
+                          <span
+                            className="badge"
+                            style={{
+                              background: act.severity === "HIGH" ? "rgba(239, 68, 68, 0.2)" : "rgba(245, 158, 11, 0.2)",
+                              color: act.severity === "HIGH" ? "#ef4444" : "#f59e0b",
+                              fontSize: "0.75rem",
+                              fontWeight: 700,
+                            }}
+                          >
+                            {act.severity}
+                          </span>
+                        </td>
+                        <td style={{ padding: "0.75rem" }}>
+                          <select
+                            value={act.status}
+                            onChange={(e) => handleUpdateSuspiciousStatus(act.id, e.target.value as "OPEN" | "INVESTIGATING" | "RESOLVED" | "IGNORED")}
+                            className="form-input"
+                            style={{ padding: "0.3rem 0.6rem", fontSize: "0.75rem", width: "auto" }}
+                          >
+                            <option value="OPEN">🔴 OPEN</option>
+                            <option value="INVESTIGATING">🟡 INVESTIGATING</option>
+                            <option value="RESOLVED">🟢 RESOLVED</option>
+                            <option value="IGNORED">⚪ IGNORED</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* ── SECTION 5: Security Analytics & Historical Trends ── */}
+          {securityAnalytics && (
+            <div className="card" style={{ padding: "1.5rem" }}>
+              <h3 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                📊 Security Analytics & Event Breakdown (Last 7 Days)
+              </h3>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
+                {/* Severity Breakdown */}
+                <div style={{ background: "var(--color-surface)", padding: "1rem", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)" }}>
+                  <h4 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>
+                    Severity Distribution
+                  </h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                    {Object.entries(securityAnalytics.severity_distribution || {}).map(([sev, count]) => (
+                      <div key={sev} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: "0.8rem", textTransform: "uppercase", fontWeight: 600 }}>{sev}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1, marginLeft: "1rem", marginRight: "1rem" }}>
+                          <div
+                            style={{
+                              height: "8px",
+                              borderRadius: "4px",
+                              background:
+                                sev === "CRITICAL"
+                                  ? "#ef4444"
+                                  : sev === "HIGH"
+                                  ? "#f59e0b"
+                                  : sev === "WARNING"
+                                  ? "#eab308"
+                                  : "#3b82f6",
+                              width: `${Math.min(100, Math.max(5, (count as number) * 15))}%`,
+                            }}
+                          />
+                        </div>
+                        <span style={{ fontSize: "0.85rem", fontWeight: 700 }}>{count as number}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Event Types Breakdown */}
+                <div style={{ background: "var(--color-surface)", padding: "1rem", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)" }}>
+                  <h4 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>
+                    Security Events by Action
+                  </h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", maxHeight: "180px", overflowY: "auto" }}>
+                    {Object.entries(securityAnalytics.events_by_type || {}).map(([type, count]) => (
+                      <div key={type} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "0.8rem" }}>
+                        <span className="badge" style={{ fontSize: "0.7rem", textTransform: "uppercase" }}>{type.replace(/_/g, " ")}</span>
+                        <span style={{ fontWeight: 700 }}>{count as number}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Daily Trend Overview */}
+                <div style={{ background: "var(--color-surface)", padding: "1rem", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)" }}>
+                  <h4 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>
+                    Recent Failed Logins & Lockouts Timeline
+                  </h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    {(securityAnalytics.daily_trends || []).slice(-5).map((point, idx) => (
+                      <div key={idx} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", borderBottom: "1px solid var(--color-border)", paddingBottom: "0.3rem" }}>
+                        <span className="text-muted">{point.date}</span>
+                        <span>Failed Logins: <strong style={{ color: point.failed_logins > 0 ? "#ef4444" : "inherit" }}>{point.failed_logins}</strong>, Lockouts: <strong style={{ color: point.account_lockouts > 0 ? "#ef4444" : "inherit" }}>{point.account_lockouts}</strong></span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Audit Log Table */}
-          {auditLogs.length === 0 ? (
-            <div className="card" style={{ padding: "3rem", textAlign: "center" }}>
-              <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>📋</div>
-              <h3 style={{ fontWeight: 600, marginBottom: "0.25rem" }}>No audit log records found</h3>
-              <p className="text-muted" style={{ fontSize: "0.85rem" }}>
-                Audit events are recorded automatically upon logins, downloads, uploads, and security events.
-              </p>
+          {/* ── SECTION 6: Security Audit Log Table ── */}
+          <div className="card" style={{ padding: "1.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: "1rem" }}>
+              <div>
+                <h3 style={{ fontSize: "1.15rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  📋 Immutable Audit & Event Logs ({auditLogs.length})
+                </h3>
+                <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                  Full cryptographic and access logs recorded automatically for every authenticated action and security incident.
+                </p>
+              </div>
+
+              {/* Action and Status Filters */}
+              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                <select
+                  value={auditActionFilter}
+                  onChange={(e) => setAuditActionFilter(e.target.value)}
+                  className="form-input"
+                  style={{ width: "auto", padding: "0.4rem 0.8rem", fontSize: "0.85rem" }}
+                >
+                  <option value="all">All Actions</option>
+                  <option value="login">Login</option>
+                  <option value="login_failed">Failed Login</option>
+                  <option value="account_locked">Account Locked</option>
+                  <option value="account_unlocked">Account Unlocked</option>
+                  <option value="upload">Upload</option>
+                  <option value="download">Download</option>
+                  <option value="share">Share</option>
+                  <option value="delete">Delete</option>
+                  <option value="unauthorized_access">Unauthorized Access</option>
+                  <option value="suspicious_activity">Suspicious Activity</option>
+                </select>
+
+                <select
+                  value={auditStatusFilter}
+                  onChange={(e) => setAuditStatusFilter(e.target.value)}
+                  className="form-input"
+                  style={{ width: "auto", padding: "0.4rem 0.8rem", fontSize: "0.85rem" }}
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="success">Success</option>
+                  <option value="failure">Failure</option>
+                  <option value="security_incident">Security Incident</option>
+                </select>
+              </div>
             </div>
-          ) : (
-            <div className="card" style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
-                    <th style={{ padding: "0.85rem" }}>Timestamp</th>
-                    <th style={{ padding: "0.85rem" }}>Action</th>
-                    <th style={{ padding: "0.85rem" }}>IP Address</th>
-                    <th style={{ padding: "0.85rem" }}>File / Resource</th>
-                    <th style={{ padding: "0.85rem" }}>Status</th>
-                    <th style={{ padding: "0.85rem" }}>Details</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {auditLogs.map((log) => (
-                    <tr key={log.id} style={{ borderBottom: "1px solid var(--color-border)" }} className="table-row">
-                      <td style={{ padding: "0.85rem", color: "var(--color-text-muted)", fontSize: "0.75rem" }}>
-                        {new Date(log.timestamp).toLocaleString()}
-                      </td>
-                      <td style={{ padding: "0.85rem", fontWeight: 600 }}>
-                        <span className="badge" style={{ fontSize: "0.75rem", textTransform: "uppercase" }}>
-                          {log.action}
-                        </span>
-                      </td>
-                      <td style={{ padding: "0.85rem", fontFamily: "monospace", fontSize: "0.8rem" }}>
-                        {log.ip_address || "127.0.0.1"}
-                      </td>
-                      <td style={{ padding: "0.85rem" }}>
-                        {log.filename ? <span>📄 {log.filename}</span> : <span className="text-muted">—</span>}
-                      </td>
-                      <td style={{ padding: "0.85rem" }}>
-                        <span
-                          className="badge"
-                          style={{
-                            background:
-                              log.status === "success"
-                                ? "rgba(16, 185, 129, 0.15)"
-                                : log.status === "security_incident"
-                                ? "rgba(239, 68, 68, 0.25)"
-                                : "rgba(245, 158, 11, 0.15)",
-                            color:
-                              log.status === "success"
-                                ? "#10b981"
-                                : log.status === "security_incident"
-                                ? "#ef4444"
-                                : "#f59e0b",
-                            fontSize: "0.75rem",
-                          }}
-                        >
-                          {log.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: "0.85rem", color: "var(--color-text-muted)", maxWidth: "300px", wordBreak: "break-word" }}>
-                        {log.details || "—"}
-                      </td>
+
+            {auditLogs.length === 0 ? (
+              <div style={{ padding: "3rem", textAlign: "center" }}>
+                <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>📋</div>
+                <h4 style={{ fontWeight: 600, marginBottom: "0.25rem" }}>No audit log records found</h4>
+                <p className="text-muted" style={{ fontSize: "0.85rem" }}>
+                  Audit events are recorded automatically upon logins, downloads, uploads, and security incidents.
+                </p>
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
+                      <th style={{ padding: "0.85rem" }}>Timestamp</th>
+                      <th style={{ padding: "0.85rem" }}>Action</th>
+                      <th style={{ padding: "0.85rem" }}>IP Address</th>
+                      <th style={{ padding: "0.85rem" }}>File / Resource</th>
+                      <th style={{ padding: "0.85rem" }}>Status</th>
+                      <th style={{ padding: "0.85rem" }}>Details</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {auditLogs.map((log) => (
+                      <tr key={log.id} style={{ borderBottom: "1px solid var(--color-border)" }} className="table-row">
+                        <td style={{ padding: "0.85rem", color: "var(--color-text-muted)", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
+                          {new Date(log.timestamp).toLocaleString()}
+                        </td>
+                        <td style={{ padding: "0.85rem", fontWeight: 600 }}>
+                          <span className="badge" style={{ fontSize: "0.75rem", textTransform: "uppercase" }}>
+                            {log.action.replace(/_/g, " ")}
+                          </span>
+                        </td>
+                        <td style={{ padding: "0.85rem", fontFamily: "monospace", fontSize: "0.8rem" }}>
+                          {log.ip_address || "127.0.0.1"}
+                        </td>
+                        <td style={{ padding: "0.85rem" }}>
+                          {log.filename ? <span>📄 {log.filename}</span> : <span className="text-muted">—</span>}
+                        </td>
+                        <td style={{ padding: "0.85rem" }}>
+                          <span
+                            className="badge"
+                            style={{
+                              background:
+                                log.status === "success"
+                                  ? "rgba(16, 185, 129, 0.15)"
+                                  : log.status === "security_incident"
+                                  ? "rgba(239, 68, 68, 0.25)"
+                                  : "rgba(245, 158, 11, 0.15)",
+                              color:
+                                log.status === "success"
+                                  ? "#10b981"
+                                  : log.status === "security_incident"
+                                  ? "#ef4444"
+                                  : "#f59e0b",
+                              fontSize: "0.75rem",
+                            }}
+                          >
+                            {log.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: "0.85rem", color: "var(--color-text-muted)", maxWidth: "300px", wordBreak: "break-word" }}>
+                          {log.details || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

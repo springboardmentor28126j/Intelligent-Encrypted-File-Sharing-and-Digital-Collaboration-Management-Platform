@@ -58,6 +58,10 @@ class UserCreate(BaseModel):
         examples=["securepassword123"],
         description="Plain-text password (will be bcrypt-hashed before storage)",
     )
+    role: Optional[UserRole] = Field(
+        default=UserRole.user,
+        description="Role: user or admin",
+    )
 
 
 class UserLogin(BaseModel):
@@ -391,4 +395,87 @@ class AnalyticsDashboardOut(BaseModel):
     recent_activity: List[RecentActivityItem] = []
     upload_trends: List[TrendPoint] = []
     category_distribution: List[StorageCategoryItem] = []
+
+
+# ─── Milestone 3 Security Monitoring Schemas ──────────────────────────────────
+
+class SecurityAlertOut(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    user_email: Optional[str] = None
+    title: str
+    description: str
+    event_type: str
+    severity: str
+    status: str
+    ip_address: Optional[str] = None
+    details: Optional[str] = None
+    created_at: datetime
+    resolved_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SuspiciousActivityOut(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    user_email: Optional[str] = None
+    activity_type: str
+    description: str
+    attempt_count: int
+    severity: str
+    status: str
+    ip_address: Optional[str] = None
+    first_detected: datetime
+    last_detected: datetime
+    details: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LockedAccountOut(BaseModel):
+    user_id: int
+    id: Optional[int] = None
+    email: str
+    full_name: str
+    role: Optional[str] = "user"
+    failed_login_attempts: int
+    locked_until: datetime
+    locked_at: Optional[datetime] = None
+    remaining_minutes: int
+    lock_reason: str = "Multiple failed login attempts exceeding threshold"
+    status: str = "Temporarily Locked"
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SecuritySummaryOut(BaseModel):
+    total_security_events: int
+    total_events: Optional[int] = None
+    suspicious_activities_count: int
+    failed_login_attempts: int
+    locked_accounts_count: int
+    unauthorized_access_attempts: int
+    unauthorized_access_count: Optional[int] = None
+    open_alerts_count: int
+    severity_breakdown: Dict[str, int]
+
+
+class SecurityTrendPoint(BaseModel):
+    date: str
+    failed_logins: int = 0
+    account_lockouts: int = 0
+    unauthorized_access: int = 0
+    other_events: int = 0
+
+
+class SecurityAnalyticsOut(BaseModel):
+    daily_trends: List[SecurityTrendPoint] = []
+    events_by_type: Dict[str, int] = {}
+    severity_distribution: Dict[str, int] = {}
+
+
+class UpdateSecurityStatusRequest(BaseModel):
+    status: str = Field(..., examples=["OPEN", "INVESTIGATING", "RESOLVED"])
+
 

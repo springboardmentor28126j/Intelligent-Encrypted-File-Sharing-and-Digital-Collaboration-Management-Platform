@@ -72,6 +72,11 @@ class User(Base):
     mfa_enabled = Column(Boolean, default=False, nullable=False, server_default="false")
     storage_quota = Column(BigInteger, default=5368709120, nullable=False, server_default="5368709120")
     used_storage = Column(BigInteger, default=0, nullable=False, server_default="0")
+    
+    # Milestone 3 Account Security & Lockout Fields
+    failed_login_attempts = Column(Integer, default=0, nullable=False, server_default="0")
+    locked_until = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -96,9 +101,29 @@ class User(Base):
     audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
+    security_alerts = relationship("SecurityAlert", foreign_keys="SecurityAlert.user_id", back_populates="user", cascade="all, delete-orphan")
+    suspicious_activities = relationship("SuspiciousActivity", foreign_keys="SuspiciousActivity.user_id", back_populates="user", cascade="all, delete-orphan")
+
+    def is_locked(self) -> bool:
+        """Check if account is currently under active temporary lockout."""
+        if not self.locked_until:
+            return False
+        now = datetime.now(timezone.utc)
+        target = self.locked_until if self.locked_until.tzinfo else self.locked_until.replace(tzinfo=timezone.utc)
+        return now < target
+
+    def remaining_lockout_minutes(self) -> int:
+        """Returns integer remaining lockout minutes (minimum 1)."""
+        if not self.is_locked():
+            return 0
+        now = datetime.now(timezone.utc)
+        target = self.locked_until if self.locked_until.tzinfo else self.locked_until.replace(tzinfo=timezone.utc)
+        diff_sec = (target - now).total_seconds()
+        import math
+        return max(1, math.ceil(diff_sec / 60))
 
     def __repr__(self) -> str:
-        return f"<User id={self.id} email={self.email!r} role={self.role}>"
+        return f"<User id={self.id} email={self.email!r} role={self.role} locked={self.is_locked()}>"
 
 
 
@@ -353,4 +378,71 @@ class PasswordResetToken(Base):
 
     def __repr__(self) -> str:
         return f"<PasswordResetToken id={self.id} user_id={self.user_id} used={self.used}>"
+
+
+class SecurityAlert(Base):
+    """
+    security_alerts table – tracks security warnings and high-priority incidents.
+    """
+    __tablename__ = "security_alerts"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    event_type = Column(String(100), nullable=False, index=True)
+    severity = Column(String(20), default="HIGH", nullable=False, index=True)  # INFO, WARNING, HIGH, CRITICAL
+    status = Column(String(30), default="OPEN", nullable=False, index=True)    # OPEN, INVESTIGATING, RESOLVED
+    ip_address = Column(String(45), nullable=True, index=True)
+    details = Column(Text, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    resolved_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id], back_populates="security_alerts")
+
+    def __repr__(self) -> str:
+        return f"<SecurityAlert id={self.id} type={self.event_type} severity={self.severity} status={self.status}>"
+
+
+class SuspiciousActivity(Base):
+    """
+    suspicious_activities table – aggregates velocity triggers, brute-force events,
+    and anomalous file access behaviors.
+    """
+    __tablename__ = "suspicious_activities"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    activity_type = Column(String(100), nullable=False, index=True)
+    description = Column(Text, nullable=False)
+    attempt_count = Column(Integer, default=1, nullable=False)
+    severity = Column(String(20), default="HIGH", nullable=False, index=True)  # INFO, WARNING, HIGH, CRITICAL
+    status = Column(String(30), default="OPEN", nullable=False, index=True)    # OPEN, INVESTIGATING, RESOLVED
+    ip_address = Column(String(45), nullable=True, index=True)
+    first_detected = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    last_detected = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+    details = Column(Text, nullable=True)
+
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id], back_populates="suspicious_activities")
+
+    def __repr__(self) -> str:
+        return f"<SuspiciousActivity id={self.id} type={self.activity_type} attempts={self.attempt_count}>"
+
 

@@ -42,6 +42,34 @@ class Base(DeclarativeBase):
     pass
 
 
+def init_database_schema():
+    """
+    Initialize tables and perform lightweight non-destructive column additions
+    for SQLite and PostgreSQL.
+    """
+    import logging
+    from sqlalchemy import inspect, text
+
+    logger = logging.getLogger("trustshare.database")
+    try:
+        Base.metadata.create_all(bind=engine)
+        inspector = inspect(engine)
+        
+        # Check users table columns
+        if "users" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("users")]
+            with engine.begin() as conn:
+                if "failed_login_attempts" not in columns:
+                    logger.info("Migrating schema: adding 'failed_login_attempts' to users table.")
+                    conn.execute(text("ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER DEFAULT 0"))
+                if "locked_until" not in columns:
+                    logger.info("Migrating schema: adding 'locked_until' to users table.")
+                    conn.execute(text("ALTER TABLE users ADD COLUMN locked_until TIMESTAMP NULL"))
+        logger.info("Database schema initialized and verified successfully.")
+    except Exception as exc:
+        logger.warning(f"Database schema initialization warning: {exc}")
+
+
 # ─── FastAPI Dependency ───────────────────────────────────────────────────────
 def get_db():
     """
@@ -58,3 +86,4 @@ def get_db():
         yield db
     finally:
         db.close()
+

@@ -53,11 +53,20 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str = ""
     SENDGRID_API_KEY: str = ""
 
-    # Rate Limiting
+    # Rate Limiting & Account Security Controls
     RATE_LIMIT_LOGIN_MAX: int = 5
     RATE_LIMIT_LOGIN_WINDOW_SEC: int = 300
     RATE_LIMIT_RESET_MAX: int = 3
     RATE_LIMIT_RESET_WINDOW_SEC: int = 900
+
+    # Milestone 3 Security Monitoring & Account Lockout Settings
+    FAILED_LOGIN_THRESHOLD: int = 5
+    LOCKOUT_DURATION_MINUTES: int = 15
+    FAILED_LOGIN_WINDOW_MINUTES: int = 10
+    UNAUTHORIZED_ACCESS_THRESHOLD: int = 5
+    UNAUTHORIZED_ACCESS_WINDOW_MINUTES: int = 10
+    EXCESSIVE_DOWNLOAD_THRESHOLD: int = 10
+    EXCESSIVE_DOWNLOAD_WINDOW_MINUTES: int = 5
 
     # Storage Backend Configuration ("supabase" or "local")
     STORAGE_BACKEND: str = "supabase"

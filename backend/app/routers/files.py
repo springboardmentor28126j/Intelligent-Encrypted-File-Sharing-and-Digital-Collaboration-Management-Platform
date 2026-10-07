@@ -67,7 +67,7 @@ from app.services.redis_service import (
     get_cached_file_metadata,
     invalidate_file_cache,
 )
-from app.services.security_service import check_and_record_download
+from app.services.security_service import check_and_record_download, record_unauthorized_access
 from app.services.storage_service import storage_backend
 
 router = APIRouter(prefix="/files", tags=["Files"])
@@ -497,6 +497,15 @@ def download_file(
 
     # Ownership check
     if doc["owner_id"] != current_user.id and current_user.role != UserRole.admin:
+        numeric_fid = int(file_id) if str(file_id).isdigit() else None
+        record_unauthorized_access(
+            db=db,
+            user_id=current_user.id,
+            file_id=numeric_fid,
+            ip_address=ip_addr,
+            reason=f"User {current_user.email} attempted to download private file '{doc.get('original_name')}' owned by user ID {doc['owner_id']}",
+            user_agent=ua,
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access forbidden: You do not have permission to download this file.",
