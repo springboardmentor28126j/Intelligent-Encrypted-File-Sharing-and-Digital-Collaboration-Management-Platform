@@ -858,3 +858,15 @@ body {
   font-weight: 700;
   margin-right: 10px;
 }
+@media (max-width: 768px) {
+  .auth-page {
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+  .auth-brand, .auth-form-side {
+    width: 100%;
+  }
+  .auth-brand h1 {
+    font-size: 28px;
+  }
+}

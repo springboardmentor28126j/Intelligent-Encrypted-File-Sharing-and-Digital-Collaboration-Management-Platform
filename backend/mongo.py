@@ -1,13 +1,16 @@
 from pymongo import MongoClient
+import os
+from dotenv import load_dotenv
 
-MONGO_URL = "mongodb://localhost:27017"
+load_dotenv()
 
-client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=5000)
-mongo_db = client["trustshare_logs"]
-activity_logs = mongo_db["activity_logs"]
+MONGO_URI = os.getenv("MONGO_URI")
+client = MongoClient(MONGO_URI)
+db = client["trustshare"]
+activity_logs = db["activity_logs"]
 
 try:
     client.admin.command('ping')
-    print("MongoDB connected successfully (local)!")
+    print("MongoDB connected successfully (Atlas)!")
 except Exception as e:
-    print(f"MongoDB connection test failed: {e}")
+    print(f"MongoDB connection failed: {e}")
