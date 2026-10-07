@@ -47,13 +47,13 @@ export default function Layout({ active, eyebrow, title, action, children }) {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <header
+        className="ts-header"
         style={{
           background: "var(--forest)",
           color: "#fff",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "12px 32px",
           flexWrap: "wrap",
           gap: 12,
         }}
@@ -135,7 +135,7 @@ export default function Layout({ active, eyebrow, title, action, children }) {
         </div>
       </header>
 
-      <main style={{ padding: "32px 48px", maxWidth: 1100, margin: "0 auto" }}>
+      <main className="ts-main" style={{ maxWidth: 1100, margin: "0 auto" }}>
         {(title || action) && (
           <div
             style={{

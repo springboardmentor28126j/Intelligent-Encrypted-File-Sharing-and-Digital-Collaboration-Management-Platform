@@ -55,11 +55,13 @@ export default function ResetPassword() {
         alignItems: "center",
         justifyContent: "center",
         background: "var(--bg)",
+        padding: "0 16px",
       }}
     >
       <div
         style={{
-          width: 380,
+          width: "100%",
+          maxWidth: 380,
           background: "var(--card)",
           border: "1px solid var(--border)",
           borderRadius: 16,
