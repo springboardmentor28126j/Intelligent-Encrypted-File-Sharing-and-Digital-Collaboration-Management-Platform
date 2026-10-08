@@ -1718,7 +1718,7 @@ function App() {
         },
         body: JSON.stringify({
           file_id: selectedFile.id,
-          recipient_email: recipientEmail.trim(),
+          shared_with_email: recipientEmail.trim(),
           permission: "view",
           expires_at: expiresAt,
         }),
@@ -4553,5 +4553,6 @@ function App() {
 }
 
 export default App;
+
 
 
