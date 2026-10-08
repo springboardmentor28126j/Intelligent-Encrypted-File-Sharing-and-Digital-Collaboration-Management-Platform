@@ -1311,7 +1311,7 @@ function App() {
   const loadSharedFiles = async () => {
     try {
       const received = await apiRequest(
-        "/shares/received"
+        "/files/shared-with-me"
       );
 
       if (Array.isArray(received)) {
@@ -1326,7 +1326,7 @@ function App() {
     }
 
     try {
-      const sent = await apiRequest("/shares/sent");
+      const sent = await apiRequest("/files/shared-by-me");
 
       if (Array.isArray(sent)) {
         setSharedByMe(sent);
@@ -4553,3 +4553,4 @@ function App() {
 }
 
 export default App;
+
