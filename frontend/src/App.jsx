@@ -1903,6 +1903,12 @@ function App() {
       "used_mb",
       "storage_mb",
     ]) ?? dashboardTotalMb;
+    const unreadNotifications = notifications.filter(
+  (item) =>
+    item?.read === false ||
+    item?.is_read === false ||
+    String(item?.status || "").toLowerCase() === "unread"
+).length;
 
   if (!token) {
     return (
