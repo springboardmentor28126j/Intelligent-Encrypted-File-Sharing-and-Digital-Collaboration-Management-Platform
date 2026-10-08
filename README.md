@@ -100,6 +100,10 @@ docker-compose up --build
 
 Backend runs on `http://localhost:8000`, frontend on `http://localhost:3000`.
 
+## Live Demo
+   Frontend: https://trustshare-frontend-ohp5.onrender.com
+   Backend API: https://trustshare-backend-lhed.onrender.com
+
 ## Environment Variables
 
 Create a `.env` file in `backend/` with:
