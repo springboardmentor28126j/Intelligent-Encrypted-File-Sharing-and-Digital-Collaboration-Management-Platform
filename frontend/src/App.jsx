@@ -1711,7 +1711,7 @@ function App() {
       const expiresAt =
         getExpiryFromDuration(shareDuration);
 
-      await apiRequest("/shares", {
+      await apiRequest("/files/share", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -4553,4 +4553,5 @@ function App() {
 }
 
 export default App;
+
 
