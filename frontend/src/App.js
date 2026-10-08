@@ -71,7 +71,7 @@ function App() {
       const userEmail = localStorage.getItem('email');
       const userRole = localStorage.getItem('role');
       const response = await axios.get(
-        `http://127.0.0.1:8000/files?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
+        `https://trustshare-backend-lhed.onrender.com/files?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
       );
       setFiles(response.data);
     } catch (error) {
@@ -84,7 +84,7 @@ function App() {
       const userEmail = localStorage.getItem('email');
       const userRole = localStorage.getItem('role');
       const response = await axios.get(
-        `http://127.0.0.1:8000/activity-log?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
+        `https://trustshare-backend-lhed.onrender.com/activity-log?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
       );
       setActivityLogs(response.data);
     } catch (error) {
@@ -97,7 +97,7 @@ function App() {
       const userEmail = localStorage.getItem('email');
       const userRole = localStorage.getItem('role');
       const response = await axios.get(
-        `http://127.0.0.1:8000/analytics?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
+        `https://trustshare-backend-lhed.onrender.com/analytics?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
       );
       setAnalytics(response.data);
     } catch (error) {
@@ -110,7 +110,7 @@ function App() {
       const userEmail = localStorage.getItem('email');
       const userRole = localStorage.getItem('role');
       const res = await axios.get(
-        `http://127.0.0.1:8000/share-links?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
+        `https://trustshare-backend-lhed.onrender.com/share-links?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
       );
       setShareLinks(res.data);
     } catch (error) {
@@ -124,7 +124,7 @@ function App() {
       const userEmail = localStorage.getItem('email');
       const userRole = localStorage.getItem('role');
       await axios.delete(
-        `http://127.0.0.1:8000/share-links/${token}?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
+        `https://trustshare-backend-lhed.onrender.com/share-links/${token}?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
       );
       setMessage('Share link revoked');
       setIsError(false);
@@ -153,8 +153,8 @@ function App() {
     setIsError(false);
     try {
       const url = isLogin
-        ? 'http://127.0.0.1:8000/login'
-        : 'http://127.0.0.1:8000/signup';
+        ? 'https://trustshare-backend-lhed.onrender.com/login'
+        : 'https://trustshare-backend-lhed.onrender.com/signup';
 
       const payload = isLogin
         ? { email, password }
@@ -193,7 +193,7 @@ function App() {
     e.preventDefault();
     setIsError(false);
     try {
-      const response = await axios.post('http://127.0.0.1:8000/verify-mfa', {
+      const response = await axios.post('https://trustshare-backend-lhed.onrender.com/verify-mfa', {
         email: mfaLoginEmail,
         code: mfaLoginCode,
       });
@@ -219,7 +219,7 @@ function App() {
     e.preventDefault();
     setIsError(false);
     try {
-      const response = await axios.post('http://127.0.0.1:8000/forgot-password', { email });
+      const response = await axios.post('https://trustshare-backend-lhed.onrender.com/forgot-password', { email });
       setGeneratedToken(response.data.reset_token);
       setMessage(response.data.message);
       setAuthView('reset');
@@ -233,7 +233,7 @@ function App() {
     e.preventDefault();
     setIsError(false);
     try {
-      const response = await axios.post('http://127.0.0.1:8000/reset-password', {
+      const response = await axios.post('https://trustshare-backend-lhed.onrender.com/reset-password', {
         token: resetToken,
         new_password: newPassword,
       });
@@ -264,7 +264,7 @@ function App() {
     formData.append('owner_email', localStorage.getItem('email'));
 
     try {
-      const res = await axios.post('http://127.0.0.1:8000/upload', formData, {
+      const res = await axios.post('https://trustshare-backend-lhed.onrender.com/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setIsError(false);
@@ -283,7 +283,7 @@ function App() {
       const userEmail = localStorage.getItem('email');
       const userRole = localStorage.getItem('role');
       await axios.delete(
-        `http://127.0.0.1:8000/files/${fileId}?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
+        `https://trustshare-backend-lhed.onrender.com/files/${fileId}?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`
       );
       setMessage('File deleted successfully');
       setIsError(false);
@@ -298,7 +298,7 @@ function App() {
     const userEmail = localStorage.getItem('email');
     const userRole = localStorage.getItem('role');
     window.open(
-      `http://127.0.0.1:8000/download/${fileId}?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`,
+      `https://trustshare-backend-lhed.onrender.com/download/${fileId}?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}`,
       '_blank'
     );
   };
@@ -325,7 +325,7 @@ function App() {
     const ownerEmail = localStorage.getItem('email');
     const ownerRole = localStorage.getItem('role');
     try {
-      const res = await axios.post(`http://127.0.0.1:8000/share/${shareFileId}`, {
+      const res = await axios.post(`https://trustshare-backend-lhed.onrender.com/share/${shareFileId}`, {
         email: ownerEmail,
         role: ownerRole,
         recipient_email: recipientEmail,
@@ -343,7 +343,7 @@ function App() {
   const handleMfaEnableRequest = async () => {
     try {
       const userEmail = localStorage.getItem('email');
-      const res = await axios.post('http://127.0.0.1:8000/mfa/enable-request', { email: userEmail });
+      const res = await axios.post('https://trustshare-backend-lhed.onrender.com/mfa/enable-request', { email: userEmail });
       setIsError(false);
       setMessage(res.data.message);
       setShowMfaSetup(true);
@@ -356,7 +356,7 @@ function App() {
   const handleMfaEnableConfirm = async () => {
     try {
       const userEmail = localStorage.getItem('email');
-      const res = await axios.post('http://127.0.0.1:8000/mfa/enable-confirm', {
+      const res = await axios.post('https://trustshare-backend-lhed.onrender.com/mfa/enable-confirm', {
         email: userEmail,
         code: mfaSetupCode,
       });
@@ -375,7 +375,7 @@ function App() {
   const handleMfaDisable = async () => {
     try {
       const userEmail = localStorage.getItem('email');
-      const res = await axios.post('http://127.0.0.1:8000/mfa/disable', { email: userEmail });
+      const res = await axios.post('https://trustshare-backend-lhed.onrender.com/mfa/disable', { email: userEmail });
       setIsError(false);
       setMessage(res.data.message);
       setMfaEnabled(false);
@@ -391,7 +391,7 @@ function App() {
       const userEmail = localStorage.getItem('email');
       const userRole = localStorage.getItem('role');
       const res = await axios.get(
-        `http://127.0.0.1:8000/report?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}&days=7`
+        `https://trustshare-backend-lhed.onrender.com/report?email=${encodeURIComponent(userEmail)}&role=${encodeURIComponent(userRole)}&days=7`
       );
       const report = res.data;
 
