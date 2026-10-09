@@ -5720,19 +5720,7 @@ const loadMonitoring = async () => {
                           style={
                             styles.analyticsValue
                           }
-                        >
-                          {toNumber(
-                            getValueByKeys(
-                              fileReports,
-                              [
-                                "total_files",
-                                "file_count",
-                                "files_count",
-                              ]
-                            ),
-                            files.length
-                          )}
-                        </div>
+                        >{Array.isArray(files) ? files.length : 0}</div>
 
                         <div
                           style={
@@ -5752,21 +5740,7 @@ const loadMonitoring = async () => {
                           style={
                             styles.analyticsValue
                           }
-                        >
-                          {formatBytes(
-                            toNumber(
-                              getValueByKeys(
-                                fileReports,
-                                [
-                                  "total_bytes",
-                                  "storage_bytes",
-                                  "total_size",
-                                ]
-                              ),
-                              totalStorage
-                            )
-                          )}
-                        </div>
+                        >{formatBytes(Array.isArray(files) ? files.reduce((sum, file) => sum + toNumber(file?.size_bytes ?? file?.file_size ?? file?.size ?? 0, 0), 0) : 0)}</div>
 
                         <div
                           style={
@@ -5786,19 +5760,7 @@ const loadMonitoring = async () => {
                           style={
                             styles.analyticsValue
                           }
-                        >
-                          {toNumber(
-                            getValueByKeys(
-                              fileReports,
-                              [
-                                "shared_files",
-                                "shared_count",
-                              ]
-                            ),
-                            sharedByMe.length +
-                              sharedWithMe.length
-                          )}
-                        </div>
+                        >{(Array.isArray(sharedByMe) ? sharedByMe.length : 0) + (Array.isArray(sharedWithMe) ? sharedWithMe.length : 0)}</div>
 
                         <div
                           style={
@@ -5818,18 +5780,7 @@ const loadMonitoring = async () => {
                           style={
                             styles.analyticsValue
                           }
-                        >
-                          {toNumber(
-                            getValueByKeys(
-                              fileReports,
-                              [
-                                "encrypted_files",
-                                "encrypted_count",
-                              ]
-                            ),
-                            files.length
-                          )}
-                        </div>
+                        >{Array.isArray(files) ? files.length : 0}</div>
 
                         <div
                           style={
@@ -5841,7 +5792,109 @@ const loadMonitoring = async () => {
                       </div>
                     </div>
                   )}
+
+                {/* INDIVIDUAL FILES TABLE */}
+                <div style={{ marginTop: 24, overflowX: "auto" }}>
+                  <h3 style={styles.cardTitle}>Uploaded Files</h3>
+
+                  {Array.isArray(files) && files.length > 0 ? (
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        minWidth: "560px",
+                        textAlign: "left",
+                      }}
+                    >
+                      <thead>
+                        <tr>
+                          {["File Name", "Size", "Uploaded At", "Security"].map((heading) => (
+                            <th
+                              key={heading}
+                              style={{
+                                padding: "12px",
+                                borderBottom: "1px solid #475569",
+                                textAlign: "left",
+                              }}
+                            >
+                              {heading}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {files.map((file, index) => {
+                          const fileName =
+                            file?.filename ||
+                            file?.original_filename ||
+                            file?.file_name ||
+                            file?.name ||
+                            "Unnamed file";
+                          const fileSize =
+                            file?.size_bytes ??
+                            file?.file_size ??
+                            file?.size ??
+                            0;
+                          const uploadedAt =
+                            file?.uploaded_at ||
+                            file?.created_at ||
+                            file?.created ||
+                            file?.timestamp;
+
+                          return (
+                            <tr
+                              key={file?.id || file?.file_id || `${fileName}-${index}`}
+                            >
+                              <td
+                                style={{
+                                  padding: "12px",
+                                  borderBottom: "1px solid #334155",
+                                  overflowWrap: "anywhere",
+                                }}
+                              >
+                                {fileName}
+                              </td>
+                              <td
+                                style={{
+                                  padding: "12px",
+                                  borderBottom: "1px solid #334155",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {formatBytes(toNumber(fileSize, 0))}
+                              </td>
+                              <td
+                                style={{
+                                  padding: "12px",
+                                  borderBottom: "1px solid #334155",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {uploadedAt && !Number.isNaN(Date.parse(uploadedAt))
+                                  ? new Date(uploadedAt).toLocaleString()
+                                  : "â€”"}
+                              </td>
+                              <td
+                                style={{
+                                  padding: "12px",
+                                  borderBottom: "1px solid #334155",
+                                }}
+                              >
+                                Encrypted
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p style={styles.emptyText}>
+                      No uploaded files were returned by the files endpoint.
+                      Refresh the dashboard after uploading a file.
+                    </p>
+                  )}
                 </div>
+</div>
 
                 {/* STORAGE ANALYTICS */}
                 <div style={styles.card}>
