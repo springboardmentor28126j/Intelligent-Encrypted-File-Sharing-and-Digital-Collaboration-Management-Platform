@@ -28,13 +28,33 @@ def my_storage(db: Session = Depends(get_db), current_user: User = Depends(get_c
 
 @router.get("/admin/analytics/storage")
 def all_storage(db: Session = Depends(get_db), _admin: User = Depends(get_current_admin)):
-    """Storage usage broken down per user, plus a platform-wide total."""
+    """Storage usage broken down per user, plus a platform-wide total.
+
+    One grouped query for all file counts/sizes, instead of looping over
+    every user and running 2 separate queries each (an N+1 pattern that
+    got slow on a hosted Postgres instance, where every query is a real
+    network round trip)."""
+    rows = (
+        db.query(
+            File.owner_id,
+            func.count(File.id),
+            func.coalesce(func.sum(File.size_bytes), 0),
+        )
+        .group_by(File.owner_id)
+        .all()
+    )
+    stats_by_owner = {
+        owner_id: {"file_count": count, "total_bytes": int(total_bytes)}
+        for owner_id, count, total_bytes in rows
+    }
+
     per_user = []
     platform_files = 0
     platform_bytes = 0
 
     for user in db.query(User).all():
-        summary = _storage_summary(db, user.id)
+        summary = stats_by_owner.get(
+            user.id, {"file_count": 0, "total_bytes": 0})
         if summary["file_count"] > 0:
             per_user.append(
                 {"user_id": str(user.id), "email": user.email, **summary})
