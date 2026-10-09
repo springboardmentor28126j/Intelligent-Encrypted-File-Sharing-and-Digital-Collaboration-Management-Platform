@@ -1335,117 +1335,107 @@ function App() {
      LOAD MONITORING
   ======================================================= */
 
-  const loadMonitoring = async () => {
-    const requests = [
-      {
-        path: "/monitoring/dashboard",
-        setter: setMonitoringDashboard,
-      },
-      {
-        path: "/monitoring/activity",
-        setter: setActivity,
-      },
-      {
-        path: "/monitoring/audit",
-        setter: setAuditLogs,
-      },
-      {
-        path: "/monitoring/alerts",
-        setter: setAlerts,
-      },
-      {
-        path: "/monitoring/notifications",
-        setter: setNotifications,
-      },
-      {
-        path: "/monitoring/storage",
-        setter: setStorageAnalytics,
-      },
-      {
-        path: "/monitoring/suspicious-activity",
-        setter: setSuspiciousActivity,
-      },
-      {
-        path: "/monitoring/file-reports",
-        setter: setFileReports,
-      },
-    ];
+const loadMonitoring = async () => {
+  const requests = [
+    {
+      path: "/monitoring/dashboard",
+      setter: setMonitoringDashboard,
+    },
+    {
+      path: "/monitoring/activity",
+      setter: setActivity,
+    },
+    {
+      path: "/monitoring/audit",
+      setter: setAuditLogs,
+    },
+    {
+      path: "/monitoring/alerts",
+      setter: setAlerts,
+    },
+    {
+      path: "/monitoring/notifications",
+      setter: setNotifications,
+    },
+    {
+      path: "/monitoring/analytics/storage",
+      setter: setStorageAnalytics,
+    },
+    {
+      path: "/monitoring/suspicious",
+      setter: setSuspiciousActivity,
+    },
+    {
+      path: "/monitoring/reports/files",
+      setter: setFileReports,
+    },
+  ];
 
-    await Promise.all(
-      requests.map(
-        async ({ path, setter }) => {
-          try {
-            const data =
-              await apiRequest(path);
+  await Promise.all(
+    requests.map(async ({ path, setter }) => {
+      try {
+        const data = await apiRequest(path);
 
-            if (path.endsWith("/activity")) {
-              setter(
-                Array.isArray(data)
-                  ? data
-                  : data?.activity ||
-                      data?.events ||
-                      data?.data ||
-                      []
-              );
-            } else if (
-              path.endsWith("/audit")
-            ) {
-              setter(
-                Array.isArray(data)
-                  ? data
-                  : data?.logs ||
-                      data?.audit_logs ||
-                      data?.data ||
-                      []
-              );
-            } else if (
-              path.endsWith("/alerts")
-            ) {
-              setter(
-                Array.isArray(data)
-                  ? data
-                  : data?.alerts ||
-                      data?.data ||
-                      []
-              );
-            } else if (
-              path.endsWith(
-                "/notifications"
-              )
-            ) {
-              setter(
-                Array.isArray(data)
-                  ? data
-                  : data?.notifications ||
-                      data?.data ||
-                      []
-              );
-            } else if (
-              path.endsWith(
-                "/suspicious-activity"
-              )
-            ) {
-              setter(
-                Array.isArray(data)
-                  ? data
-                  : data?.suspicious_activity ||
-                      data?.events ||
-                      data?.data ||
-                      []
-              );
-            } else {
-              setter(data);
-            }
-          } catch {
-            /*
-             * Keep other monitoring cards working
-             * if one optional endpoint is unavailable.
-             */
-          }
+        if (path.endsWith("/activity")) {
+          setter(
+            Array.isArray(data)
+              ? data
+              : data?.activities ||
+                  data?.activity ||
+                  data?.events ||
+                  data?.data ||
+                  []
+          );
+        } else if (path.endsWith("/audit")) {
+          setter(
+            Array.isArray(data)
+              ? data
+              : data?.audit_logs ||
+                  data?.logs ||
+                  data?.data ||
+                  []
+          );
+        } else if (path.endsWith("/alerts")) {
+          setter(
+            Array.isArray(data)
+              ? data
+              : data?.alerts ||
+                  data?.data ||
+                  []
+          );
+        } else if (path.endsWith("/notifications")) {
+          setter(
+            Array.isArray(data)
+              ? data
+              : data?.notifications ||
+                  data?.data ||
+                  []
+          );
+        } else if (path.endsWith("/suspicious")) {
+          setter(
+            Array.isArray(data)
+              ? data
+              : data?.suspicious_activity ||
+                  data?.suspicious_events ||
+                  data?.events ||
+                  data?.data ||
+                  []
+          );
+        } else {
+          setter(data);
         }
-      )
-    );
-  };
+      } catch (error) {
+        console.error(
+          `Failed to load monitoring data from ${path}:`,
+          error
+        );
+      }
+    })
+  );
+};
+
+
+
 
   const loadAllData = async () => {
     setLoading(true);
