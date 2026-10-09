@@ -9,6 +9,8 @@ export default function Register() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const API_URL = "http://127.0.0.1:8000";
+
   const handleRegister = async (
     e: React.FormEvent
   ) => {
@@ -27,7 +29,7 @@ export default function Register() {
       });
 
       const response = await fetch(
-        `http://127.0.0.1:8000/register?${params.toString()}`,
+        `${API_URL}/register?${params.toString()}`,
         {
           method: "POST",
           headers: {
@@ -70,7 +72,6 @@ export default function Register() {
       setTimeout(() => {
         window.location.href = "/";
       }, 1000);
-
     } catch (error) {
       console.error(
         "Registration error:",
@@ -80,7 +81,6 @@ export default function Register() {
       setMessage(
         "Cannot connect to the backend."
       );
-
     } finally {
       setLoading(false);
     }
@@ -92,7 +92,6 @@ export default function Register() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-
       <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl">
 
         {/* Project Name */}
@@ -116,7 +115,6 @@ export default function Register() {
 
           {/* Name */}
           <div className="mb-5">
-
             <label
               htmlFor="name"
               className="block mb-2 font-semibold text-gray-700"
@@ -136,12 +134,10 @@ export default function Register() {
               className="w-full border border-gray-300 rounded-lg px-4 py-3 text-black placeholder-gray-400 bg-white outline-none focus:ring-2 focus:ring-black"
               required
             />
-
           </div>
 
           {/* Email */}
           <div className="mb-5">
-
             <label
               htmlFor="email"
               className="block mb-2 font-semibold text-gray-700"
@@ -161,12 +157,10 @@ export default function Register() {
               className="w-full border border-gray-300 rounded-lg px-4 py-3 text-black placeholder-gray-400 bg-white outline-none focus:ring-2 focus:ring-black"
               required
             />
-
           </div>
 
           {/* Password */}
           <div className="mb-6">
-
             <label
               htmlFor="password"
               className="block mb-2 font-semibold text-gray-700"
@@ -186,7 +180,6 @@ export default function Register() {
               className="w-full border border-gray-300 rounded-lg px-4 py-3 text-black placeholder-gray-400 bg-white outline-none focus:ring-2 focus:ring-black"
               required
             />
-
           </div>
 
           {/* Create Account Button */}
@@ -199,7 +192,6 @@ export default function Register() {
               ? "Creating Account..."
               : "Create Account"}
           </button>
-
         </form>
 
         {/* Message */}
@@ -211,7 +203,6 @@ export default function Register() {
 
         {/* Back to Login */}
         <div className="text-center mt-7 pt-5 border-t border-gray-200">
-
           <p className="text-gray-600 mb-2">
             Already have an account?
           </p>
@@ -223,11 +214,9 @@ export default function Register() {
           >
             Back to Login
           </button>
-
         </div>
 
       </div>
-
     </main>
   );
 }

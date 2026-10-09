@@ -1,3 +1,4 @@
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -65,9 +66,7 @@ def register(
 
     password: str,
 
-    db: Session = Depends(
-        get_db
-    )
+    db: Session = Depends(get_db)
 
 ):
 
@@ -140,7 +139,7 @@ def register(
             "Registration successful",
 
         "user_id":
-            new_user.id,
+            str(new_user.id),
 
         "name":
             new_user.name,
@@ -177,7 +176,6 @@ def login(
         ip_address
     )
 
-
     print(
         "LOGIN EMAIL:",
         form_data.username
@@ -210,11 +208,6 @@ def login(
         print(
             "USER NOT FOUND"
         )
-
-        # --------------------------------------------------
-        # We cannot create a user-specific security alert
-        # here because there is no valid user_id.
-        # --------------------------------------------------
 
         print(
             "Unknown email login attempt from IP:",
@@ -290,7 +283,7 @@ def login(
 
             create_activity_log(
 
-                user_id=user.id,
+                user_id=str(user.id),
 
                 action="login",
 
@@ -320,14 +313,14 @@ def login(
 
 
         # ==========================================
-        # SAVE NORMAL FAILED LOGIN SECURITY ALERT
+        # SAVE FAILED LOGIN SECURITY ALERT
         # ==========================================
 
         try:
 
             create_security_alert(
 
-                user_id=user.id,
+                user_id=str(user.id),
 
                 alert_type="failed_login",
 
@@ -358,18 +351,6 @@ def login(
 
         # ==========================================
         # CHECK SUSPICIOUS LOGIN ACTIVITY
-        # ==========================================
-        #
-        # If there are 5 or more failed login
-        # attempts within the last 10 minutes:
-        #
-        # 1. Create a suspicious activity alert
-        # 2. Mark it as HIGH severity
-        # 3. Send an email to the registered account
-        #
-        # The suspicious_activity.py function also
-        # prevents duplicate alerts/emails during
-        # the same 10-minute window.
         # ==========================================
 
         try:
@@ -414,7 +395,7 @@ def login(
 
         create_activity_log(
 
-            user_id=user.id,
+            user_id=str(user.id),
 
             action="login",
 
@@ -449,7 +430,7 @@ def login(
     access_token = create_access_token(
 
         {
-            "user_id": user.id
+            "user_id": str(user.id)
         }
 
     )
@@ -471,7 +452,7 @@ def login(
             "bearer",
 
         "user_id":
-            user.id,
+            str(user.id),
 
         "name":
             user.name,
@@ -483,3 +464,4 @@ def login(
             user.role
 
     }
+

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import (
@@ -142,9 +142,11 @@ def get_my_activity(
                 datetime
             ):
 
-                timestamp = (
-                    timestamp.isoformat()
-                )
+                 if timestamp.tzinfo is None:
+                     timestamp = timestamp.replace(
+                         tzinfo=timezone.utc
+                         )
+                     timestamp = timestamp.isoformat()
 
             result.append(
                 {

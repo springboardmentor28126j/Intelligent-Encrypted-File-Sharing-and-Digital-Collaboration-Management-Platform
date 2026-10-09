@@ -77,6 +77,24 @@ type SecurityAlert = {
   read: boolean;
   timestamp?: string | null;
 };
+const formatDateTime = (
+  timestamp: string | null | undefined
+) => {
+  if (!timestamp) {
+    return "-";
+  }
+
+  return new Date(timestamp).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+};
 /* =========================================================
    MAIN COMPONENT
 ========================================================= */
@@ -1972,7 +1990,16 @@ const navigationItems = [
       return "No expiration";
     }
 
-    return parsedDate.toLocaleString();
+    return parsedDate.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "numeric",
+      month: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
   };
 
   /* =======================================================
@@ -2137,9 +2164,7 @@ const navigationItems = [
                   <button
                     key={item.id}
                     onClick={() => {
-                      setActiveSection(
-                        item.id
-                      );
+                      setActiveSection(item.id as Section);
 
                       setMessage("");
                       setError("");
@@ -3060,9 +3085,7 @@ const navigationItems = [
               <p className="text-sm text-slate-500 mt-1">
                 Expires:{" "}
                 {share.expires_at
-                  ? new Date(
-                      share.expires_at
-                    ).toLocaleString()
+                  ? formatDateTime(share.expires_at)
                   : "Never"}
               </p>
             </div>
@@ -3931,7 +3954,7 @@ const navigationItems = [
 
                                   {alert.timestamp && (
                                     <span>
-                                      {new Date(alert.timestamp).toLocaleString()}
+                                      {formatDateTime(alert.timestamp)}
                                     </span>
                                   )}
                                 </div>
@@ -4322,9 +4345,7 @@ const navigationItems = [
 
                       <span className="text-xs text-gray-400">
                         {share.created_at
-                          ? new Date(
-                              share.created_at
-                            ).toLocaleString()
+                          ? formatDateTime(share.created_at)
                           : "-"}
                       </span>
 
@@ -4618,9 +4639,7 @@ const navigationItems = [
                                 <td className="px-6 py-5">
                                   <span className="whitespace-nowrap text-xs text-gray-400">
                                     {activity.timestamp
-                                      ? new Date(
-                                          activity.timestamp
-                                        ).toLocaleString()
+                                      ? formatDateTime(activity.timestamp)
                                       : "-"}
                                   </span>
                                 </td>
@@ -4871,9 +4890,7 @@ const navigationItems = [
                               <td className="px-6 py-4">
                                 <span className="whitespace-nowrap text-xs text-gray-400">
                                   {activity.timestamp
-                                    ? new Date(
-                                        activity.timestamp
-                                      ).toLocaleString()
+                                    ? formatDateTime(activity.timestamp)
                                     : "-"}
                                 </span>
                               </td>
@@ -5062,9 +5079,7 @@ const navigationItems = [
                               <td className="px-6 py-4">
                                 <span className="whitespace-nowrap text-xs text-gray-400">
                                   {alert.timestamp
-                                    ? new Date(
-                                        alert.timestamp
-                                      ).toLocaleString()
+                                    ? formatDateTime(alert.timestamp)
                                     : "-"}
                                 </span>
                               </td>

@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -71,18 +72,20 @@ def get_my_security_alerts(
         result = []
 
         for alert in alerts:
-
             timestamp = alert.get(
                 "timestamp"
-            )
+                )
 
-            if timestamp:
+            if isinstance(timestamp, datetime):
+                if timestamp.tzinfo is None:
+                    timestamp = timestamp.replace(
+                        tzinfo=timezone.utc
+                        )
 
                 timestamp = timestamp.isoformat()
 
             result.append(
-                {
-
+               {
                     "id":
                         str(
                             alert.get("_id")
