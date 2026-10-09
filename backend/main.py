@@ -1,8 +1,19 @@
 import os
 import uuid
 import mimetypes
+import hashlib
+import re
+import json
+import urllib.request
+import urllib.error
+import html
+import shutil
+import subprocess
+import tempfile
 
+from pathlib import Path
 from dotenv import load_dotenv
+from datetime import datetime, timedelta, timezone
 
 load_dotenv()
 
@@ -32,8 +43,12 @@ from auth import (
     hash_password,
     verify_password,
     create_access_token,
-    verify_token
+    verify_token,
+    create_mfa_token,
+    verify_mfa_token
 )
+
+import mfa as mfa_utils
 
 from encryption import (
     generate_data_key,
@@ -91,6 +106,22 @@ app.add_middleware(
 
 Base.metadata.create_all(bind=engine)
 
+# MFA: make sure the users table has the MFA columns.
+try:
+    with engine.begin() as connection:
+        connection.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_secret VARCHAR(64)"
+        ))
+        connection.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+            "mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        connection.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_backup_codes TEXT"
+        ))
+except Exception as mfa_schema_error:
+    print("MFA schema check:", mfa_schema_error)
+
 # Milestone 2 account-to-account sharing:
 # add recipient_id to the existing shares table if it is not present.
 try:
@@ -144,7 +175,8 @@ try:
                 user_id INTEGER NOT NULL,
                 title VARCHAR(200) NOT NULL,
                 message TEXT NOT NULL,
-                notification_type VARCHAR(50),
+                notification_type VARCHAR(50) DEFAULT 'general',
+                type VARCHAR(50) DEFAULT 'general',
                 is_read BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT NOW()
             )
@@ -179,11 +211,81 @@ try:
             ALTER COLUMN created_at SET DEFAULT NOW()
         """))
         connection.execute(text("""
+            ALTER TABLE notifications
+            ADD COLUMN IF NOT EXISTS type VARCHAR(50)
+        """))
+        connection.execute(text("""
+            UPDATE notifications
+            SET type = COALESCE(notification_type, 'general')
+            WHERE type IS NULL
+        """))
+        connection.execute(text("""
+            ALTER TABLE notifications
+            ALTER COLUMN type SET DEFAULT 'general'
+        """))
+        connection.execute(text("""
             ALTER TABLE security_alerts
             ALTER COLUMN created_at SET DEFAULT NOW()
         """))
 except Exception as milestone3_schema_error:
     print("Milestone 3 schema check:", milestone3_schema_error)
+
+# Older security_alerts tables may have rows whose `resolved` is NULL (no
+# default), which hid them from the Security Alerts page. Repair them.
+try:
+    with engine.begin() as connection:
+        connection.execute(text(
+            "UPDATE security_alerts SET resolved = FALSE WHERE resolved IS NULL"
+        ))
+        connection.execute(text(
+            "ALTER TABLE security_alerts ALTER COLUMN resolved SET DEFAULT FALSE"
+        ))
+except Exception as alerts_schema_error:
+    print("Security-alerts schema repair:", alerts_schema_error)
+
+# =========================================================
+# ENHANCED MILESTONE 1-3 TABLES
+# Folders, file versions, integrity hashes and AI metadata.
+# =========================================================
+
+try:
+    with engine.begin() as connection:
+        connection.execute(text("""
+            ALTER TABLE files ADD COLUMN IF NOT EXISTS file_hash VARCHAR(64)
+        """))
+        connection.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_files_file_hash ON files(file_hash)
+        """))
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS folders (
+                id SERIAL PRIMARY KEY,
+                owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                name VARCHAR(255) NOT NULL,
+                parent_id INTEGER REFERENCES folders(id) ON DELETE CASCADE,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(owner_id, parent_id, name)
+            )
+        """))
+        connection.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_folders_owner_id ON folders(owner_id)
+        """))
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS file_versions (
+                id SERIAL PRIMARY KEY,
+                file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+                version_number INTEGER NOT NULL,
+                storage_path VARCHAR(255) NOT NULL,
+                size BIGINT NOT NULL,
+                file_hash VARCHAR(64),
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(file_id, version_number)
+            )
+        """))
+        connection.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_file_versions_file_id ON file_versions(file_id)
+        """))
+except Exception as enhanced_schema_error:
+    print("Enhanced M1-M3 schema check:", enhanced_schema_error)
 
 
 # =========================================================
@@ -246,15 +348,16 @@ def create_notification(
     db.execute(
         text("""
             INSERT INTO notifications
-                (user_id, title, message, notification_type)
+                (user_id, title, message, notification_type, type)
             VALUES
-                (:user_id, :title, :message, :notification_type)
+                (:user_id, :title, :message, :notification_type, :type)
         """),
         {
             "user_id": user_id,
             "title": title,
             "message": message,
-            "notification_type": notification_type
+            "notification_type": notification_type,
+            "type": notification_type
         }
     )
 
@@ -273,7 +376,7 @@ def create_security_alert(
             FROM security_alerts
             WHERE user_id = :user_id
               AND alert_type = :alert_type
-              AND resolved = FALSE
+              AND COALESCE(resolved, FALSE) = FALSE
               AND created_at >= NOW() - INTERVAL '1 hour'
             LIMIT 1
         """),
@@ -361,6 +464,167 @@ def run_suspicious_activity_checks(
             f"{failed_logins} failed login attempts were recorded within 15 minutes."
         )
 
+
+
+# =========================================================
+# FAILED-LOGIN SECURITY ALERTS
+# =========================================================
+
+FAILED_LOGIN_ALERT_THRESHOLD = 3
+
+
+def _recent_failed_logins(db: Session, user_id: int) -> int:
+    return int(db.execute(
+        text("""
+            SELECT COUNT(*)
+            FROM activity_logs
+            WHERE user_id = :user_id
+              AND action = 'LOGIN_FAILED'
+              AND created_at >= NOW() - INTERVAL '15 minutes'
+        """),
+        {"user_id": user_id}
+    ).scalar() or 0)
+
+
+def record_failed_login_alert(db: Session, user_id: int, ip_address=None):
+    """
+    Called after every wrong password for an existing account.
+
+    - Always keeps ONE unresolved FAILED_LOGIN alert up to date
+      (so the very first wrong password shows up under Security Alerts).
+    - Escalates to the HIGH MULTIPLE_LOGIN_FAILURES alert at 3 attempts
+      (handled by run_suspicious_activity_checks).
+    - Sends the account owner a notification (attempt 1, 3, then every 5th)
+      so a stream of guesses cannot flood the notification list.
+
+    Returns the number of failed attempts in the last 15 minutes.
+    """
+    failed = _recent_failed_logins(db, user_id)
+
+    description = (
+        f"Incorrect password entered for your account "
+        f"({failed} failed attempt{'s' if failed != 1 else ''} in the last 15 minutes)"
+        + (f" from IP {ip_address}." if ip_address else ".")
+    )
+
+    existing = db.execute(
+        text("""
+            SELECT id FROM security_alerts
+            WHERE user_id = :user_id
+              AND alert_type = 'FAILED_LOGIN'
+              AND COALESCE(resolved, FALSE) = FALSE
+              AND created_at >= NOW() - INTERVAL '1 hour'
+            LIMIT 1
+        """),
+        {"user_id": user_id}
+    ).first()
+
+    # From 3 attempts on, the HIGH "MULTIPLE_LOGIN_FAILURES" alert (created by
+    # run_suspicious_activity_checks) takes over, so the LOW alert is not
+    # updated any further and no duplicate HIGH alert appears.
+    severity = "LOW"
+
+    if failed >= FAILED_LOGIN_ALERT_THRESHOLD:
+        pass
+    elif existing:
+        db.execute(
+            text("""
+                UPDATE security_alerts
+                SET description = :description,
+                    severity = :severity,
+                    created_at = NOW()
+                WHERE id = :id
+            """),
+            {"description": description, "severity": severity, "id": existing[0]}
+        )
+    else:
+        db.execute(
+            text("""
+                INSERT INTO security_alerts
+                    (user_id, alert_type, severity, description)
+                VALUES
+                    (:user_id, 'FAILED_LOGIN', :severity, :description)
+            """),
+            {"user_id": user_id, "severity": severity, "description": description}
+        )
+
+    if failed in (1, FAILED_LOGIN_ALERT_THRESHOLD) or (failed > 3 and failed % 5 == 0):
+        try:
+            # Savepoint: if the notification insert fails, only it is undone;
+            # the security alert written above is kept.
+            with db.begin_nested():
+                create_notification(
+                    db, user_id,
+                    "Security Alert: Failed Login",
+                    f"Someone entered an incorrect password for your account "
+                    f"({failed} failed attempt{'s' if failed != 1 else ''} in 15 minutes). "
+                    f"If this was not you, change your password.",
+                    "security"
+                )
+        except Exception as notification_error:
+            print("Failed-login notification error:", notification_error)
+
+    return failed
+
+
+def sync_failed_login_alerts(db: Session, user_id: int):
+    """
+    Make sure the Security Alerts list agrees with the activity log.
+
+    If failed logins were recorded in the last 24 hours but no unresolved
+    FAILED_LOGIN / MULTIPLE_LOGIN_FAILURES alert exists (for example the
+    failures happened before alerting was added, or an alert write failed),
+    create the missing alert. Safe to call repeatedly.
+    """
+    try:
+        failed = _failed_attempts_last_day(db, user_id)
+
+        if failed == 0:
+            return
+
+        existing = db.execute(
+            text("""
+                SELECT 1 FROM security_alerts
+                WHERE user_id = :user_id
+                  AND alert_type IN ('FAILED_LOGIN', 'MULTIPLE_LOGIN_FAILURES')
+                  AND COALESCE(resolved, FALSE) = FALSE
+                  AND created_at >= NOW() - INTERVAL '24 hours'
+                LIMIT 1
+            """),
+            {"user_id": user_id}
+        ).first()
+
+        if existing:
+            return
+
+        if failed >= FAILED_LOGIN_ALERT_THRESHOLD:
+            alert_type, severity = "MULTIPLE_LOGIN_FAILURES", "HIGH"
+        else:
+            alert_type, severity = "FAILED_LOGIN", "LOW"
+
+        db.execute(
+            text("""
+                INSERT INTO security_alerts
+                    (user_id, alert_type, severity, description)
+                VALUES
+                    (:user_id, :alert_type, :severity, :description)
+            """),
+            {
+                "user_id": user_id,
+                "alert_type": alert_type,
+                "severity": severity,
+                "description": (
+                    f"{failed} failed login attempt{'s' if failed != 1 else ''} "
+                    f"{'were' if failed != 1 else 'was'} recorded on your account "
+                    f"in the last 24 hours."
+                )
+            }
+        )
+        db.commit()
+
+    except Exception as sync_error:
+        db.rollback()
+        print("Failed-login alert sync error:", sync_error)
 
 
 # =========================================================
@@ -535,6 +799,12 @@ def login(
     )
 
     if not user:
+        log_activity(
+            db, None, "LOGIN_FAILED",
+            "Login attempt for an unknown email address.",
+            ip_address=_client_ip(request)
+        )
+        db.commit()
         return {
             "success": False,
             "message": "Invalid email or password."
@@ -553,12 +823,52 @@ def login(
             ip_address=_client_ip(request)
         )
         db.commit()
-        run_suspicious_activity_checks(db, user.id)
-        db.commit()
+
+        failed_attempts = 0
+        try:
+            failed_attempts = record_failed_login_alert(
+                db, user.id, _client_ip(request)
+            )
+            run_suspicious_activity_checks(db, user.id)
+            db.commit()
+        except Exception as alert_error:
+            db.rollback()
+            print("Failed-login alert error:", alert_error)
+
+        if failed_attempts >= FAILED_LOGIN_ALERT_THRESHOLD:
+            warning = (
+                "Too many failed login attempts. A high-severity security "
+                "alert has been raised for this account."
+            )
+        elif failed_attempts > 0:
+            warning = (
+                f"Failed attempt {failed_attempts} of "
+                f"{FAILED_LOGIN_ALERT_THRESHOLD}. A security alert has been "
+                "recorded on this account."
+            )
+        else:
+            warning = None
+
         return {
             "success": False,
-            "message": "Invalid email or password."
+            "message": "Invalid email or password.",
+            "security_warning": warning,
+            "failed_attempts": failed_attempts
         }
+
+    # -----------------------------------------------------
+    # MFA: password is correct, but a second factor is needed.
+    # Issue a short-lived challenge token (NOT an access token).
+    # -----------------------------------------------------
+    if user.mfa_enabled:
+        return {
+            "success": False,
+            "mfa_required": True,
+            "mfa_token": create_mfa_token(user.id),
+            "message": "Enter the 6-digit code from your authenticator app."
+        }
+
+    sync_failed_login_alerts(db, user.id)
 
     token = create_access_token(
         user.id,
@@ -581,8 +891,332 @@ def login(
         "user_id": user.id,
         "username": user.username,
         "email": user.email,
-        "role": user.role
+        "role": user.role,
+        "mfa_enabled": False,
+        "recent_failed_logins": _failed_attempts_last_day(db, user.id)
     }
+
+
+# =========================================================
+# MFA
+# =========================================================
+
+def _failed_attempts_last_day(db: Session, user_id: int) -> int:
+    """Wrong passwords / wrong MFA codes recorded for this account in 24h."""
+    try:
+        return int(db.execute(
+            text("""
+                SELECT COUNT(*)
+                FROM activity_logs
+                WHERE user_id = :user_id
+                  AND action IN ('LOGIN_FAILED', 'MFA_FAILED')
+                  AND created_at >= NOW() - INTERVAL '24 hours'
+            """),
+            {"user_id": user_id}
+        ).scalar() or 0)
+    except Exception as count_error:
+        db.rollback()
+        print("Failed-attempt count error:", count_error)
+        return 0
+
+
+MFA_MAX_FAILED_ATTEMPTS = 5
+MFA_LOCK_WINDOW_MINUTES = 10
+
+
+def _mfa_recent_failures(db: Session, user_id: int) -> int:
+    row = db.execute(
+        text("""
+            SELECT COUNT(*) FROM activity_logs
+            WHERE user_id = :user_id
+              AND action = 'MFA_FAILED'
+              AND created_at > :since
+        """),
+        {
+            "user_id": user_id,
+            "since": datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+                minutes=MFA_LOCK_WINDOW_MINUTES
+            )
+        }
+    ).scalar()
+    return int(row or 0)
+
+
+def _check_second_factor(user: User, code: str):
+    """
+    Returns (ok, used_backup_code_updated_json).
+    Accepts either a TOTP code or an unused backup code.
+    """
+    if mfa_utils.verify_totp(user.mfa_secret, code):
+        return True, None
+
+    updated = mfa_utils.consume_backup_code(user.mfa_backup_codes, code)
+
+    if updated is not None:
+        return True, updated
+
+    return False, None
+
+
+@app.post("/login/mfa")
+def login_mfa(
+    mfa_token: str = Form(...),
+    code: str = Form(...),
+    request: Request = None,
+    db: Session = Depends(get_db)
+):
+
+    user_id = verify_mfa_token(mfa_token)
+
+    if not user_id:
+        return {
+            "success": False,
+            "mfa_expired": True,
+            "message": "Verification expired. Please log in again."
+        }
+
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user or not user.is_active or not user.mfa_enabled:
+        return {
+            "success": False,
+            "mfa_expired": True,
+            "message": "Verification failed. Please log in again."
+        }
+
+    if _mfa_recent_failures(db, user.id) >= MFA_MAX_FAILED_ATTEMPTS:
+        return {
+            "success": False,
+            "message": (
+                "Too many incorrect codes. "
+                f"Try again in {MFA_LOCK_WINDOW_MINUTES} minutes."
+            )
+        }
+
+    ok, updated_backup = _check_second_factor(user, code)
+
+    if not ok:
+        log_activity(
+            db, user.id, "MFA_FAILED",
+            "Invalid MFA code during login.",
+            ip_address=_client_ip(request)
+        )
+        db.commit()
+
+        try:
+            mfa_failures = _mfa_recent_failures(db, user.id)
+            if mfa_failures >= FAILED_LOGIN_ALERT_THRESHOLD:
+                create_security_alert(
+                    db, user.id,
+                    "MULTIPLE_MFA_FAILURES",
+                    "HIGH",
+                    f"{mfa_failures} incorrect MFA codes were entered within "
+                    f"{MFA_LOCK_WINDOW_MINUTES} minutes."
+                )
+                create_notification(
+                    db, user.id,
+                    "Security Alert: MFA Failures",
+                    f"{mfa_failures} incorrect MFA codes were entered for your "
+                    "account. If this was not you, change your password.",
+                    "security"
+                )
+            db.commit()
+        except Exception as alert_error:
+            db.rollback()
+            print("MFA alert error:", alert_error)
+
+        return {
+            "success": False,
+            "message": "Invalid verification code."
+        }
+
+    sync_failed_login_alerts(db, user.id)
+
+    description = "User logged in successfully with MFA."
+
+    if updated_backup is not None:
+        user.mfa_backup_codes = updated_backup
+        description = "User logged in with an MFA backup code."
+
+    token = create_access_token(
+        user.id,
+        user.username,
+        user.role
+    )
+
+    log_activity(
+        db, user.id, "LOGIN_SUCCESS",
+        description,
+        ip_address=_client_ip(request)
+    )
+    db.commit()
+
+    return {
+        "success": True,
+        "message": "Login successful.",
+        "access_token": token,
+        "token_type": "bearer",
+        "user_id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "mfa_enabled": True,
+        "recent_failed_logins": _failed_attempts_last_day(db, user.id),
+        "backup_codes_remaining": mfa_utils.remaining_backup_codes(
+            user.mfa_backup_codes
+        )
+    }
+
+
+def _get_user_or_404(db: Session, user_data: dict) -> User:
+    user = db.query(User).filter(User.id == user_data["user_id"]).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    return user
+
+
+@app.get("/mfa/status")
+def mfa_status(
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    user = _get_user_or_404(db, user_data)
+
+    return {
+        "success": True,
+        "mfa_enabled": bool(user.mfa_enabled),
+        "backup_codes_remaining": mfa_utils.remaining_backup_codes(
+            user.mfa_backup_codes
+        )
+    }
+
+
+@app.post("/mfa/setup")
+def mfa_setup(
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Step 1 of enabling MFA: generate a secret + QR code.
+    MFA is NOT active until /mfa/enable confirms a valid code.
+    """
+    user = _get_user_or_404(db, user_data)
+
+    if user.mfa_enabled:
+        raise HTTPException(
+            status_code=400,
+            detail="MFA is already enabled. Disable it first to reconfigure."
+        )
+
+    secret = mfa_utils.generate_secret()
+    uri = mfa_utils.provisioning_uri(secret, user.email)
+
+    user.mfa_secret = secret
+    db.commit()
+
+    return {
+        "success": True,
+        "secret": secret,
+        "otpauth_uri": uri,
+        "qr_code": mfa_utils.qr_data_uri(uri)
+    }
+
+
+@app.post("/mfa/enable")
+def mfa_enable(
+    code: str = Form(...),
+    request: Request = None,
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    """Step 2: confirm a code from the app, turn MFA on, return backup codes."""
+    user = _get_user_or_404(db, user_data)
+
+    if user.mfa_enabled:
+        raise HTTPException(status_code=400, detail="MFA is already enabled.")
+
+    if not user.mfa_secret:
+        raise HTTPException(
+            status_code=400,
+            detail="Start MFA setup first."
+        )
+
+    if not mfa_utils.verify_totp(user.mfa_secret, code):
+        return {
+            "success": False,
+            "message": "Invalid code. Check your authenticator app and try again."
+        }
+
+    plain_codes, hashed_json = mfa_utils.generate_backup_codes()
+
+    user.mfa_enabled = True
+    user.mfa_backup_codes = hashed_json
+
+    log_activity(
+        db, user.id, "MFA_ENABLED",
+        "Multi-factor authentication was enabled.",
+        ip_address=_client_ip(request)
+    )
+    db.commit()
+
+    return {
+        "success": True,
+        "message": "MFA enabled.",
+        "backup_codes": plain_codes
+    }
+
+
+@app.post("/mfa/disable")
+def mfa_disable(
+    password: str = Form(...),
+    code: str = Form(...),
+    request: Request = None,
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    """Turning MFA off needs BOTH the password and a valid code."""
+    user = _get_user_or_404(db, user_data)
+
+    if not user.mfa_enabled:
+        raise HTTPException(status_code=400, detail="MFA is not enabled.")
+
+    if _mfa_recent_failures(db, user.id) >= MFA_MAX_FAILED_ATTEMPTS:
+        return {
+            "success": False,
+            "message": (
+                "Too many incorrect codes. "
+                f"Try again in {MFA_LOCK_WINDOW_MINUTES} minutes."
+            )
+        }
+
+    if not verify_password(password, user.password):
+        return {"success": False, "message": "Incorrect password."}
+
+    ok, _ = _check_second_factor(user, code)
+
+    if not ok:
+        log_activity(
+            db, user.id, "MFA_FAILED",
+            "Invalid MFA code while disabling MFA.",
+            ip_address=_client_ip(request)
+        )
+        db.commit()
+        return {"success": False, "message": "Invalid verification code."}
+
+    user.mfa_enabled = False
+    user.mfa_secret = None
+    user.mfa_backup_codes = None
+
+    log_activity(
+        db, user.id, "MFA_DISABLED",
+        "Multi-factor authentication was disabled.",
+        ip_address=_client_ip(request)
+    )
+    db.commit()
+
+    return {"success": True, "message": "MFA disabled."}
 
 
 # =========================================================
@@ -659,7 +1293,8 @@ def get_current_user(
         "user_id": user.id,
         "username": user.username,
         "email": user.email,
-        "role": user.role
+        "role": user.role,
+        "mfa_enabled": bool(user.mfa_enabled)
     }
 
 
@@ -697,6 +1332,8 @@ def get_files(
             "size": file.size,
             "category": file.category,
             "is_encrypted": file.is_encrypted,
+            "file_hash": getattr(file, "file_hash", None),
+            "folder_id": file.folder_id,
             "created_at": (
                 file.created_at.isoformat()
                 if file.created_at
@@ -825,6 +1462,11 @@ async def upload_file(
     db.commit()
     db.refresh(new_file)
 
+    # Store a SHA-256 integrity hash of the original plaintext.
+    file_hash = hashlib.sha256(content).hexdigest()
+    db.execute(text("UPDATE files SET file_hash=:hash WHERE id=:fid"), {"hash": file_hash, "fid": new_file.id})
+    db.commit()
+
     log_activity(
         db, user_data["user_id"], "UPLOAD",
         f"Uploaded file {new_file.filename}.",
@@ -905,6 +1547,263 @@ def download_file(
 
 
 # =========================================================
+# FILE PREVIEW - XLSX / PPT / PPTX
+# View only. Download behavior is unchanged.
+# =========================================================
+
+def _preview_html_escape(value):
+    return html.escape("" if value is None else str(value))
+
+
+def _build_xlsx_preview(content: bytes, filename: str) -> str:
+    from openpyxl import load_workbook
+    from io import BytesIO
+
+    workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
+    sections = []
+
+    for worksheet in workbook.worksheets:
+        rows_html = []
+        for row in worksheet.iter_rows(values_only=True):
+            values = list(row)
+            if not any(value is not None for value in values):
+                continue
+            cells = "".join(
+                f"<td>{_preview_html_escape(value)}</td>"
+                for value in values
+            )
+            rows_html.append(f"<tr>{cells}</tr>")
+
+        if rows_html:
+            sections.append(
+                f"<section><h2>{_preview_html_escape(worksheet.title)}</h2>"
+                f"<div class='table-wrap'><table><tbody>{''.join(rows_html)}</tbody></table></div></section>"
+            )
+        else:
+            sections.append(
+                f"<section><h2>{_preview_html_escape(worksheet.title)}</h2>"
+                f"<p class='empty'>This worksheet is empty.</p></section>"
+            )
+
+    workbook.close()
+    return "".join(sections) or "<p class='empty'>No worksheet data found.</p>"
+
+
+def _build_pptx_preview(content: bytes, filename: str) -> str:
+    from pptx import Presentation
+    from io import BytesIO
+
+    presentation = Presentation(BytesIO(content))
+    sections = []
+
+    for index, slide in enumerate(presentation.slides, start=1):
+        texts = []
+        for shape in slide.shapes:
+            if hasattr(shape, "text") and shape.text:
+                text_value = shape.text.strip()
+                if text_value:
+                    texts.append(
+                        f"<div class='slide-text'>{_preview_html_escape(text_value)}</div>"
+                    )
+
+        body = "".join(texts) or "<div class='empty'>No readable text on this slide.</div>"
+        sections.append(
+            f"<section class='slide'><div class='slide-number'>Slide {index}</div>{body}</section>"
+        )
+
+    return "".join(sections) or "<p class='empty'>No slides found.</p>"
+
+
+def _build_office_preview(content: bytes, filename: str) -> str:
+    ext = os.path.splitext(filename.lower())[1]
+
+    if ext == ".xlsx":
+        return _build_xlsx_preview(content, filename)
+
+    if ext == ".pptx":
+        return _build_pptx_preview(content, filename)
+
+    if ext == ".ppt":
+        # python-pptx reads PPTX, not legacy PPT. Convert only for viewing.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = os.path.join(temp_dir, filename)
+            Path(source_path).write_bytes(content)
+
+            soffice = shutil.which("libreoffice") or shutil.which("soffice")
+            if not soffice:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Legacy .ppt preview requires LibreOffice on the server."
+                )
+
+            result = subprocess.run(
+                [soffice, "--headless", "--convert-to", "pptx", "--outdir", temp_dir, source_path],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+
+            converted_path = os.path.join(
+                temp_dir,
+                os.path.splitext(os.path.basename(filename))[0] + ".pptx"
+            )
+
+            if result.returncode != 0 or not os.path.exists(converted_path):
+                raise HTTPException(
+                    status_code=500,
+                    detail="Unable to convert the PPT file for preview."
+                )
+
+            return _build_pptx_preview(
+                Path(converted_path).read_bytes(),
+                os.path.basename(converted_path)
+            )
+
+    raise HTTPException(
+        status_code=400,
+        detail="Preview is supported only for XLSX, PPT and PPTX files."
+    )
+
+
+def _preview_document_html(filename: str, body_html: str) -> str:
+    safe_name = _preview_html_escape(filename)
+    return f"""<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{safe_name} - TrustShare Preview</title>
+<style>
+body {{ margin:0; background:#f4f7fb; color:#172033; font-family:Inter,Segoe UI,Arial,sans-serif; }}
+.preview-header {{ position:sticky; top:0; z-index:10; padding:18px 24px; background:#fff; border-bottom:1px solid #dfe5ee; box-shadow:0 2px 10px rgba(0,0,0,.06); }}
+.preview-header h1 {{ margin:0; font-size:20px; }}
+.preview-header p {{ margin:5px 0 0; color:#718096; font-size:13px; }}
+.preview-body {{ max-width:1200px; margin:24px auto; padding:0 18px 40px; }}
+section {{ background:#fff; border:1px solid #dfe5ee; border-radius:14px; padding:18px; margin-bottom:18px; box-shadow:0 4px 14px rgba(30,50,80,.05); }}
+h2 {{ margin:0 0 14px; font-size:18px; }}
+.table-wrap {{ overflow:auto; max-height:75vh; }}
+table {{ width:100%; border-collapse:collapse; min-width:600px; }}
+td {{ border:1px solid #dfe5ee; padding:9px 11px; vertical-align:top; white-space:pre-wrap; }}
+.slide {{ min-height:220px; }}
+.slide-number {{ font-weight:700; margin-bottom:14px; color:#5b3bb8; }}
+.slide-text {{ white-space:pre-wrap; line-height:1.6; padding:10px 0; font-size:16px; }}
+.empty {{ color:#718096; }}
+</style>
+</head>
+<body>
+<header class="preview-header"><h1>TrustShare Preview</h1><p>{safe_name}</p></header>
+<main class="preview-body">{body_html}</main>
+</body>
+</html>"""
+
+
+def _public_viewer_response(file: DBFile, share: Share, plaintext: bytes) -> Response:
+    """Return a consistent TrustShare viewer for a public VIEW link."""
+    safe_name = _preview_html_escape(file.filename)
+    content_type = mimetypes.guess_type(file.filename)[0] or _resolve_content_type(file) or "application/octet-stream"
+    ext = os.path.splitext(file.filename.lower())[1]
+
+    # Text-like files can be rendered directly without another request.
+    if content_type.startswith("text/") or ext in {".json", ".csv", ".log", ".md", ".py", ".js", ".jsx", ".css", ".html"}:
+        try:
+            text_content = plaintext.decode("utf-8", errors="replace")
+        except Exception:
+            text_content = "Unable to decode this file as text."
+        body = f"<pre class='text-preview'>{_preview_html_escape(text_content)}</pre>"
+    elif content_type.startswith("image/"):
+        import base64
+        data_uri = "data:" + content_type + ";base64," + base64.b64encode(plaintext).decode("ascii")
+        body = f"<div class='media-wrap'><img src='{data_uri}' alt='{safe_name}' /></div>"
+    elif content_type == "application/pdf":
+        import base64
+        data_uri = "data:application/pdf;base64," + base64.b64encode(plaintext).decode("ascii")
+        body = f"<iframe class='pdf-preview' src='{data_uri}' title='{safe_name}'></iframe>"
+    elif content_type.startswith("video/"):
+        import base64
+        data_uri = "data:" + content_type + ";base64," + base64.b64encode(plaintext).decode("ascii")
+        body = f"<video class='media-player' controls src='{data_uri}'></video>"
+    elif content_type.startswith("audio/"):
+        import base64
+        data_uri = "data:" + content_type + ";base64," + base64.b64encode(plaintext).decode("ascii")
+        body = f"<audio class='audio-player' controls src='{data_uri}'></audio>"
+    else:
+        body = "<div class='unsupported'><strong>Preview is not available for this file type.</strong><p>This secure link has View permission, so downloading is not allowed.</p></div>"
+
+    expires = share.expires_at.isoformat() if share.expires_at else ""
+    html_doc = f"""<!doctype html>
+<html>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>{safe_name} - TrustShare View</title>
+<style>
+*{{box-sizing:border-box}} body{{margin:0;background:#f4f7fb;color:#172033;font-family:Inter,Segoe UI,Arial,sans-serif}}
+.header{{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #dfe5ee;padding:16px 22px;box-shadow:0 2px 10px rgba(0,0,0,.06)}}
+.brand{{font-size:18px;font-weight:800;color:#6d35e8}} .name{{margin-top:5px;font-size:14px;color:#5d6b82;word-break:break-word}}
+.badge{{display:inline-block;margin-top:8px;padding:5px 10px;border-radius:999px;background:#efe7ff;color:#6231d7;font-size:12px;font-weight:700}}
+.body{{max-width:1200px;margin:24px auto;padding:0 18px 40px}} .viewer{{background:#fff;border:1px solid #dfe5ee;border-radius:16px;min-height:70vh;padding:18px;box-shadow:0 8px 25px rgba(30,50,80,.07)}}
+.pdf-preview{{width:100%;height:75vh;border:0;border-radius:10px;background:#fff}} .media-wrap{{display:flex;justify-content:center;align-items:center;min-height:65vh;background:#f8fafc;border-radius:10px;padding:20px}}
+.media-wrap img{{max-width:100%;max-height:70vh;object-fit:contain}} .media-player{{display:block;width:100%;max-height:75vh;margin:auto}} .audio-player{{display:block;width:min(700px,100%);margin:120px auto}}
+.text-preview{{white-space:pre-wrap;overflow:auto;max-height:75vh;background:#0f172a;color:#e5e7eb;border-radius:10px;padding:20px;line-height:1.55}}
+.unsupported{{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:55vh;text-align:center;color:#5d6b82}}
+</style></head>
+<body><header class='header'><div class='brand'>TrustShare</div><div class='name'>{safe_name}</div><span class='badge'>View Only</span></header>
+<main class='body'><div class='viewer'>{body}</div></main></body></html>"""
+    return Response(content=html_doc, media_type="text/html", headers={"Content-Disposition": "inline"})
+
+
+def _preview_response(file: DBFile, plaintext: bytes) -> Response:
+    body_html = _build_office_preview(plaintext, file.filename)
+    return Response(
+        content=_preview_document_html(file.filename, body_html),
+        media_type="text/html",
+        headers={"Content-Disposition": "inline"}
+    )
+
+
+@app.get("/preview/{file_id}")
+def preview_file(
+    file_id: int,
+    request: Request = None,
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    file = (
+        db.query(DBFile)
+        .filter(
+            DBFile.id == file_id,
+            DBFile.user_id == user_data["user_id"],
+            DBFile.is_deleted == False
+        )
+        .first()
+    )
+
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    extension = os.path.splitext(file.filename.lower())[1]
+    if extension not in {".xlsx", ".ppt", ".pptx"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Preview is supported only for XLSX, PPT and PPTX files."
+        )
+
+    plaintext = _load_and_decrypt(file)
+
+    log_activity(
+        db,
+        user_data["user_id"],
+        "VIEW",
+        f"Viewed file {file.filename}.",
+        file.id,
+        _client_ip(request)
+    )
+    db.commit()
+
+    return _preview_response(file, plaintext)
+
+
+# =========================================================
 # DELETE FILE
 # =========================================================
 
@@ -937,22 +1836,25 @@ def delete_file(
             detail="Access denied."
         )
 
-    # Delete encrypted file from storage.
-    storage.delete(file.stored_filename)
-
-    # Delete database record.
+    # Milestone 1 enhancement: soft-delete first so the file can be restored.
     filename_for_log = file.filename
-    db.delete(file)
+    file.is_deleted = True
     log_activity(
         db, user_data["user_id"], "DELETE",
-        f"Deleted file {filename_for_log}.",
+        f"Moved file {filename_for_log} to the recycle bin.",
         file_id, _client_ip(request)
+    )
+    create_notification(
+        db, user_data["user_id"],
+        "File Moved to Recycle Bin",
+        f"\"{filename_for_log}\" can be restored from the Recycle Bin.",
+        "file_deleted"
     )
     db.commit()
 
     return {
         "success": True,
-        "message": "File deleted successfully."
+        "message": "File moved to the Recycle Bin."
     }
 
 
@@ -1018,6 +1920,36 @@ def create_share(
         "share_url": f"/share/{raw_token}",
         "permission": share.permission,
         "expires_at": share.expires_at.isoformat()
+    }
+
+
+# =========================================================
+# PUBLIC SECURE SHARE LINK INFORMATION
+# =========================================================
+
+@app.get("/share/{token}/info")
+def get_public_share_info(
+    token: str,
+    db: Session = Depends(get_db)
+):
+    share = get_valid_share(db, token)
+
+    file = (
+        db.query(DBFile)
+        .filter(DBFile.id == share.file_id, DBFile.is_deleted == False)
+        .first()
+    )
+
+    if not file:
+        raise HTTPException(status_code=404, detail="The shared file no longer exists.")
+
+    return {
+        "success": True,
+        "filename": file.filename,
+        "permission": share.permission,
+        "expires_at": share.expires_at.isoformat() if share.expires_at else None,
+        "max_downloads": share.max_downloads,
+        "download_count": share.download_count
     }
 
 
@@ -1481,6 +2413,63 @@ def access_account_shared_file(
     )
 
 
+@app.get("/shared-with-me/{share_id}/preview")
+def preview_account_shared_file(
+    share_id: int,
+    request: Request = None,
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    row = db.execute(
+        text("""
+            SELECT id, file_id, permission, expires_at,
+                   max_downloads, download_count, revoked,
+                   recipient_id, created_by
+            FROM shares
+            WHERE id = :share_id
+              AND recipient_id = :recipient_id
+        """),
+        {"share_id": share_id, "recipient_id": user_data["user_id"]}
+    ).mappings().first()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Shared file not found.")
+    if row["revoked"]:
+        raise HTTPException(status_code=403, detail="This share has been revoked.")
+
+    if row["expires_at"] is not None:
+        expires_at = row["expires_at"]
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at <= datetime.now(timezone.utc):
+            raise HTTPException(status_code=403, detail="This shared access has expired.")
+
+    file = db.query(DBFile).filter(
+        DBFile.id == row["file_id"],
+        DBFile.is_deleted == False
+    ).first()
+    if not file:
+        raise HTTPException(status_code=404, detail="The shared file no longer exists.")
+
+    extension = os.path.splitext(file.filename.lower())[1]
+    if extension not in {".xlsx", ".ppt", ".pptx"}:
+        raise HTTPException(status_code=400, detail="Preview is supported only for XLSX, PPT and PPTX files.")
+
+    plaintext = _load_and_decrypt(file)
+
+    log_activity(
+        db,
+        user_data["user_id"],
+        "VIEW",
+        f"Viewed shared file {file.filename}.",
+        file.id,
+        _client_ip(request)
+    )
+    db.commit()
+
+    return _preview_response(file, plaintext)
+
+
 @app.delete("/shared-with-me/{share_id}")
 def remove_shared_access(
     share_id: int,
@@ -1707,17 +2696,20 @@ def get_security_alerts(
 
     Suspicious-activity checks are triggered by the relevant account/file
     events themselves (for example failed login, download and share).
-    Loading or refreshing this page only reads alerts; it does not create
-    another alert. There is intentionally no resolve endpoint because
+    The only thing done here is a consistency check that creates a missing
+    failed-login alert when the activity log shows failures (see
+    sync_failed_login_alerts); refreshing never creates duplicates. There is intentionally no resolve endpoint because
     resolving an alert can immediately satisfy the detection rule again
     and create a new alert.
     """
+    sync_failed_login_alerts(db, user_data["user_id"])
+
     rows = db.execute(
         text("""
             SELECT id, alert_type, severity, description, created_at
             FROM security_alerts
             WHERE user_id = :user_id
-              AND resolved = FALSE
+              AND COALESCE(resolved, FALSE) = FALSE
             ORDER BY created_at DESC
             LIMIT 100
         """),
@@ -1749,8 +2741,11 @@ def get_analytics(
     """
     user_id = user_data["user_id"]
 
-    # Count unique active files visible to the user.
+    # Count all active files available to the user:
+    # 1. Files uploaded by the current user.
+    # 2. Files shared with the current user's TrustShare account.
     # A file shared more than once must still count as ONE file.
+    # Keep the shared-file rules consistent with /shared-with-me.
     total_files = db.execute(
         text("""
             SELECT COUNT(*)
@@ -1766,9 +2761,7 @@ def get_analytics(
                 FROM shares s
                 JOIN files f2 ON f2.id = s.file_id
                 WHERE s.recipient_id = :user_id
-                  AND s.revoked = FALSE
                   AND f2.is_deleted = FALSE
-                  AND (s.expires_at IS NULL OR s.expires_at > NOW())
             ) visible_files
         """),
         {"user_id": user_id}
@@ -1809,10 +2802,7 @@ def get_analytics(
             SELECT COUNT(*)
             FROM activity_logs a
             LEFT JOIN files f ON f.id = a.file_id
-            WHERE (
-                    a.user_id = :user_id
-                    OR f.owner_id = :user_id
-                  )
+            WHERE a.user_id = :user_id
               AND a.action = 'VIEW'
         """),
         {"user_id": user_id}
@@ -1833,7 +2823,7 @@ def get_analytics(
             SELECT COUNT(*)
             FROM security_alerts
             WHERE user_id = :user_id
-              AND resolved = FALSE
+              AND COALESCE(resolved, FALSE) = FALSE
         """),
         {"user_id": user_id}
     ).scalar() or 0
@@ -1869,7 +2859,7 @@ def security_check(
     alert_count = db.execute(
         text("""
             SELECT COUNT(*) FROM security_alerts
-            WHERE user_id = :user_id AND resolved = FALSE
+            WHERE user_id = :user_id AND COALESCE(resolved, FALSE) = FALSE
         """),
         {"user_id": user_data["user_id"]}
     ).scalar() or 0
@@ -1920,39 +2910,430 @@ def access_shared_file(
             detail="The shared file no longer exists."
         )
 
-    # Check maximum download limit.
-    check_and_register_access(
-        db,
-        share
-    )
-
     # Decrypt before serving.
     plaintext = _load_and_decrypt(file)
 
+    # Public secure-link access is anonymous. Attribute the activity to
+    # the TrustShare account that created the link because activity_logs
+    # requires a non-null user_id.
     log_activity(
-        db, None,
+        db, share.created_by,
         "SHARED_LINK_ACCESS",
         f"Accessed shared link for {file.filename}.",
         file.id, _client_ip(request)
     )
     db.commit()
 
+    # VIEW links use a TrustShare viewer page. This avoids relying on the
+    # browser's download behavior for formats such as XLSX and gives a
+    # consistent viewing experience. Only DOWNLOAD links increment the
+    # download counter and return an attachment.
+    if share.permission == "view":
+        extension = os.path.splitext(file.filename.lower())[1]
+        if extension in {".xlsx", ".ppt", ".pptx"}:
+            return _preview_response(file, plaintext)
+        return _public_viewer_response(file, share, plaintext)
 
-    disposition = (
-        "attachment"
-        if share.permission == "download"
-        else "inline"
-    )
+    # DOWNLOAD permission is the only permission that consumes a download.
+    check_and_register_access(db, share)
+    db.commit()
+
+    content_type = _resolve_content_type(file)
+    guessed_type, _ = mimetypes.guess_type(file.filename)
+    content_type = guessed_type or content_type
 
     return Response(
         content=plaintext,
-        media_type=_resolve_content_type(file),
+        media_type=content_type,
         headers={
             "Content-Disposition":
-                f'{disposition}; filename="{file.filename}"'
+                f'attachment; filename="{file.filename}"',
+            "X-Content-Type-Options": "nosniff"
         }
     )
 
+
+
+# =========================================================
+# ENHANCED MILESTONE 1-3 ENDPOINTS
+# Recycle Bin, folders, versions, integrity and AI assistant.
+# =========================================================
+
+@app.get("/recycle-bin")
+def get_recycle_bin(
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    rows = db.query(DBFile).filter(
+        DBFile.user_id == user_data["user_id"],
+        DBFile.is_deleted == True
+    ).order_by(DBFile.updated_at.desc()).all()
+    return [{
+        "id": f.id,
+        "filename": f.filename,
+        "size": f.size,
+        "category": f.category,
+        "deleted_at": f.updated_at.isoformat() if f.updated_at else None
+    } for f in rows]
+
+
+@app.put("/recycle-bin/{file_id}/restore")
+def restore_file(
+    file_id: int,
+    request: Request = None,
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    file = db.query(DBFile).filter(
+        DBFile.id == file_id,
+        DBFile.user_id == user_data["user_id"],
+        DBFile.is_deleted == True
+    ).first()
+    if not file:
+        raise HTTPException(status_code=404, detail="Deleted file not found.")
+    file.is_deleted = False
+    log_activity(db, user_data["user_id"], "FILE_RESTORED", f"Restored {file.filename} from the recycle bin.", file.id, _client_ip(request))
+    db.commit()
+    return {"success": True, "message": "File restored successfully."}
+
+
+@app.delete("/recycle-bin/{file_id}/permanent")
+def permanently_delete_file(
+    file_id: int,
+    request: Request = None,
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    file = db.query(DBFile).filter(
+        DBFile.id == file_id,
+        DBFile.user_id == user_data["user_id"],
+        DBFile.is_deleted == True
+    ).first()
+    if not file:
+        raise HTTPException(status_code=404, detail="Deleted file not found.")
+    filename = file.filename
+    location = file.stored_filename
+
+    try:
+        # Remove references before deleting the file. This makes the endpoint
+        # safe even when an existing PostgreSQL database does not have every
+        # expected ON DELETE CASCADE constraint.
+        db.execute(
+            text("UPDATE activity_logs SET file_id = NULL WHERE file_id = :file_id"),
+            {"file_id": file_id}
+        )
+        db.execute(
+            text("DELETE FROM shares WHERE file_id = :file_id"),
+            {"file_id": file_id}
+        )
+
+        # Record the event without a file_id because the file is being removed.
+        log_activity(
+            db,
+            user_data["user_id"],
+            "PERMANENT_DELETE",
+            f"Permanently deleted {filename}.",
+            None,
+            _client_ip(request)
+        )
+
+        db.delete(file)
+        db.flush()
+        db.commit()
+
+    except Exception as exc:
+        db.rollback()
+        print("Permanent delete database error:", exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to permanently delete the file. Please try again."
+        )
+
+    # Storage cleanup is best-effort after the database deletion succeeds.
+    try:
+        storage.delete(location)
+    except Exception as storage_error:
+        print("Permanent delete storage cleanup warning:", storage_error)
+
+    return {"success": True, "message": "File permanently deleted."}
+
+
+@app.post("/folders")
+def create_folder(
+    name: str = Form(...),
+    parent_id: int | None = Form(None),
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    name = name.strip()
+    if not name or len(name) > 255:
+        raise HTTPException(status_code=400, detail="Enter a valid folder name.")
+    if parent_id:
+        parent = db.execute(text("SELECT id FROM folders WHERE id=:id AND owner_id=:uid"), {"id": parent_id, "uid": user_data["user_id"]}).first()
+        if not parent:
+            raise HTTPException(status_code=404, detail="Parent folder not found.")
+    try:
+        row = db.execute(text("""
+            INSERT INTO folders(owner_id,name,parent_id) VALUES(:uid,:name,:parent)
+            RETURNING id, name, parent_id, created_at
+        """), {"uid": user_data["user_id"], "name": name, "parent": parent_id}).mappings().first()
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="A folder with this name already exists here.")
+    log_activity(db, user_data["user_id"], "FOLDER_CREATED", f"Created folder {name}.")
+    db.commit()
+    return dict(row)
+
+
+@app.get("/folders")
+def list_folders(
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    rows = db.execute(text("""
+        SELECT id, name, parent_id, created_at
+        FROM folders WHERE owner_id=:uid ORDER BY name
+    """), {"uid": user_data["user_id"]}).mappings().all()
+    return [dict(r) for r in rows]
+
+
+@app.put("/files/{file_id}/move")
+def move_file_to_folder(
+    file_id: int,
+    folder_id: int | None = Form(None),
+    request: Request = None,
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    file = db.query(DBFile).filter(DBFile.id == file_id, DBFile.user_id == user_data["user_id"], DBFile.is_deleted == False).first()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found.")
+    if folder_id is not None:
+        folder = db.execute(text("SELECT id FROM folders WHERE id=:fid AND owner_id=:uid"), {"fid": folder_id, "uid": user_data["user_id"]}).first()
+        if not folder:
+            raise HTTPException(status_code=404, detail="Folder not found.")
+    file.folder_id = folder_id
+    log_activity(db, user_data["user_id"], "FILE_MOVED", f"Moved {file.filename}.", file.id, _client_ip(request))
+    db.commit()
+    return {"success": True, "message": "File moved successfully."}
+
+
+@app.get("/files/{file_id}/versions")
+def list_file_versions(
+    file_id: int,
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    file = db.query(DBFile).filter(DBFile.id == file_id, DBFile.user_id == user_data["user_id"]).first()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found.")
+    rows = db.execute(text("""
+        SELECT id, version_number, size, file_hash, created_at
+        FROM file_versions WHERE file_id=:fid ORDER BY version_number DESC
+    """), {"fid": file_id}).mappings().all()
+    return [dict(r) for r in rows]
+
+
+@app.get("/files/{file_id}/integrity")
+def verify_file_integrity(
+    file_id: int,
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    file = db.query(DBFile).filter(DBFile.id == file_id, DBFile.user_id == user_data["user_id"], DBFile.is_deleted == False).first()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found.")
+    plaintext = _load_and_decrypt(file)
+    current_hash = hashlib.sha256(plaintext).hexdigest()
+    stored_hash = file.file_hash
+    if not stored_hash:
+        db.execute(text("UPDATE files SET file_hash=:hash WHERE id=:fid"), {"hash": current_hash, "fid": file.id})
+        db.commit()
+        stored_hash = current_hash
+    valid = current_hash == stored_hash
+    log_activity(db, user_data["user_id"], "INTEGRITY_CHECK", f"Integrity check for {file.filename}: {'passed' if valid else 'failed'}.", file.id)
+    db.commit()
+    return {"success": True, "valid": valid, "algorithm": "SHA-256", "stored_hash": stored_hash, "current_hash": current_hash}
+
+
+def _extract_document_text(content: bytes, filename: str) -> str:
+    """Extract readable text without requiring an AI provider."""
+    ext = os.path.splitext(filename.lower())[1]
+    try:
+        if ext == ".pdf":
+            from pypdf import PdfReader
+            reader = PdfReader(__import__('io').BytesIO(content))
+            return "\n".join((page.extract_text() or "") for page in reader.pages)
+        if ext == ".docx":
+            from docx import Document
+            doc = Document(__import__('io').BytesIO(content))
+            return "\n".join(p.text for p in doc.paragraphs)
+        if ext == ".pptx":
+            from pptx import Presentation
+            prs = Presentation(__import__('io').BytesIO(content))
+            chunks=[]
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text:
+                        chunks.append(shape.text)
+            return "\n".join(chunks)
+        if ext in {".txt", ".md", ".csv", ".json", ".py", ".js", ".jsx", ".css", ".html"}:
+            return content.decode("utf-8", errors="ignore")
+    except Exception as exc:
+        return f"[Text extraction failed: {exc}]"
+    return ""
+
+
+def _chunk_text(text_value: str, size: int = 1200, overlap: int = 150):
+    clean = re.sub(r"\s+", " ", text_value or "").strip()
+    if not clean:
+        return []
+    chunks=[]
+    start=0
+    while start < len(clean):
+        end=min(len(clean), start+size)
+        chunks.append(clean[start:end])
+        if end == len(clean): break
+        start=max(end-overlap, start+1)
+    return chunks
+
+
+def _rank_chunks(question: str, chunks: list[str], limit: int = 5):
+    terms=set(re.findall(r"[a-zA-Z0-9]{3,}", question.lower()))
+    scored=[]
+    for chunk in chunks:
+        words=re.findall(r"[a-zA-Z0-9]{3,}", chunk.lower())
+        score=sum(words.count(term) for term in terms)
+        scored.append((score, chunk))
+    scored.sort(key=lambda x:x[0], reverse=True)
+    return [c for score,c in scored[:limit] if score > 0] or chunks[:limit]
+
+
+def _call_ai_provider(system_prompt: str, user_prompt: str):
+    api_key=os.getenv("AI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    endpoint=os.getenv("AI_API_URL", "https://api.openai.com/v1/chat/completions")
+    model=os.getenv("AI_MODEL", "gpt-4o-mini")
+    if not api_key:
+        return None
+    payload=json.dumps({
+        "model": model,
+        "messages":[
+            {"role":"system","content":system_prompt},
+            {"role":"user","content":user_prompt}
+        ],
+        "temperature":0.2
+    }).encode("utf-8")
+    request=urllib.request.Request(endpoint, data=payload, headers={"Content-Type":"application/json", "Authorization":f"Bearer {api_key}"}, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=45) as response:
+            data=json.loads(response.read().decode("utf-8"))
+            return data["choices"][0]["message"]["content"].strip()
+    except Exception as exc:
+        print("AI provider error:", exc)
+        return None
+
+
+def _local_ai_answer(question: str, context: str) -> str:
+    q=question.lower()
+    sentences=[x.strip() for x in re.split(r"(?<=[.!?])\s+", context) if x.strip()]
+    if not sentences:
+        return "I could not find readable text in the authorized files. Try a PDF, DOCX, PPTX or text file."
+    terms=set(re.findall(r"[a-zA-Z0-9]{3,}", q))
+    ranked=sorted(sentences, key=lambda x: sum(x.lower().count(t) for t in terms), reverse=True)
+    selected=ranked[:5]
+    if any(k in q for k in ["summarize", "summary", "brief"]):
+        return "Summary:\n• " + "\n• ".join(selected[:5])
+    if any(k in q for k in ["key points", "important", "main points"]):
+        return "Key points:\n• " + "\n• ".join(selected[:6])
+    return "Based on your authorized TrustShare files:\n\n" + "\n".join(f"• {x}" for x in selected[:5])
+
+
+@app.post("/ai/ask")
+def ai_ask(
+    question: str = Form(...),
+    file_id: int | None = Form(None),
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    question=question.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Enter a question.")
+
+    docs=[]
+    if file_id:
+        file=db.query(DBFile).filter(DBFile.id==file_id, DBFile.user_id==user_data["user_id"], DBFile.is_deleted==False).first()
+        if not file:
+            raise HTTPException(status_code=403, detail="You are not authorized to use this file with AI.")
+        docs=[file]
+    else:
+        docs=db.query(DBFile).filter(DBFile.user_id==user_data["user_id"], DBFile.is_deleted==False).order_by(DBFile.created_at.desc()).limit(20).all()
+
+    all_chunks=[]
+    source_names=[]
+    for file in docs:
+        try:
+            plaintext=_load_and_decrypt(file)
+            text_value=_extract_document_text(plaintext, file.filename)
+            chunks=_chunk_text(text_value)
+            ranked=_rank_chunks(question, chunks, 5)
+            all_chunks.extend(f"[{file.filename}] {c}" for c in ranked)
+            if ranked: source_names.append(file.filename)
+        except Exception:
+            continue
+
+    context="\n\n".join(all_chunks[:12])
+    system="You are TrustShare AI, a secure document assistant. Use only the supplied authorized context. Never claim access to files not included in the context. If context is insufficient, say so. Keep answers concise and useful."
+    provider_answer=_call_ai_provider(system, f"Question: {question}\n\nAuthorized context:\n{context}") if context else None
+    answer=provider_answer or _local_ai_answer(question, context)
+    log_activity(db, user_data["user_id"], "AI_QUERY", f"AI assistant query: {question[:180]}")
+    db.commit()
+    return {"success":True, "answer":answer, "sources":source_names, "provider": "external" if provider_answer else "local"}
+
+
+@app.post("/ai/file/{file_id}/summary")
+def ai_file_summary(
+    file_id: int,
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    file=db.query(DBFile).filter(DBFile.id==file_id, DBFile.user_id==user_data["user_id"], DBFile.is_deleted==False).first()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found.")
+    plaintext=_load_and_decrypt(file)
+    text_value=_extract_document_text(plaintext, file.filename)
+    if not text_value.strip():
+        raise HTTPException(status_code=400, detail="This file type does not contain extractable text.")
+    chunks=_chunk_text(text_value)
+    context="\n".join(chunks[:8])
+    prompt=f"Create a concise summary with 5 key points for this document.\n\nDocument:\n{context}"
+    answer=_call_ai_provider("You are TrustShare AI. Summarize only the supplied document.", prompt) or _local_ai_answer("summarize", context)
+    log_activity(db, user_data["user_id"], "AI_SUMMARY", f"Generated AI summary for {file.filename}.", file.id)
+    db.commit()
+    return {"success":True,"filename":file.filename,"summary":answer,"provider":"external" if os.getenv("AI_API_KEY") or os.getenv("OPENAI_API_KEY") else "local"}
+
+
+@app.post("/ai/file/{file_id}/insights")
+def ai_file_insights(
+    file_id: int,
+    user_data: dict = Depends(get_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    file=db.query(DBFile).filter(DBFile.id==file_id, DBFile.user_id==user_data["user_id"], DBFile.is_deleted==False).first()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found.")
+    plaintext=_load_and_decrypt(file)
+    text_value=_extract_document_text(plaintext, file.filename)
+    if not text_value.strip():
+        raise HTTPException(status_code=400, detail="This file type does not contain extractable text.")
+    words=re.findall(r"[A-Za-z][A-Za-z0-9_-]{3,}", text_value.lower())
+    stop={"this","that","with","from","your","have","will","about","there","which","their","into","using","also","they","were","been","what","when","where","than","then"}
+    freq={}
+    for w in words:
+        if w not in stop: freq[w]=freq.get(w,0)+1
+    topics=[w for w,_ in sorted(freq.items(), key=lambda x:x[1], reverse=True)[:8]]
+    summary=_local_ai_answer("summarize", text_value)
+    return {"success":True,"filename":file.filename,"category":file.category,"size":file.size,"topics":topics,"suggested_tags":[f"#{x}" for x in topics[:5]],"summary":summary}
 
 # =========================================================
 # LOAD + DECRYPT FILE
