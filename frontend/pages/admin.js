@@ -18,27 +18,25 @@ const Card = ({ title, children }) => (
 
 export default function Admin() {
     const [forbidden, setForbidden] = useState(false);
-    const [logs, setLogs] = useState([]);
+    const [logs, setLogs] = useState(null);
     const [suspicious, setSuspicious] = useState(null);
     const [storage, setStorage] = useState(null);
     const [summary, setSummary] = useState(null);
 
     useEffect(() => {
-        Promise.all([
-            api.get("/admin/audit-logs?limit=25"),
-            api.get("/admin/security/suspicious-logins"),
-            api.get("/admin/analytics/storage"),
-            api.get("/admin/reports/security-summary"),
-        ])
-            .then(([logsRes, suspRes, storageRes, summaryRes]) => {
-                setLogs(logsRes.data);
-                setSuspicious(suspRes.data);
-                setStorage(storageRes.data);
-                setSummary(summaryRes.data);
-            })
-            .catch((err) => {
-                if (err.response && err.response.status === 403) setForbidden(true);
-            });
+        // Each card fetches and renders independently now — previously this used
+        // Promise.all, which meant every card stayed on "Loading..." until the
+        // SLOWEST of the four calls finished, even if the other three had
+        // already come back. A cold backend (free-tier spin-down) made that
+        // wait feel like the whole page was frozen.
+        const onForbidden = (err) => {
+            if (err.response && err.response.status === 403) setForbidden(true);
+        };
+
+        api.get("/admin/audit-logs?limit=25").then((res) => setLogs(res.data)).catch(onForbidden);
+        api.get("/admin/security/suspicious-logins").then((res) => setSuspicious(res.data)).catch(onForbidden);
+        api.get("/admin/analytics/storage").then((res) => setStorage(res.data)).catch(onForbidden);
+        api.get("/admin/reports/security-summary").then((res) => setSummary(res.data)).catch(onForbidden);
     }, []);
 
     if (forbidden) {
@@ -83,9 +81,11 @@ export default function Admin() {
                             <strong>{u.email}</strong> — {u.failed_login_count} failed attempts in the last {u.window_minutes} minutes
                         </div>
                     ))}
+                {!suspicious && <div style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</div>}
             </Card>
 
             <Card title="Storage usage by user">
+                {!storage && <div style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</div>}
                 {storage && (
                     <>
                         <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12 }}>
@@ -107,8 +107,9 @@ export default function Admin() {
             </Card>
 
             <Card title="Recent audit log (all users)">
-                {logs.length === 0 && <div style={{ color: "var(--text-muted)", fontSize: 13 }}>No activity yet.</div>}
-                {logs.map((log, idx) => (
+                {logs === null && <div style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading...</div>}
+                {logs !== null && logs.length === 0 && <div style={{ color: "var(--text-muted)", fontSize: 13 }}>No activity yet.</div>}
+                {logs !== null && logs.map((log, idx) => (
                     <div
                         key={idx}
                         style={{

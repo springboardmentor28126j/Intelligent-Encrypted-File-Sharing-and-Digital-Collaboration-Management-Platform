@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_admin
-from app.core.mongo import get_all_activity, count_recent_failed_logins
+from app.core.mongo import get_all_activity, get_recent_failed_login_counts
 from app.models.models import User
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -42,9 +42,14 @@ def suspicious_logins(db: Session = Depends(get_db), _admin: User = Depends(get_
     since = (datetime.now(timezone.utc) -
              timedelta(minutes=FAILED_LOGIN_WINDOW_MINUTES)).isoformat()
 
+    # One Mongo query for every user's failed-login count, instead of one
+    # query per user — avoids an N+1 round trip that got slower as the
+    # user table grew.
+    counts_by_user = get_recent_failed_login_counts(since)
+
     flagged = []
     for user in db.query(User).all():
-        failed_count = count_recent_failed_logins(str(user.id), since)
+        failed_count = counts_by_user.get(str(user.id), 0)
         if failed_count >= FAILED_LOGIN_THRESHOLD:
             flagged.append(
                 {

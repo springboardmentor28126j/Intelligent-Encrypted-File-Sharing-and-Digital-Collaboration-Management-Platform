@@ -57,6 +57,19 @@ def count_recent_failed_logins(user_id: str, since_iso: str) -> int:
     )
 
 
+def get_recent_failed_login_counts(since_iso: str) -> dict:
+    """Failed-login counts for every user in one query, grouped by user_id.
+
+    Used instead of calling count_recent_failed_logins() in a per-user loop
+    (one Mongo round trip per user, which gets slower as the user table
+    grows) — this does the same job in a single aggregation query."""
+    pipeline = [
+        {"$match": {"action": "login_failed", "timestamp": {"$gte": since_iso}}},
+        {"$group": {"_id": "$user_id", "count": {"$sum": 1}}},
+    ]
+    return {row["_id"]: row["count"] for row in activity_logs.aggregate(pipeline)}
+
+
 def get_action_counts_since(since_iso: str) -> dict:
     """Platform-wide counts of each action type since a given timestamp —
     the basis for the admin security/activity summary report."""
