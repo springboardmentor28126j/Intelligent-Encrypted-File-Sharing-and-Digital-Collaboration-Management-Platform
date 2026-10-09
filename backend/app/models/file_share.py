@@ -14,6 +14,7 @@ class FileShare(Base):
     shared_with_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     shared_with_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     permission: Mapped[str] = mapped_column(String(20), nullable=False, default="VIEWER")
+    can_download: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     recipient_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     share_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -35,5 +36,7 @@ def sync_file_share_columns(mapper, connection, target):
     target.shared_with_id = recipient_id
     if target.is_revoked is None:
         target.is_revoked = False
+    if target.can_download is None:
+        target.can_download = True
     if target.download_count is None:
         target.download_count = 0

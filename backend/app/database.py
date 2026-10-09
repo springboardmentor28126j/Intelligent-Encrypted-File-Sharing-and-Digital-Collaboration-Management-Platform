@@ -81,6 +81,7 @@ def ensure_schema_compatibility():
             _add_column_if_missing(connection, "file_shares", shares, "shared_with_id", "shared_with_id INTEGER")
             _add_column_if_missing(connection, "file_shares", shares, "shared_with_user_id", "shared_with_user_id INTEGER")
             _add_column_if_missing(connection, "file_shares", shares, "is_revoked", "is_revoked BOOLEAN NOT NULL DEFAULT FALSE")
+            _add_column_if_missing(connection, "file_shares", shares, "can_download", "can_download BOOLEAN NOT NULL DEFAULT TRUE")
             _add_column_if_missing(connection, "file_shares", shares, "recipient_email", "recipient_email VARCHAR(255)")
             _add_column_if_missing(connection, "file_shares", shares, "share_token", "share_token VARCHAR(64)")
             _add_column_if_missing(connection, "file_shares", shares, "expires_at", "expires_at TIMESTAMP")

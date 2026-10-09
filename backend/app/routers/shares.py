@@ -85,6 +85,7 @@ def share_file(file_id: int, data: FileShareCreate, current_user: User = Depends
             shared_with_id=target_user.id,
             recipient_email=target_user.email,
             permission=permission,
+            can_download=True,
             is_revoked=False,
             download_count=0,
         )
