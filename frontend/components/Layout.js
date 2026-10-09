@@ -6,6 +6,7 @@ import NotificationBell from "./NotificationBell";
 const NAV_ITEMS = [
   { key: "overview", label: "Dashboard", href: "/dashboard" },
   { key: "files", label: "My files", href: "/files" },
+  { key: "shared", label: "Shared with me", href: "/shared" },
   { key: "upload", label: "Upload file", href: "/upload" },
   { key: "folders", label: "Folders", href: "/folders" },
   { key: "activity", label: "Activity", href: "/activity" },
@@ -36,7 +37,7 @@ export default function Layout({ active, eyebrow, title, action, children }) {
 
   const navItems =
     role === "admin"
-      ? [...NAV_ITEMS.slice(0, 5), { key: "admin", label: "Admin", href: "/admin" }, ...NAV_ITEMS.slice(5)]
+      ? [...NAV_ITEMS.slice(0, 6), { key: "admin", label: "Admin", href: "/admin" }, ...NAV_ITEMS.slice(6)]
       : NAV_ITEMS;
 
   const handleLogout = () => {
