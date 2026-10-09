@@ -118,11 +118,12 @@ master_cipher = AESGCM(
 
 def utc_now() -> datetime:
     """
-    Return the current UTC time as a timezone-naive datetime.
-
-    The database currently uses timezone-naive timestamps.
+    Return current UTC time as a timezone-naive datetime.
     """
-    return datetime.now(timezone.utc).replace(
+
+    return datetime.now(
+        timezone.utc
+    ).replace(
         tzinfo=None
     )
 
@@ -133,10 +134,32 @@ def is_expired(
     """
     Return True when an optional expiry timestamp has passed.
     """
+
     if expires_at is None:
         return False
 
     return expires_at <= utc_now()
+
+
+def normalize_datetime(
+    value: datetime | None,
+) -> datetime | None:
+    """
+    Convert timezone-aware datetime values to UTC
+    timezone-naive datetime values for database storage.
+    """
+
+    if value is None:
+        return None
+
+    if value.tzinfo is not None:
+        return value.astimezone(
+            timezone.utc
+        ).replace(
+            tzinfo=None
+        )
+
+    return value
 
 
 # ============================================================
@@ -145,18 +168,26 @@ def is_expired(
 
 class TemporaryLinkCreate(BaseModel):
     """
-    Request body used by the file owner to create
-    a temporary download link.
+    Request body used to create a temporary download link.
     """
 
     file_id: UUID
 
     expires_at: datetime = Field(
         ...,
-        description=(
-            "UTC expiration time for the temporary link"
-        ),
+        description="UTC expiration time for the temporary link",
     )
+
+
+class FileShareUpdate(BaseModel):
+    """
+    Request body used by a file owner to manage
+    an existing share.
+    """
+
+    permission: str | None = None
+
+    expires_at: datetime | None = None
 
 
 # ============================================================
@@ -168,7 +199,9 @@ def _b64encode(
 ) -> str:
     return base64.urlsafe_b64encode(
         value
-    ).decode("utf-8")
+    ).decode(
+        "utf-8"
+    )
 
 
 def _b64decode(
@@ -176,7 +209,9 @@ def _b64decode(
 ) -> bytes:
     try:
         return base64.urlsafe_b64decode(
-            value.encode("utf-8")
+            value.encode(
+                "utf-8"
+            )
         )
 
     except Exception as error:
@@ -193,8 +228,8 @@ def encrypt_file_content(
     """
     Encrypt a file using AES-256-GCM.
 
-    A random AES-256 key is generated for every file.
-    That key is wrapped using the server-side master key.
+    Every file receives a random AES-256 data key.
+    The data key is wrapped using the server master key.
     """
 
     file_key = AESGCM.generate_key(
@@ -211,11 +246,15 @@ def encrypt_file_content(
 
     file_aad = (
         f"trustshare-file:{file_id}"
-    ).encode("utf-8")
+    ).encode(
+        "utf-8"
+    )
 
     key_aad = (
         f"trustshare-key:{file_id}"
-    ).encode("utf-8")
+    ).encode(
+        "utf-8"
+    )
 
     file_cipher = AESGCM(
         file_key
@@ -235,9 +274,15 @@ def encrypt_file_content(
 
     return (
         encrypted_content,
-        _b64encode(encrypted_key),
-        _b64encode(key_nonce),
-        _b64encode(file_nonce),
+        _b64encode(
+            encrypted_key
+        ),
+        _b64encode(
+            key_nonce
+        ),
+        _b64encode(
+            file_nonce
+        ),
     )
 
 
@@ -267,11 +312,15 @@ def decrypt_aes256_file_content(
 
         file_aad = (
             f"trustshare-file:{file_id}"
-        ).encode("utf-8")
+        ).encode(
+            "utf-8"
+        )
 
         key_aad = (
             f"trustshare-key:{file_id}"
-        ).encode("utf-8")
+        ).encode(
+            "utf-8"
+        )
 
         file_key = master_cipher.decrypt(
             decoded_key_nonce,
@@ -358,7 +407,7 @@ def decrypt_file_content(
 
 
 # ============================================================
-# SHARED FILE DECRYPTION
+# READ AND DECRYPT FILE
 # ============================================================
 
 def read_and_decrypt_file(
@@ -514,7 +563,9 @@ async def upload_file(
         "encryption": "AES-256-GCM",
         "key_version": new_file.key_version,
         "file": {
-            "id": str(new_file.id),
+            "id": str(
+                new_file.id
+            ),
             "filename": new_file.filename,
             "size_bytes": new_file.size_bytes,
             "uploaded_at": new_file.uploaded_at,
@@ -595,13 +646,18 @@ def download_file(
                 ),
             )
 
-        if share.permission != "view":
+        if share.permission not in [
+            "view",
+            "edit",
+        ]:
             raise HTTPException(
                 status_code=403,
                 detail="Invalid file permission",
             )
 
-        if is_expired(share.expires_at):
+        if is_expired(
+            share.expires_at
+        ):
             raise HTTPException(
                 status_code=410,
                 detail="This file share has expired",
@@ -637,22 +693,7 @@ def rotate_file_encryption_key(
     """
     Rotate the per-file AES-256 encryption key.
 
-    The file owner is the only user allowed to rotate the key.
-
-    Workflow:
-
-    1. Read the existing encrypted file.
-    2. Decrypt it using the current file key.
-    3. Generate a brand-new AES-256 file key.
-    4. Generate fresh AES-GCM nonces.
-    5. Encrypt the plaintext with the new key.
-    6. Wrap the new key using the server master key.
-    7. Replace the encrypted storage file.
-    8. Update encryption metadata.
-    9. Increment the file key version.
-
-    This is per-file data-key rotation.
-    The server master key itself is not changed by this endpoint.
+    Only the file owner can rotate the encryption key.
     """
 
     file = (
@@ -678,14 +719,11 @@ def rotate_file_encryption_key(
             ),
         )
 
-    # --------------------------------------------------------
-    # Only AES-256 files can use this rotation workflow.
-    # --------------------------------------------------------
-
     if not str(
         file.storage_path
-    ).lower().endswith(".aes256"):
-
+    ).lower().endswith(
+        ".aes256"
+    ):
         raise HTTPException(
             status_code=400,
             detail=(
@@ -704,17 +742,15 @@ def rotate_file_encryption_key(
             detail="Physical file not found",
         )
 
-    # --------------------------------------------------------
-    # Read existing encrypted content.
-    # --------------------------------------------------------
-
     try:
         with open(
             file_path,
             "rb",
         ) as encrypted_file:
 
-            old_encrypted_content = encrypted_file.read()
+            old_encrypted_content = (
+                encrypted_file.read()
+            )
 
     except OSError as error:
 
@@ -723,10 +759,6 @@ def rotate_file_encryption_key(
             detail="Unable to read stored file",
         ) from error
 
-    # --------------------------------------------------------
-    # Decrypt using the existing file key.
-    # --------------------------------------------------------
-
     plaintext_content = decrypt_aes256_file_content(
         encrypted_content=old_encrypted_content,
         encrypted_key=file.encrypted_key,
@@ -734,10 +766,6 @@ def rotate_file_encryption_key(
         file_nonce=file.file_nonce,
         file_id=file.id,
     )
-
-    # --------------------------------------------------------
-    # Generate a completely new AES-256 key.
-    # --------------------------------------------------------
 
     new_file_key = AESGCM.generate_key(
         bit_length=256
@@ -753,57 +781,58 @@ def rotate_file_encryption_key(
 
     file_aad = (
         f"trustshare-file:{file.id}"
-    ).encode("utf-8")
+    ).encode(
+        "utf-8"
+    )
 
     key_aad = (
         f"trustshare-key:{file.id}"
-    ).encode("utf-8")
-
-    # --------------------------------------------------------
-    # Encrypt plaintext using the new file key.
-    # --------------------------------------------------------
+    ).encode(
+        "utf-8"
+    )
 
     new_file_cipher = AESGCM(
         new_file_key
     )
 
-    new_encrypted_content = new_file_cipher.encrypt(
-        new_file_nonce,
-        plaintext_content,
-        file_aad,
+    new_encrypted_content = (
+        new_file_cipher.encrypt(
+            new_file_nonce,
+            plaintext_content,
+            file_aad,
+        )
     )
 
-    # --------------------------------------------------------
-    # Wrap the new file key using the server master key.
-    # --------------------------------------------------------
-
-    new_encrypted_key = master_cipher.encrypt(
-        new_key_nonce,
-        new_file_key,
-        key_aad,
+    new_encrypted_key = (
+        master_cipher.encrypt(
+            new_key_nonce,
+            new_file_key,
+            key_aad,
+        )
     )
 
-    encoded_new_encrypted_key = _b64encode(
-        new_encrypted_key
+    encoded_new_encrypted_key = (
+        _b64encode(
+            new_encrypted_key
+        )
     )
 
-    encoded_new_key_nonce = _b64encode(
-        new_key_nonce
+    encoded_new_key_nonce = (
+        _b64encode(
+            new_key_nonce
+        )
     )
 
-    encoded_new_file_nonce = _b64encode(
-        new_file_nonce
+    encoded_new_file_nonce = (
+        _b64encode(
+            new_file_nonce
+        )
     )
 
-    # --------------------------------------------------------
-    # Write the newly encrypted file to a temporary file first.
-    #
-    # This prevents us from destroying the existing encrypted
-    # file if writing the new ciphertext fails.
-    # --------------------------------------------------------
-
-    temporary_path = file_path.with_suffix(
-        ".rotation.tmp"
+    temporary_path = (
+        file_path.with_suffix(
+            ".rotation.tmp"
+        )
     )
 
     try:
@@ -825,8 +854,10 @@ def rotate_file_encryption_key(
     except OSError as error:
 
         if temporary_path.exists():
+
             try:
                 temporary_path.unlink()
+
             except OSError:
                 pass
 
@@ -838,15 +869,13 @@ def rotate_file_encryption_key(
             ),
         ) from error
 
-    # --------------------------------------------------------
-    # Update encryption metadata.
-    # --------------------------------------------------------
-
     current_version = str(
         file.key_version or "v1"
     )
 
-    if current_version.startswith("v"):
+    if current_version.startswith(
+        "v"
+    ):
 
         try:
             current_number = int(
@@ -908,7 +937,9 @@ def rotate_file_encryption_key(
         "message": (
             "File encryption key rotated successfully"
         ),
-        "file_id": str(file.id),
+        "file_id": str(
+            file.id
+        ),
         "filename": file.filename,
         "encryption": "AES-256-GCM",
         "previous_key_version": current_version,
@@ -933,9 +964,6 @@ def create_temporary_link(
     Create a secure temporary download link.
 
     Only the file owner can create a temporary link.
-
-    The raw random token is returned only once to the caller.
-    Only its SHA-256 hash is stored in the database.
     """
 
     file = (
@@ -961,14 +989,9 @@ def create_temporary_link(
             ),
         )
 
-    expiry_time = link_data.expires_at
-
-    if expiry_time.tzinfo is not None:
-        expiry_time = expiry_time.astimezone(
-            timezone.utc
-        ).replace(
-            tzinfo=None
-        )
+    expiry_time = normalize_datetime(
+        link_data.expires_at
+    )
 
     if expiry_time <= utc_now():
         raise HTTPException(
@@ -976,10 +999,14 @@ def create_temporary_link(
             detail="Expiration time must be in the future",
         )
 
-    raw_token = secrets.token_urlsafe(32)
+    raw_token = secrets.token_urlsafe(
+        32
+    )
 
     token_hash = hashlib.sha256(
-        raw_token.encode("utf-8")
+        raw_token.encode(
+            "utf-8"
+        )
     ).hexdigest()
 
     temporary_link = TemporaryLink(
@@ -1014,10 +1041,16 @@ def create_temporary_link(
 
     return {
         "message": "Temporary link created successfully",
-        "link_id": str(temporary_link.id),
-        "file_id": str(file.id),
+        "link_id": str(
+            temporary_link.id
+        ),
+        "file_id": str(
+            file.id
+        ),
         "filename": file.filename,
-        "expires_at": temporary_link.expires_at,
+        "expires_at": (
+            temporary_link.expires_at
+        ),
         "token": raw_token,
         "download_path": (
             f"/files/temporary/{raw_token}"
@@ -1040,11 +1073,6 @@ def download_with_temporary_link(
     Download a file using a temporary link.
 
     No login is required.
-
-    The supplied token is hashed with SHA-256 and compared
-    with the stored token hash.
-
-    Expired links return HTTP 410 Gone.
     """
 
     if not token:
@@ -1054,7 +1082,9 @@ def download_with_temporary_link(
         )
 
     token_hash = hashlib.sha256(
-        token.encode("utf-8")
+        token.encode(
+            "utf-8"
+        )
     ).hexdigest()
 
     temporary_link = (
@@ -1094,8 +1124,10 @@ def download_with_temporary_link(
             detail="File not found",
         )
 
-    decrypted_content = read_and_decrypt_file(
-        file
+    decrypted_content = (
+        read_and_decrypt_file(
+            file
+        )
     )
 
     return Response(
@@ -1160,13 +1192,17 @@ def delete_file(
                 detail="Unable to delete physical file",
             ) from error
 
-    db.query(FileShare).filter(
+    db.query(
+        FileShare
+    ).filter(
         FileShare.file_id == file.id
     ).delete(
         synchronize_session=False
     )
 
-    db.query(TemporaryLink).filter(
+    db.query(
+        TemporaryLink
+    ).filter(
         TemporaryLink.file_id == file.id
     ).delete(
         synchronize_session=False
@@ -1180,7 +1216,9 @@ def delete_file(
 
     return {
         "message": "File deleted successfully",
-        "file_id": str(file_id),
+        "file_id": str(
+            file_id
+        ),
     }
 
 
@@ -1198,6 +1236,14 @@ def share_file(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """
+    Share an encrypted file with another TrustShare user.
+
+    Supported permissions:
+    - view
+    - edit
+    """
+
     file = (
         db.query(File)
         .filter(
@@ -1248,35 +1294,53 @@ def share_file(
             detail="You cannot share a file with yourself",
         )
 
-    if share_data.permission not in [
-        "view"
+    # --------------------------------------------------------
+    # PERMISSION VALIDATION
+    # --------------------------------------------------------
+
+    permission = (
+        str(
+            share_data.permission
+        )
+        .strip()
+        .lower()
+    )
+
+    if permission not in [
+        "view",
+        "edit",
     ]:
         raise HTTPException(
             status_code=400,
             detail=(
                 "Invalid permission. "
-                "Only 'view' is supported."
+                "Use 'view' or 'edit'."
             ),
         )
 
-    if share_data.expires_at is not None:
+    # --------------------------------------------------------
+    # EXPIRY VALIDATION
+    # --------------------------------------------------------
 
-        expiry_time = share_data.expires_at
+    expires_at = normalize_datetime(
+        share_data.expires_at
+    )
 
-        if expiry_time.tzinfo is not None:
+    if expires_at is not None:
 
-            expiry_time = expiry_time.astimezone(
-                timezone.utc
-            ).replace(
-                tzinfo=None
-            )
-
-        if expiry_time <= utc_now():
+        if expires_at <= utc_now():
 
             raise HTTPException(
                 status_code=400,
-                detail="Expiration time must be in the future",
+                detail=(
+                    "Expiration time must be "
+                    "in the future"
+                ),
             )
+
+    # --------------------------------------------------------
+    # DUPLICATE SHARE CHECK
+    # --------------------------------------------------------
 
     existing_share = (
         db.query(FileShare)
@@ -1298,24 +1362,15 @@ def share_file(
             ),
         )
 
-    expires_at = share_data.expires_at
-
-    if (
-        expires_at is not None
-        and expires_at.tzinfo is not None
-    ):
-
-        expires_at = expires_at.astimezone(
-            timezone.utc
-        ).replace(
-            tzinfo=None
-        )
+    # --------------------------------------------------------
+    # CREATE SHARE
+    # --------------------------------------------------------
 
     new_share = FileShare(
         id=uuid.uuid4(),
         file_id=file.id,
         shared_with_email=target_email,
-        permission=share_data.permission,
+        permission=permission,
         created_at=utc_now(),
         expires_at=expires_at,
     )
@@ -1370,17 +1425,27 @@ def list_shared_files(
 
     return [
         {
-            "id": str(share.id),
-            "file_id": str(file.id),
+            "id": str(
+                share.id
+            ),
+            "file_id": str(
+                file.id
+            ),
             "filename": file.filename,
-            "owner_id": str(owner.id),
+            "owner_id": str(
+                owner.id
+            ),
             "owner_name": owner.name,
             "owner_email": owner.email,
-            "shared_with_email": share.shared_with_email,
+            "shared_with_email": (
+                share.shared_with_email
+            ),
             "permission": share.permission,
             "created_at": share.created_at,
             "expires_at": share.expires_at,
-            "expired": is_expired(share.expires_at),
+            "expired": is_expired(
+                share.expires_at
+            ),
         }
         for share, file, owner in shares
     ]
@@ -1398,7 +1463,9 @@ def list_my_shares(
     db: Session = Depends(get_db),
 ):
     shares = (
-        db.query(FileShare)
+        db.query(
+            FileShare
+        )
         .join(
             File,
             File.id == FileShare.file_id,
@@ -1414,16 +1481,182 @@ def list_my_shares(
 
     return [
         {
-            "id": str(share.id),
-            "file_id": str(share.file_id),
-            "shared_with_email": share.shared_with_email,
+            "id": str(
+                share.id
+            ),
+            "file_id": str(
+                share.file_id
+            ),
+            "shared_with_email": (
+                share.shared_with_email
+            ),
             "permission": share.permission,
             "created_at": share.created_at,
             "expires_at": share.expires_at,
-            "expired": is_expired(share.expires_at),
+            "expired": is_expired(
+                share.expires_at
+            ),
         }
         for share in shares
     ]
+
+
+# ============================================================
+# UPDATE SHARE
+# ============================================================
+
+@router.put(
+    "/share/{share_id}",
+)
+def update_file_share(
+    share_id: UUID,
+    share_data: FileShareUpdate,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Update an existing file share.
+
+    Only the file owner can change:
+    - permission
+    - expiration time
+    """
+
+    share = (
+        db.query(
+            FileShare
+        )
+        .filter(
+            FileShare.id == share_id
+        )
+        .first()
+    )
+
+    if share is None:
+        raise HTTPException(
+            status_code=404,
+            detail="File share not found",
+        )
+
+    file = (
+        db.query(
+            File
+        )
+        .filter(
+            File.id == share.file_id
+        )
+        .first()
+    )
+
+    if file is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Associated file not found",
+        )
+
+    # --------------------------------------------------------
+    # OWNER AUTHORIZATION
+    # --------------------------------------------------------
+
+    if file.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Only the file owner can "
+                "manage this share"
+            ),
+        )
+
+    # --------------------------------------------------------
+    # PERMISSION UPDATE
+    # --------------------------------------------------------
+
+    if share_data.permission is not None:
+
+        permission = (
+            str(
+                share_data.permission
+            )
+            .strip()
+            .lower()
+        )
+
+        if permission not in [
+            "view",
+            "edit",
+        ]:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Invalid permission. "
+                    "Use 'view' or 'edit'."
+                ),
+            )
+
+        share.permission = permission
+
+    # --------------------------------------------------------
+    # EXPIRY UPDATE
+    # --------------------------------------------------------
+
+    if share_data.expires_at is not None:
+
+        expires_at = normalize_datetime(
+            share_data.expires_at
+        )
+
+        if expires_at <= utc_now():
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Expiration time must be "
+                    "in the future"
+                ),
+            )
+
+        share.expires_at = expires_at
+
+    # --------------------------------------------------------
+    # SAVE CHANGES
+    # --------------------------------------------------------
+
+    try:
+
+        db.commit()
+
+        db.refresh(
+            share
+        )
+
+    except Exception as error:
+
+        db.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to update file share",
+        ) from error
+
+    return {
+        "message": "File sharing updated successfully",
+        "share": {
+            "id": str(
+                share.id
+            ),
+            "file_id": str(
+                share.file_id
+            ),
+            "shared_with_email": (
+                share.shared_with_email
+            ),
+            "permission": share.permission,
+            "created_at": share.created_at,
+            "expires_at": share.expires_at,
+            "expired": is_expired(
+                share.expires_at
+            ),
+        },
+    }
 
 
 # ============================================================
@@ -1438,8 +1671,16 @@ def revoke_file_share(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """
+    Revoke access to a shared file.
+
+    Only the file owner can revoke the share.
+    """
+
     share = (
-        db.query(FileShare)
+        db.query(
+            FileShare
+        )
         .filter(
             FileShare.id == share_id
         )
@@ -1453,7 +1694,9 @@ def revoke_file_share(
         )
 
     file = (
-        db.query(File)
+        db.query(
+            File
+        )
         .filter(
             File.id == share.file_id
         )
@@ -1483,5 +1726,7 @@ def revoke_file_share(
 
     return {
         "message": "File sharing revoked successfully",
-        "share_id": str(share_id),
+        "share_id": str(
+            share_id
+        ),
     }

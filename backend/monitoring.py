@@ -16,6 +16,107 @@ router = APIRouter(
 
 
 # ============================================================
+# HELPER FUNCTIONS
+# ============================================================
+
+def describe_activity(log):
+    """
+    Converts an API activity log into a user-friendly
+    description for the monitoring dashboard.
+    """
+
+    action = str(log.action or "").lower()
+    path = str(log.path or "").lower()
+    method = str(log.method or "").upper()
+    status_code = log.status_code or 0
+
+    if "upload" in path:
+        if status_code < 400:
+            return "User uploaded a file successfully."
+        return "File upload request failed."
+
+    if "download" in path:
+        if status_code < 400:
+            return "User downloaded or accessed a file successfully."
+        return "File download request failed."
+
+    if "share" in path:
+        if status_code < 400:
+            return "File sharing request completed successfully."
+        return "File sharing request failed."
+
+    if "temporary" in path or "link" in path:
+        if status_code < 400:
+            return "Temporary access link was created or accessed."
+        return "Temporary access request failed."
+
+    if "login" in path or "auth" in path:
+        if status_code in (401, 403):
+            return "Authentication attempt was unsuccessful."
+
+        if status_code < 400:
+            return "User authenticated successfully."
+
+    if method == "DELETE" or "delete" in action:
+        if status_code < 400:
+            return "File or resource was deleted successfully."
+        return "Delete request failed."
+
+    if status_code >= 500:
+        return "Server error occurred while processing the request."
+
+    if status_code >= 400:
+        return "API request was rejected or could not be completed."
+
+    if method == "GET":
+        return "User accessed TrustShare data successfully."
+
+    if method == "POST":
+        return "User submitted a request successfully."
+
+    if method == "PUT" or method == "PATCH":
+        return "User updated TrustShare data successfully."
+
+    return "TrustShare activity was recorded successfully."
+
+
+def notification_icon(notification_type):
+    """
+    Returns an icon identifier for the frontend.
+    """
+
+    icons = {
+        "security": "🛡️",
+        "authentication": "🔐",
+        "file_activity": "📁",
+        "system": "🔔",
+        "file_access": "👁️",
+        "sharing": "🤝",
+    }
+
+    return icons.get(notification_type, "🔔")
+
+
+def audit_status(status_code):
+    """
+    Converts HTTP status codes into a simple audit status.
+    """
+
+    try:
+        code = int(status_code or 0)
+    except (TypeError, ValueError):
+        code = 0
+
+    if 200 <= code < 400:
+        return "Success"
+
+    if code >= 400:
+        return "Failed"
+
+    return "Recorded"
+
+
+# ============================================================
 # ACTIVITY MONITORING
 # ============================================================
 
@@ -47,6 +148,7 @@ def get_activity_logs(
                 "ip_address": log.ip_address,
                 "response_time_ms": log.response_time_ms,
                 "created_at": log.created_at,
+                "description": describe_activity(log),
             }
             for log in logs
         ],
@@ -78,16 +180,22 @@ def get_audit_logs(
         "audit_logs": [
             {
                 "id": str(log.id),
-                "user_id": str(log.user_id)
-                if log.user_id else None,
+                "user_id": (
+                    str(log.user_id)
+                    if log.user_id
+                    else None
+                ),
                 "user_email": log.user_email,
                 "action": log.action,
                 "method": log.method,
                 "path": log.path,
                 "status_code": log.status_code,
+                "status": audit_status(log.status_code),
                 "ip_address": log.ip_address,
                 "response_time_ms": log.response_time_ms,
                 "timestamp": log.created_at,
+                "created_at": log.created_at,
+                "description": describe_activity(log),
             }
             for log in logs
         ],
@@ -119,15 +227,12 @@ def get_security_alerts(
 
     # --------------------------------------------------------
     # FAILED AUTHENTICATION
-    #
-    # A single failed authentication attempt is treated as a
-    # security event so it can be demonstrated and monitored
-    # immediately from the dashboard.
     # --------------------------------------------------------
+
     failed_auth = [
         log
         for log in logs
-        if log.path.startswith("/auth/")
+        if str(log.path or "").startswith("/auth/")
         and log.status_code in (401, 403)
     ]
 
@@ -145,6 +250,7 @@ def get_security_alerts(
     # --------------------------------------------------------
     # FORBIDDEN REQUESTS
     # --------------------------------------------------------
+
     forbidden_requests = [
         log
         for log in logs
@@ -165,10 +271,11 @@ def get_security_alerts(
     # --------------------------------------------------------
     # SERVER ERRORS
     # --------------------------------------------------------
+
     server_errors = [
         log
         for log in logs
-        if log.status_code >= 500
+        if (log.status_code or 0) >= 500
     ]
 
     if len(server_errors) >= 5:
@@ -185,6 +292,7 @@ def get_security_alerts(
     # --------------------------------------------------------
     # HIGH API ACTIVITY
     # --------------------------------------------------------
+
     if len(logs) >= 200:
         alerts.append({
             "type": "high_activity",
@@ -213,8 +321,8 @@ def get_notifications(
     db: Session = Depends(get_db),
 ):
     """
-    Generates user-facing security notifications from
-    recent monitoring events.
+    Generates user-facing security and system notifications
+    from recent monitoring events.
     """
 
     since = datetime.utcnow() - timedelta(hours=24)
@@ -234,38 +342,50 @@ def get_notifications(
     # --------------------------------------------------------
     # FAILED REQUEST NOTIFICATION
     # --------------------------------------------------------
+
     failed_requests = [
         log
         for log in logs
-        if log.status_code >= 400
+        if (log.status_code or 0) >= 400
     ]
 
     if failed_requests:
         notifications.append({
+            "id": "failed-requests",
             "type": "security",
-            "severity": "warning",
+            "severity": "medium",
             "title": "Failed requests detected",
             "message": (
                 f"{len(failed_requests)} failed API request(s) "
-                "were detected in the last 24 hours."
+                "were detected in the last 24 hours. "
+                "Review the audit logs for more details."
+            ),
+            "description": (
+                "TrustShare detected API requests that were "
+                "not completed successfully."
             ),
             "count": len(failed_requests),
             "created_at": datetime.utcnow(),
             "read": False,
+            "is_read": False,
+            "status": "unread",
+            "icon": notification_icon("security"),
         })
 
     # --------------------------------------------------------
     # AUTHENTICATION WARNING
     # --------------------------------------------------------
+
     failed_auth = [
         log
         for log in logs
-        if log.path.startswith("/auth/")
+        if str(log.path or "").startswith("/auth/")
         and log.status_code in (401, 403)
     ]
 
     if failed_auth:
         notifications.append({
+            "id": "authentication-warning",
             "type": "authentication",
             "severity": "high",
             "title": "Authentication warning",
@@ -273,56 +393,120 @@ def get_notifications(
                 f"{len(failed_auth)} failed authentication "
                 "attempt(s) were detected."
             ),
+            "description": (
+                "An unsuccessful authentication attempt "
+                "was recorded by TrustShare."
+            ),
             "count": len(failed_auth),
             "created_at": datetime.utcnow(),
             "read": False,
+            "is_read": False,
+            "status": "unread",
+            "icon": notification_icon("authentication"),
         })
 
     # --------------------------------------------------------
     # HIGH DOWNLOAD ACTIVITY
     # --------------------------------------------------------
+
     downloads = [
         log
         for log in logs
-        if "/download" in log.path
+        if "/download" in str(log.path or "").lower()
         and log.status_code == 200
     ]
 
     if len(downloads) >= 20:
         notifications.append({
+            "id": "high-download-activity",
             "type": "file_activity",
-            "severity": "warning",
+            "severity": "medium",
             "title": "High download activity",
             "message": (
-                "Unusually high file download activity "
-                "was detected."
+                f"{len(downloads)} successful file downloads "
+                "were recorded in the last 24 hours."
+            ),
+            "description": (
+                "TrustShare detected unusually high file "
+                "download activity."
             ),
             "count": len(downloads),
             "created_at": datetime.utcnow(),
             "read": False,
+            "is_read": False,
+            "status": "unread",
+            "icon": notification_icon("file_activity"),
+        })
+
+    # --------------------------------------------------------
+    # FILE SHARING ACTIVITY
+    # --------------------------------------------------------
+
+    share_events = [
+        log
+        for log in logs
+        if "share" in str(log.path or "").lower()
+        and log.status_code
+        and log.status_code < 400
+    ]
+
+    if share_events:
+        notifications.append({
+            "id": "sharing-activity",
+            "type": "sharing",
+            "severity": "info",
+            "title": "File sharing activity",
+            "message": (
+                f"{len(share_events)} file sharing operation(s) "
+                "were completed successfully."
+            ),
+            "description": (
+                "TrustShare recorded successful file sharing "
+                "activity for this account."
+            ),
+            "count": len(share_events),
+            "created_at": datetime.utcnow(),
+            "read": True,
+            "is_read": True,
+            "status": "read",
+            "icon": notification_icon("sharing"),
         })
 
     # --------------------------------------------------------
     # NO SECURITY EVENTS
     # --------------------------------------------------------
+
     if not notifications:
         notifications.append({
+            "id": "system-status",
             "type": "system",
             "severity": "info",
-            "title": "No security alerts",
+            "title": "Security status clear",
             "message": (
                 "No security events require attention "
                 "in the last 24 hours."
             ),
+            "description": (
+                "TrustShare monitoring is active and no "
+                "security issue requires your attention."
+            ),
             "count": 0,
             "created_at": datetime.utcnow(),
-            "read": False,
+            "read": True,
+            "is_read": True,
+            "status": "read",
+            "icon": notification_icon("system"),
         })
 
     return {
         "user": current_user.email,
         "period": "last_24_hours",
         "notification_count": len(notifications),
+        "unread_count": sum(
+            1
+            for notification in notifications
+            if notification.get("read") is False
+        ),
         "notifications": notifications,
     }
 
@@ -522,6 +706,7 @@ def suspicious_activity(
     # --------------------------------------------------------
     # MULTIPLE IP ADDRESSES
     # --------------------------------------------------------
+
     ip_addresses = {
         log.ip_address
         for log in logs
@@ -541,10 +726,11 @@ def suspicious_activity(
     # --------------------------------------------------------
     # REPEATED FAILURES
     # --------------------------------------------------------
+
     failed_requests = [
         log
         for log in logs
-        if log.status_code >= 400
+        if (log.status_code or 0) >= 400
     ]
 
     if len(failed_requests) >= 10:
@@ -560,10 +746,11 @@ def suspicious_activity(
     # --------------------------------------------------------
     # HIGH DOWNLOAD VOLUME
     # --------------------------------------------------------
+
     downloads = [
         log
         for log in logs
-        if "/download" in log.path
+        if "/download" in str(log.path or "").lower()
         and log.status_code == 200
     ]
 
