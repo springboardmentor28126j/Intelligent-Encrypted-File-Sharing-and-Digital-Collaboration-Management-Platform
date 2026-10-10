@@ -21,11 +21,29 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
 
     is_active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, nullable=False, server_default="now()")
-    role = Column(String(20), nullable=False, default="USER")
 
-    mfa_secret = Column(String(64), nullable=True)
-    mfa_enabled = Column(Boolean, nullable=False, default=False)
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        server_default="now()"
+    )
+
+    role = Column(
+        String(20),
+        nullable=False,
+        default="USER"
+    )
+
+    mfa_secret = Column(
+        String(64),
+        nullable=True
+    )
+
+    mfa_enabled = Column(
+        Boolean,
+        nullable=False,
+        default=False
+    )
 
     storage_quota = Column(
         BigInteger,
@@ -49,13 +67,21 @@ class User(Base):
 class Folder(Base):
     __tablename__ = "folders"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
 
 
 class File(Base):
     __tablename__ = "files"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
 
     owner_id = Column(
         Integer,
@@ -69,13 +95,36 @@ class File(Base):
         nullable=True
     )
 
-    filename = Column(String(255), nullable=True)
-    storage_path = Column(String(500), nullable=True)
-    content_type = Column(String(100), nullable=True)
-    size = Column(BigInteger, nullable=True)
-    category = Column(String(20), nullable=True)
+    filename = Column(
+        String(255),
+        nullable=True
+    )
 
-    is_deleted = Column(Boolean, nullable=False, default=False)
+    storage_path = Column(
+        String(500),
+        nullable=True
+    )
+
+    content_type = Column(
+        String(100),
+        nullable=True
+    )
+
+    size = Column(
+        BigInteger,
+        nullable=True
+    )
+
+    category = Column(
+        String(20),
+        nullable=True
+    )
+
+    is_deleted = Column(
+        Boolean,
+        nullable=False,
+        default=False
+    )
 
     created_at = Column(
         DateTime,
@@ -94,13 +143,40 @@ class File(Base):
         default=False
     )
 
-    encryption_key = Column(String(255), nullable=True)
-    encryption_nonce = Column(String(64), nullable=True)
-    storage_backend = Column(String(32), nullable=True)
-    extension = Column(String(20), nullable=True)
-    sha256_hash = Column(String(64), nullable=True)
-    encryption_algorithm = Column(String(50), nullable=True)
-    description = Column(String, nullable=True)
+    encryption_key = Column(
+        String(255),
+        nullable=True
+    )
+
+    encryption_nonce = Column(
+        String(64),
+        nullable=True
+    )
+
+    storage_backend = Column(
+        String(32),
+        nullable=True
+    )
+
+    extension = Column(
+        String(20),
+        nullable=True
+    )
+
+    sha256_hash = Column(
+        String(64),
+        nullable=True
+    )
+
+    encryption_algorithm = Column(
+        String(50),
+        nullable=True
+    )
+
+    description = Column(
+        String,
+        nullable=True
+    )
 
     download_count = Column(
         Integer,
@@ -114,13 +190,35 @@ class File(Base):
         default=False
     )
 
-    storage_key = Column(String(500), nullable=True)
-    original_filename = Column(String(255), nullable=True)
-    stored_filename = Column(String(255), nullable=True)
-    file_path = Column(String(500), nullable=True)
+    storage_key = Column(
+        String(500),
+        nullable=True
+    )
 
-    file_size = Column(Integer, nullable=True)
-    file_type = Column(String(120), nullable=True)
+    original_filename = Column(
+        String(255),
+        nullable=True
+    )
+
+    stored_filename = Column(
+        String(255),
+        nullable=True
+    )
+
+    file_path = Column(
+        String(500),
+        nullable=True
+    )
+
+    file_size = Column(
+        Integer,
+        nullable=True
+    )
+
+    file_type = Column(
+        String(120),
+        nullable=True
+    )
 
     version = Column(
         Integer,
@@ -132,7 +230,11 @@ class File(Base):
 class FileEncryption(Base):
     __tablename__ = "file_encryptions"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
 
     file_id = Column(
         Integer,
@@ -140,10 +242,25 @@ class FileEncryption(Base):
         nullable=False
     )
 
-    algorithm = Column(String(40), nullable=False)
-    key_version = Column(String(20), nullable=True)
-    wrapped_key = Column(String(512), nullable=True)
-    key_nonce = Column(String(64), nullable=True)
+    algorithm = Column(
+        String(40),
+        nullable=False
+    )
+
+    key_version = Column(
+        String(20),
+        nullable=True
+    )
+
+    wrapped_key = Column(
+        String(512),
+        nullable=True
+    )
+
+    key_nonce = Column(
+        String(64),
+        nullable=True
+    )
 
     file_nonce = Column(
         String(64),
@@ -160,7 +277,11 @@ class FileEncryption(Base):
 class FileShare(Base):
     __tablename__ = "file_shares"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
 
     file_id = Column(
         Integer,
@@ -186,9 +307,9 @@ class FileShare(Base):
     )
 
     can_download = Column(
-    Boolean,
-    nullable=False,
-    default=False
+        Boolean,
+        nullable=False,
+        default=False
     )
 
     is_revoked = Column(
@@ -208,8 +329,16 @@ class FileShare(Base):
         nullable=True
     )
 
-   
-    
+    recipient_email = Column(
+        String(255),
+        nullable=True
+    )
+
+    share_token = Column(
+        String(255),
+        nullable=True
+    )
+
     expires_at = Column(
         DateTime,
         nullable=True
@@ -226,7 +355,12 @@ class FileShare(Base):
         default=0
     )
 
-   
+    shared_with_user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=True
+    )
+
 
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
@@ -244,7 +378,7 @@ class PasswordResetToken(Base):
     )
 
     token_hash = Column(
-        String(128),
+        String(255),
         nullable=False
     )
 
@@ -253,16 +387,26 @@ class PasswordResetToken(Base):
         nullable=False
     )
 
-    used_at = Column(
+    used = Column(
+        Boolean,
+        nullable=False,
+        default=False
+    )
+
+    created_at = Column(
         DateTime,
-        nullable=True
+        nullable=False
     )
 
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
 
     user_id = Column(
         Integer,
@@ -310,7 +454,11 @@ class AuditLog(Base):
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
 
     user_id = Column(
         Integer,
@@ -353,7 +501,11 @@ class ActivityLog(Base):
 class SecurityAlert(Base):
     __tablename__ = "security_alerts"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
 
     user_id = Column(
         Integer,
@@ -390,7 +542,11 @@ class SecurityAlert(Base):
 class Notification(Base):
     __tablename__ = "notifications"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
 
     user_id = Column(
         Integer,
@@ -425,5 +581,6 @@ class Notification(Base):
 
     type = Column(
         String(50),
-        nullable=False
+        nullable=False,
+        default="general"
     )

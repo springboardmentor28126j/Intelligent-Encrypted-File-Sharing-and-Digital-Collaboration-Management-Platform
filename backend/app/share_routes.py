@@ -11,6 +11,7 @@ from .models import User, File as DBFile, FileShare
 from .auth import get_current_user
 from .encryption import decrypt_file
 from .cloud_storage import download_encrypted_file
+from .monitoring import log_activity
 
 
 router = APIRouter(
@@ -147,6 +148,25 @@ def share_file(
         db.add(new_share)
         db.commit()
         db.refresh(new_share)
+
+        # Record successful share activity
+        log_activity(
+            db=db,
+            user_id=current_user.id,
+            action="FILE_SHARE",
+            description=(
+                f"Shared file: {db_file.filename} "
+                f"with {recipient.email}"
+            ),
+            file_id=db_file.id,
+            status="SUCCESS",
+            details=(
+                f"Permission: {data.permission}; "
+                f"Expires: {expires_at}"
+            ),
+        )
+
+        db.commit()
 
         return {
             "message": "File shared successfully",
@@ -387,6 +407,23 @@ def revoke_shared_file(
 
         share.is_revoked = True
         share.updated_at = datetime.now(timezone.utc)
+
+        db.commit()
+
+        # Record successful revoke activity
+        log_activity(
+            db=db,
+            user_id=current_user.id,
+            action="SHARE_REVOKE",
+            description=(
+                f"Revoked sharing access for file ID {share.file_id}"
+            ),
+            file_id=share.file_id,
+            status="SUCCESS",
+            details=(
+                f"Share ID {share.id} revoked successfully"
+            ),
+        )
 
         db.commit()
 

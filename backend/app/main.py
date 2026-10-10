@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,14 +7,15 @@ from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 
 from .database import SessionLocal
+
 from .models import (
     User,
     PasswordResetToken,
     ActivityLog,
     File,
-    AuditLog,
     SecurityAlert,
 )
+
 from .auth import (
     create_access_token,
     get_current_user,
@@ -22,30 +23,38 @@ from .auth import (
     create_password_reset_token,
     verify_password_reset_token,
 )
-from .monitoring import (
+
+from .security_service import (
     log_activity,
+    log_audit,
     create_security_alert,
     create_notification,
 )
+
 from .email_service import send_password_reset_email
+
 from .file_routes import router as file_router
 from .share_routes import router as share_router
 
 
+# ============================================================
+# APPLICATION
+# ============================================================
+
 app = FastAPI(title="TrustShare API")
 
 
-# -------------------------
+# ============================================================
 # ROUTERS
-# -------------------------
+# ============================================================
 
 app.include_router(file_router)
 app.include_router(share_router)
 
 
-# -------------------------
+# ============================================================
 # CORS
-# -------------------------
+# ============================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -60,9 +69,9 @@ app.add_middleware(
 )
 
 
-# -------------------------
+# ============================================================
 # PASSWORD HASHING
-# -------------------------
+# ============================================================
 
 pwd_context = CryptContext(
     schemes=["bcrypt"],
@@ -70,9 +79,9 @@ pwd_context = CryptContext(
 )
 
 
-# -------------------------
+# ============================================================
 # REQUEST MODELS
-# -------------------------
+# ============================================================
 
 class RegisterRequest(BaseModel):
     username: str
@@ -94,9 +103,9 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
-# -------------------------
+# ============================================================
 # ROOT
-# -------------------------
+# ============================================================
 
 @app.get("/")
 def root():
@@ -105,9 +114,9 @@ def root():
     }
 
 
-# -------------------------
+# ============================================================
 # REGISTER
-# -------------------------
+# ============================================================
 
 @app.post("/auth/register")
 def register(data: RegisterRequest):
@@ -131,18 +140,20 @@ def register(data: RegisterRequest):
             data.password
         )
 
+        now = datetime.now(timezone.utc)
+
         new_user = User(
             name=data.username,
             email=data.email,
             password_hash=hashed_password,
             is_active=True,
-            created_at=datetime.now(timezone.utc),
+            created_at=now,
             role="USER",
             mfa_secret=None,
             mfa_enabled=False,
             storage_quota=1073741824,
             used_storage=0,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=now,
         )
 
         db.add(new_user)
@@ -160,9 +171,9 @@ def register(data: RegisterRequest):
         db.close()
 
 
-# -------------------------
+# ============================================================
 # FORGOT PASSWORD
-# -------------------------
+# ============================================================
 
 @app.post("/auth/forgot-password")
 def forgot_password(
@@ -179,8 +190,7 @@ def forgot_password(
         )
 
         # Always return the same response.
-        # This prevents revealing whether an email
-        # exists in the database.
+        # This prevents account enumeration.
 
         if user:
 
@@ -212,18 +222,18 @@ def forgot_password(
         db.close()
 
 
-# -------------------------
+# ============================================================
 # RESET PASSWORD
-# -------------------------
+# ============================================================
 
 @app.post("/auth/reset-password")
 def reset_password(
     data: ResetPasswordRequest,
 ):
 
-    # -------------------------
+    # --------------------------------------------------------
     # Validate token
-    # -------------------------
+    # --------------------------------------------------------
 
     reset_token = verify_password_reset_token(
         data.token
@@ -235,9 +245,9 @@ def reset_password(
             detail="Invalid or expired password reset token",
         )
 
-    # -------------------------
-    # Validate new password
-    # -------------------------
+    # --------------------------------------------------------
+    # Validate password
+    # --------------------------------------------------------
 
     if len(data.new_password) < 8:
         raise HTTPException(
@@ -249,14 +259,14 @@ def reset_password(
 
     try:
 
-        # -------------------------
+        # ----------------------------------------------------
         # Find user
-        # -------------------------
+        # ----------------------------------------------------
 
         user = (
             db.query(User)
             .filter(
-                User.id == reset_token["user_id"]
+                User.id == reset_token.user_id
             )
             .first()
         )
@@ -267,15 +277,14 @@ def reset_password(
                 detail="User account not found",
             )
 
-        # -------------------------
+        # ----------------------------------------------------
         # Find token record
-        # -------------------------
+        # ----------------------------------------------------
 
         db_token = (
             db.query(PasswordResetToken)
             .filter(
-                PasswordResetToken.id
-                == reset_token["token_id"]
+                PasswordResetToken.id == reset_token.id
             )
             .first()
         )
@@ -286,29 +295,29 @@ def reset_password(
                 detail="Invalid password reset token",
             )
 
-        # Make sure token has not been used
+        # ----------------------------------------------------
+        # Check whether token was already used
+        # ----------------------------------------------------
 
-        if db_token.used_at is not None:
+        if db_token.used:
             raise HTTPException(
                 status_code=400,
                 detail="Password reset token has already been used",
             )
 
-        # -------------------------
+        # ----------------------------------------------------
         # Update password
-        # -------------------------
+        # ----------------------------------------------------
 
         user.password_hash = pwd_context.hash(
             data.new_password
         )
 
-        # -------------------------
+        # ----------------------------------------------------
         # Invalidate token
-        # -------------------------
+        # ----------------------------------------------------
 
-        from datetime import datetime, timezone
-
-        db_token.used_at = datetime.now(timezone.utc)
+        db_token.used = True
 
         db.commit()
 
@@ -328,9 +337,9 @@ def reset_password(
         db.close()
 
 
-# -------------------------
+# ============================================================
 # LOGIN
-# -------------------------
+# ============================================================
 
 @app.post("/auth/login")
 def login(
@@ -347,87 +356,22 @@ def login(
             .first()
         )
 
-        # -------------------------
-        # User not found
-        # -------------------------
+        # ----------------------------------------------------
+        # Unknown email
+        # ----------------------------------------------------
 
         if not existing_user:
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid email or password",
-            )
 
-        # -------------------------
-        # Check account status
-        # -------------------------
+            # We cannot attach this to a user because
+            # the account does not exist.
 
-        if not existing_user.is_active:
-            raise HTTPException(
-                status_code=403,
-                detail="User account is inactive",
-            )
-
-        # -------------------------
-        # Verify password
-        # -------------------------
-
-        if not pwd_context.verify(
-            user.password,
-            existing_user.password_hash,
-        ):
-
-            # -------------------------
-            # Record failed login
-            # -------------------------
-
-            log_activity(
+            log_audit(
                 db=db,
-                user_id=existing_user.id,
+                user_id=None,
                 action="LOGIN_FAILED",
-                description="Failed login attempt",
                 status="FAILED",
-                details="Invalid password",
+                details="Login attempt with unknown email",
             )
-
-            # -------------------------
-            # Check previous failed logins
-            # -------------------------
-
-            previous_failures = (
-                db.query(ActivityLog)
-                .filter(
-                    ActivityLog.user_id == existing_user.id,
-                    ActivityLog.action == "LOGIN_FAILED",
-                )
-                .count()
-            )
-
-            # The current failed login is already
-            # included in the count after log_activity().
-            # Trigger alert when there are 3 or more.
-
-            if previous_failures >= 3:
-
-                create_security_alert(
-                    db=db,
-                    user_id=existing_user.id,
-                    alert_type="MULTIPLE_FAILED_LOGINS",
-                    description=(
-                        "Multiple failed login attempts "
-                        "detected for this account."
-                    ),
-                    severity="HIGH",
-                )
-                create_notification(
-                    db=db,
-                    user_id=existing_user.id,
-                    title="Security Alert",
-                    message=(
-                      "Multiple failed login attempts "
-                      "were detected on your account."
-                   ),
-                     notification_type="SECURITY",
-             )    
 
             db.commit()
 
@@ -436,23 +380,139 @@ def login(
                 detail="Invalid email or password",
             )
 
-        # -------------------------
+        # ----------------------------------------------------
+        # Inactive account
+        # ----------------------------------------------------
+
+        if not existing_user.is_active:
+
+            log_activity(
+                db=db,
+                user_id=existing_user.id,
+                action="LOGIN_FAILED",
+                description="Login attempt on inactive account",
+            )
+
+            log_audit(
+                db=db,
+                user_id=existing_user.id,
+                action="LOGIN_FAILED",
+                status="FAILED",
+                details="Account is inactive",
+            )
+
+            db.commit()
+
+            raise HTTPException(
+                status_code=403,
+                detail="User account is inactive",
+            )
+
+        # ----------------------------------------------------
+        # Verify password
+        # ----------------------------------------------------
+
+        if not pwd_context.verify(
+            user.password,
+            existing_user.password_hash,
+        ):
+
+            # -----------------------------------------------
+            # Record failed login
+            # -----------------------------------------------
+
+            log_activity(
+                db=db,
+                user_id=existing_user.id,
+                action="LOGIN_FAILED",
+                description="Failed login attempt",
+            )
+
+            log_audit(
+                db=db,
+                user_id=existing_user.id,
+                action="LOGIN_FAILED",
+                status="FAILED",
+                details="Invalid password",
+            )
+
+            # -----------------------------------------------
+            # Check recent failed attempts
+            # -----------------------------------------------
+
+            failure_window = (
+                datetime.now(timezone.utc)
+                - timedelta(minutes=15)
+            )
+
+            recent_failures = (
+                db.query(ActivityLog)
+                .filter(
+                    ActivityLog.user_id == existing_user.id,
+                    ActivityLog.action == "LOGIN_FAILED",
+                    ActivityLog.created_at >= failure_window,
+                )
+                .count()
+            )
+
+            # -----------------------------------------------
+            # Suspicious activity detection
+            # -----------------------------------------------
+
+            if recent_failures >= 3:
+
+                create_security_alert(
+                    db=db,
+                    user_id=existing_user.id,
+                    alert_type="MULTIPLE_FAILED_LOGINS",
+                    severity="HIGH",
+                    description=(
+                        "Multiple failed login attempts "
+                        "detected within a short period."
+                    ),
+                )
+
+                create_notification(
+                    db=db,
+                    user_id=existing_user.id,
+                    title="Security Alert",
+                    message=(
+                        "Multiple failed login attempts "
+                        "were detected on your account."
+                    ),
+                    notification_type="SECURITY",
+                )
+
+            db.commit()
+
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid email or password",
+            )
+
+        # ----------------------------------------------------
         # Create JWT
-        # -------------------------
+        # ----------------------------------------------------
 
         token = create_access_token(
             existing_user.id
         )
 
-        # -------------------------
+        # ----------------------------------------------------
         # Record successful login
-        # -------------------------
+        # ----------------------------------------------------
 
         log_activity(
             db=db,
             user_id=existing_user.id,
             action="LOGIN_SUCCESS",
             description="User logged in successfully",
+        )
+
+        log_audit(
+            db=db,
+            user_id=existing_user.id,
+            action="LOGIN_SUCCESS",
             status="SUCCESS",
             details="Successful password authentication",
         )
@@ -473,9 +533,9 @@ def login(
         db.close()
 
 
-# -------------------------
+# ============================================================
 # CURRENT USER
-# -------------------------
+# ============================================================
 
 @app.get("/auth/me")
 def get_me(
@@ -491,9 +551,9 @@ def get_me(
     }
 
 
-# -------------------------
+# ============================================================
 # ADMIN
-# -------------------------
+# ============================================================
 
 @app.get("/admin")
 def admin_dashboard(
@@ -506,13 +566,20 @@ def admin_dashboard(
         "role": current_user.role,
     }
 
+
+# ============================================================
+# STORAGE ANALYTICS
+# ============================================================
+
 @app.get("/analytics/storage")
 def storage_analytics(
     current_user=Depends(get_current_user),
 ):
+
     db: Session = SessionLocal()
 
     try:
+
         files = (
             db.query(File)
             .filter(
@@ -523,8 +590,10 @@ def storage_analytics(
         )
 
         total_files = len(files)
+
         encrypted_files = sum(
-            1 for file in files
+            1
+            for file in files
             if file.is_encrypted
         )
 
@@ -536,6 +605,7 @@ def storage_analytics(
         file_types = {}
 
         for file in files:
+
             content_type = (
                 file.content_type
                 or "Unknown"
@@ -555,13 +625,20 @@ def storage_analytics(
     finally:
         db.close()
 
+
+# ============================================================
+# ACTIVITY + SECURITY REPORT
+# ============================================================
+
 @app.get("/reports/activity")
 def activity_security_report(
     current_user=Depends(get_current_user),
 ):
+
     db: Session = SessionLocal()
 
     try:
+
         activities = (
             db.query(ActivityLog)
             .filter(
@@ -589,27 +666,38 @@ def activity_security_report(
         return {
             "activity_summary": {
                 "total_activities": len(activities),
+
                 "successful_logins": sum(
-                    1 for item in activities
+                    1
+                    for item in activities
                     if item.action == "LOGIN_SUCCESS"
                 ),
+
                 "failed_logins": sum(
-                    1 for item in activities
+                    1
+                    for item in activities
                     if item.action == "LOGIN_FAILED"
                 ),
+
                 "uploads": sum(
-                    1 for item in activities
+                    1
+                    for item in activities
                     if item.action == "FILE_UPLOAD"
                 ),
+
                 "downloads": sum(
-                    1 for item in activities
+                    1
+                    for item in activities
                     if item.action == "FILE_DOWNLOAD"
                 ),
+
                 "deletions": sum(
-                    1 for item in activities
+                    1
+                    for item in activities
                     if item.action == "FILE_DELETE"
                 ),
             },
+
             "security_alerts": [
                 {
                     "id": alert.id,
@@ -621,6 +709,7 @@ def activity_security_report(
                 }
                 for alert in alerts
             ],
+
             "recent_activity": [
                 {
                     "id": item.id,
