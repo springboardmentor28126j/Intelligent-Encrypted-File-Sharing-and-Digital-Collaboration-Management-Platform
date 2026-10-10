@@ -24,7 +24,7 @@ function Files() {
 
       try {
         const response = await axios.get(
-          "http://127.0.0.1:8000/files/",
+          `${API_URL}/files/`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -68,7 +68,7 @@ function Files() {
       setDownloading(file.storage_path);
 
       const response = await axios.get(
-        `http://127.0.0.1:8000/files/download/${encodeURI(
+        `${API_URL}/files/download/${encodeURI(
           file.storage_path
         )}`,
         {
@@ -126,7 +126,7 @@ function Files() {
 
     try {
       await axios.delete(
-        `http://127.0.0.1:8000/files/${encodeURI(file.storage_path)}`,
+        `${API_URL}/files/${encodeURI(file.storage_path)}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -221,7 +221,7 @@ function Files() {
       setSharing(file.storage_path);
 
       const response = await axios.post(
-        "http://127.0.0.1:8000/share/",
+        `${API_URL}/share/`,
         {
           shared_with_email: email.trim(),
           storage_path: file.storage_path,

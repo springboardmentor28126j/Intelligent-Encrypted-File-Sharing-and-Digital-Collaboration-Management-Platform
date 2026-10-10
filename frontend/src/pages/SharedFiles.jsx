@@ -23,7 +23,7 @@ function SharedFiles() {
 
       try {
         const response = await axios.get(
-          "http://127.0.0.1:8000/share/received",
+          `${API_URL}/share/received`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -151,7 +151,7 @@ function SharedFiles() {
       setDownloading(file.share_id);
 
       const response = await axios.get(
-        `http://127.0.0.1:8000/share/download/${file.share_id}`,
+        `${API_URL}/share/download/${file.share_id}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

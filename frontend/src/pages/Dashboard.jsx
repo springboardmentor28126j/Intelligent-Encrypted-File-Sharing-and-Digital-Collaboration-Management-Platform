@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import "./Dashboard.css";
-
+const API_URL = import.meta.env.VITE_API_URL;
 function Icon({ name, size = 20 }) {
   const paths = {
     dashboard: (
@@ -152,22 +152,22 @@ function Dashboard() {
           reportResponse,
         ] = await Promise.all([
           axios.get(
-            "http://127.0.0.1:8000/files/",
+            `${API_URL}/files/`,
             config
           ),
 
           axios.get(
-            "http://127.0.0.1:8000/share/received",
+            `${API_URL}/share/received`,
             config
           ),
 
           axios.get(
-            "http://127.0.0.1:8000/analytics/storage",
+            `${API_URL}/analytics/storage`,
             config
           ),
 
           axios.get(
-            "http://127.0.0.1:8000/reports/activity",
+            `${API_URL}/reports/activity`,
             config
           ),
         ]);

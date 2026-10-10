@@ -2,6 +2,8 @@ import { useState } from "react";
 import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,7 +21,7 @@ function Login() {
 
     try {
       const response = await axios.post(
-        "http://127.0.0.1:8000/auth/login",
+        `${API_URL}/auth/login`,
         {
           email,
           password,
@@ -41,7 +43,6 @@ function Login() {
       setTimeout(() => {
         navigate("/dashboard");
       }, 500);
-
     } catch (error) {
       console.log(error);
 
@@ -56,7 +57,6 @@ function Login() {
 
   return (
     <div className="ts-login-page">
-
       <style>{`
         * {
           box-sizing: border-box;
@@ -452,7 +452,6 @@ function Login() {
         }
 
         @media (max-width: 850px) {
-
           .ts-login-visual {
             display: none;
           }
@@ -468,11 +467,9 @@ function Login() {
             justify-content: center;
             margin-bottom: 40px;
           }
-
         }
 
         @media (max-width: 450px) {
-
           .ts-login-form-side {
             padding: 20px;
           }
@@ -480,7 +477,6 @@ function Login() {
           .ts-login-heading h1 {
             font-size: 26px;
           }
-
         }
       `}</style>
 
@@ -724,21 +720,21 @@ function Login() {
             </div>
           )}
 
-<div className="ts-register">
+          <div className="ts-register">
 
-   <div style={{ marginBottom: "12px" }}>
-    <Link to="/forgot-password">
-      Forgot Password?
-    </Link>
-  </div>
+            <div style={{ marginBottom: "12px" }}>
+              <Link to="/forgot-password">
+                Forgot Password?
+              </Link>
+            </div>
 
-  Don't have a TrustShare account?{" "}
+            Don't have a TrustShare account?{" "}
 
-  <Link to="/register">
-    Create one
-  </Link>
+            <Link to="/register">
+              Create one
+            </Link>
 
-</div>
+          </div>
 
           <div className="ts-login-security">
 

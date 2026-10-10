@@ -64,7 +64,7 @@ function Upload() {
       setMessage("");
 
       const response = await axios.post(
-        "http://127.0.0.1:8000/files/upload",
+        `${API_URL}/files/upload`,
         formData,
         {
           headers: {
