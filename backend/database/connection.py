@@ -1,3 +1,4 @@
+
 import os
 
 from dotenv import load_dotenv
@@ -11,6 +12,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is missing from .env")
 
+# Use the psycopg 3 SQLAlchemy driver for PostgreSQL.
 if DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace(
         "postgresql://",
@@ -20,7 +22,14 @@ if DATABASE_URL.startswith("postgresql://"):
 
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_size=3,
+    max_overflow=2,
+    pool_timeout=30,
+    connect_args={
+        "connect_timeout": 10
+    }
 )
 
 SessionLocal = sessionmaker(
