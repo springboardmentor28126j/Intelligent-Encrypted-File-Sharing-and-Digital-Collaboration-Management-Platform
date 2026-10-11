@@ -52,11 +52,13 @@ function App() {
   // =========================================================
 
   const [page, setPage] = useState(
-    window.location.pathname === "/reset-password"
-      ? "reset-password"
-      : "login"
-  );
-  
+  window.location.pathname === "/reset-password"
+    ? "reset-password"
+    : window.location.pathname === "/temporary-access"
+    ? "temporary-access"
+    : "login"
+);
+
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -67,7 +69,17 @@ function App() {
 
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [temporaryAccessData, setTemporaryAccessData] =
+  useState(null);
+
+  const [temporaryAccessError, setTemporaryAccessError] =
+  useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [mfaToken, setMfaToken] = useState("");
+  const [mfaOtp, setMfaOtp] = useState("");
+  const [mfaSetupData, setMfaSetupData] = useState(null);
+  const [mfaSetupOtp, setMfaSetupOtp] = useState("");
+  const [mfaEnabled, setMfaEnabled] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -80,9 +92,9 @@ function App() {
   const [securityStatus, setSecurityStatus] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [reportFilter, setReportFilter] = useState("ALL");
-  const [aiAnalysis, setAiAnalysis] = useState("");
+  const [aiAnalysis, setAiAnalysis] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiInsights, setAiInsights] = useState("");
+  const [aiInsights, setAiInsights] = useState(null);
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
 
   // =========================================================
@@ -105,16 +117,16 @@ function App() {
 
   // Current email input
   const [recipientEmail, setRecipientEmail] = useState("");
-  
 
 
-  
 
-  
 
-   
 
-  
+
+
+
+
+
 
   // Multiple recipient emails
   const [recipientEmails, setRecipientEmails] = useState([]);
@@ -275,26 +287,26 @@ const loadActivities = async () => {
 // AI SECURITY ANALYSIS
 // =========================================================
 
+
 const runAiSecurityAnalysis = async () => {
   try {
-    const token =
-      localStorage.getItem("access_token");
+    const token = localStorage.getItem("access_token");
 
-    if (!token) return;
+    if (!token) {
+      setMessage("Please log in to continue.");
+      return;
+    }
 
     setAiLoading(true);
-    setAiAnalysis("");
+    setAiAnalysis(null);
     setMessage("");
 
-    const response = await fetch(
-      `${API}/ai/security-analyze`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    const response = await fetch(`${API}/ai/security-analyze`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
     const data = await response.json();
 
@@ -304,107 +316,116 @@ const runAiSecurityAnalysis = async () => {
       );
     }
 
-    setAiAnalysis(
-      data.analysis || "No analysis returned."
-    );
-
+    setAiAnalysis(data.analysis || null);
   } catch (error) {
-    console.error(
-      "AI security analysis failed:",
-      error
-    );
-
+    console.error("AI security analysis failed:", error);
     setMessage(
-      error.message ||
-      "Failed to run AI security analysis."
+      error.message || "Failed to run AI security analysis."
     );
-
   } finally {
     setAiLoading(false);
   }
 };
+
 const runAiSecurityInsights = async () => {
   try {
-    const token =
-      localStorage.getItem("access_token");
+    const token = localStorage.getItem("access_token");
 
-    if (!token) return;
+    if (!token) {
+      setMessage("Please log in to continue.");
+      return;
+    }
 
     setAiInsightsLoading(true);
-    setAiInsights("");
+    setAiInsights(null);
     setMessage("");
 
-    const response = await fetch(
-      `${API}/ai/security-insights`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    const response = await fetch(`${API}/ai/security-insights`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
     const data = await response.json();
 
+    console.log("Full AI Insights API response:", data);
+    console.log("Insights object:", data.insights);
+
     if (!response.ok) {
-      throw new Error(
-        data.detail ||
-        "AI security insights failed"
-      );
+      throw new Error(data.detail || "AI security insights failed");
     }
 
-    setAiInsights(
-      data.insights ||
-      "No security insights returned."
-    );
-
+    setAiInsights(data.insights || null);
   } catch (error) {
-    console.error(
-      "AI security insights failed:",
-      error
-    );
-
+    console.error("AI security insights failed:", error);
     setMessage(
-      error.message ||
-      "Failed to generate AI security insights."
+      error.message || "Failed to generate AI security insights."
     );
-
   } finally {
     setAiInsightsLoading(false);
   }
 };
+
+
+
+
 // =========================================================
 // AI SECURITY RESULT PARSER
 // =========================================================
 
+
 const getAiSection = (label) => {
-  if (!aiAnalysis) return "";
+  if (!aiAnalysis || typeof aiAnalysis !== "object") {
+    return "Not available";
+  }
 
-  const pattern = new RegExp(
-    `${label}:\\s*([\\s\\S]*?)(?=\\n(?:Risk Level|Risk Score|Reason|Recommendation):|$)`,
-    "i"
-  );
+  const key = label.trim().toLowerCase();
 
-  const match = aiAnalysis.match(pattern);
+  const fieldMap = {
+    "risk level": "risk_level",
+    "risk score": "risk_score",
+    reason: "reason",
+    recommendation: "recommendations",
+    recommendations: "recommendations",
+  };
 
-  return match
-    ? match[1].trim()
-    : "";
+  const field = fieldMap[key];
+
+  if (!field || aiAnalysis[field] == null) {
+    return "Not available";
+  }
+
+  const value = aiAnalysis[field];
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item, index) => `${index + 1}. ${item}`)
+      .join("\n");
+  }
+
+  return String(value);
 };
-const getAiInsightSection = (label) => {
-  if (!aiInsights) return "";
 
-  const pattern = new RegExp(
-    `${label}:\\s*([\\s\\S]*?)(?=\\n(?:Security Summary|Activity Insights|Storage and File Usage|Suspicious Patterns|Recommendations):|$)`,
-    "i"
-  );
 
-  const match = aiInsights.match(pattern);
+const getAiInsightSection = (key) => {
+  if (!aiInsights || typeof aiInsights !== "object") {
+    return "Not available";
+  }
 
-  return match
-    ? match[1].trim()
-    : "";
+  const value = aiInsights[key];
+
+  if (value == null || value === "") {
+    return "Not available";
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item, index) => `${index + 1}. ${item}`).join("\n");
+  }
+
+  return String(value);
 };
+
 // =========================================================
 // MILESTONE 3 - SECURITY MONITORING
 // =========================================================
@@ -440,7 +461,7 @@ const loadSecurityStatus = async () => {
     );
   }
 };
-   
+
 // =========================================================
 // MILESTONE 3 - LOAD ANALYTICS
 // =========================================================
@@ -652,82 +673,397 @@ const loadAnalytics = async () => {
       </span>
     </button>
   );
-
   // =========================================================
-  // LOGIN
-  // =========================================================
+// LOAD PUBLIC TEMPORARY LINK
+// =========================================================
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      setMessage(
-        "Please enter your email and password."
-      );
-      return;
-    }
+useEffect(() => {
+  if (page !== "temporary-access") {
+    return;
+  }
 
+  const params = new URLSearchParams(
+    window.location.search
+  );
+
+  const token = params.get("token");
+
+  if (!token) {
+    setTemporaryAccessError(
+      "This temporary link is missing a valid token."
+    );
+    return;
+  }
+
+  const loadTemporaryAccess = async () => {
     setLoading(true);
-    setMessage("");
+    setTemporaryAccessError("");
+    setTemporaryAccessData(null);
 
     try {
       const response = await fetch(
-        `${API}/login`,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body: JSON.stringify({
-            email,
-            password,
-          }),
-        }
+        `${API}/share/temporary/${encodeURIComponent(token)}`
       );
 
       const data = await response.json();
 
-      if (response.ok) {
-        localStorage.setItem(
-          "access_token",
-          data.access_token
-        );
-        setUsername(data.username);
-
-        setPassword("");
-        setMessage("");
-
-        await loadFiles(
-          data.access_token
-        );
-
-        await loadSharedWithMeFiles(
-          data.access_token
-        );
-
-        await loadSharedByMeFiles(
-          data.access_token
-        );
-
-        setPage("dashboard");
-      } else {
-        setMessage(
+      if (!response.ok) {
+        setTemporaryAccessError(
           data.detail ||
-            data.message ||
-            "Invalid email or password."
+            "This temporary link is no longer valid."
         );
+        return;
       }
+
+      setTemporaryAccessData({
+        ...data,
+        share_token: token
+      });
     } catch (error) {
       console.error(error);
 
-      setMessage(
+      setTemporaryAccessError(
         "Unable to connect to TrustShare server."
       );
     } finally {
       setLoading(false);
     }
   };
+
+  loadTemporaryAccess();
+}, [page]);
+
+  // =========================================================
+  // LOGIN
+  // =========================================================
+
+  const handleLogin = async () => {
+  if (!email || !password) {
+    setMessage(
+      "Please enter your email and password."
+    );
+    return;
+  }
+
+  setLoading(true);
+  setMessage("");
+
+  try {
+    const response = await fetch(
+      `${API}/login`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+        },
+
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+
+      // =====================================================
+      // MFA REQUIRED
+      // =====================================================
+
+      if (data.mfa_required) {
+        setMfaToken(data.mfa_token);
+        setMfaOtp("");
+        setPassword("");
+        setMessage("");
+        setPage("mfa-login");
+        return;
+      }
+
+      // =====================================================
+      // NORMAL LOGIN
+      // =====================================================
+
+      localStorage.setItem(
+        "access_token",
+        data.access_token
+      );
+
+      setUsername(data.username);
+
+      setPassword("");
+      setMessage("");
+
+      await loadFiles(
+        data.access_token
+      );
+
+      await loadSharedWithMeFiles(
+        data.access_token
+      );
+
+      await loadSharedByMeFiles(
+        data.access_token
+      );
+
+      setPage("dashboard");
+
+    } else {
+      setMessage(
+        data.detail ||
+          data.message ||
+          "Invalid email or password."
+      );
+    }
+
+  } catch (error) {
+    console.error(error);
+
+    setMessage(
+      "Unable to connect to TrustShare server."
+    );
+
+  } finally {
+    setLoading(false);
+  }
+};
+// =========================================================
+// MFA LOGIN VERIFICATION
+// =========================================================
+
+const handleMfaLogin = async () => {
+  if (!mfaOtp || mfaOtp.length !== 6) {
+    setMessage(
+      "Please enter the 6-digit verification code."
+    );
+    return;
+  }
+
+  if (!mfaToken) {
+    setMessage(
+      "Your MFA session has expired. Please log in again."
+    );
+    return;
+  }
+
+  setLoading(true);
+  setMessage("");
+
+  try {
+    const response = await fetch(
+      `${API}/mfa/verify-login`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${mfaToken}`,
+        },
+
+        body: JSON.stringify({
+          otp: mfaOtp,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+
+      localStorage.setItem(
+        "access_token",
+        data.access_token
+      );
+
+      setUsername(data.username);
+      setEmail(data.email);
+
+      setMfaToken("");
+      setMfaOtp("");
+      setMessage("");
+
+      await loadFiles(
+        data.access_token
+      );
+
+      await loadSharedWithMeFiles(
+        data.access_token
+      );
+
+      await loadSharedByMeFiles(
+        data.access_token
+      );
+
+      setPage("dashboard");
+
+    } else {
+      setMessage(
+        data.detail ||
+          "Invalid verification code."
+      );
+    }
+
+  } catch (error) {
+    console.error(error);
+
+    setMessage(
+      "Unable to connect to TrustShare server."
+    );
+
+  } finally {
+    setLoading(false);
+  }
+};
+const handleMfaSetup = async () => {
+  const authToken = localStorage.getItem("access_token");
+
+  if (!authToken) {
+    setMessage("Please log in again.");
+    setPage("login");
+    return;
+  }
+
+  setLoading(true);
+  setMessage("");
+
+  try {
+    const response = await fetch(`${API}/mfa/setup`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      setMfaSetupData(data);
+      setMfaSetupOtp("");
+      setMessage("");
+      setShowProfile(false);
+      setPage("mfa-setup");
+    } else {
+      setMessage(
+        data.detail || "Unable to start MFA setup."
+      );
+    }
+  } catch (error) {
+    console.error(error);
+    setMessage("Unable to connect to TrustShare server.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleMfaSetupVerify = async () => {
+  if (!mfaSetupOtp || mfaSetupOtp.length !== 6) {
+    setMessage("Please enter the 6-digit verification code.");
+    return;
+  }
+
+  const authToken = localStorage.getItem("access_token");
+
+  if (!authToken) {
+    setMessage("Please log in again.");
+    setPage("login");
+    return;
+  }
+
+  setLoading(true);
+  setMessage("");
+
+  try {
+    const response = await fetch(
+      `${API}/mfa/verify-setup`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          otp: mfaSetupOtp,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+      setMfaEnabled(true);
+      setMfaSetupData(null);
+      setMfaSetupOtp("");
+      setMessage(
+        "MFA enabled successfully. Your account is now protected with two-factor authentication."
+      );
+      setPage("dashboard");
+    } else {
+      setMessage(
+        data.detail || "Invalid verification code."
+      );
+    }
+  } catch (error) {
+    console.error(error);
+    setMessage("Unable to connect to TrustShare server.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleMfaDisable = async () => {
+  const authToken = localStorage.getItem("access_token");
+
+  if (!authToken) {
+    setMessage("Please log in again.");
+    setPage("login");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    "Are you sure you want to disable multi-factor authentication?"
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  setLoading(true);
+  setMessage("");
+
+  try {
+    const response = await fetch(`${API}/mfa/disable`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      setMfaEnabled(false);
+      setShowProfile(false);
+      setMessage(
+        "MFA has been disabled successfully."
+      );
+    } else {
+      setMessage(
+        data.detail || "Unable to disable MFA."
+      );
+    }
+  } catch (error) {
+    console.error(error);
+    setMessage("Unable to connect to TrustShare server.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+
+
 
   // =========================================================
   // REGISTER
@@ -978,6 +1314,10 @@ const loadAnalytics = async () => {
             data.full_name ||
             "",
         });
+
+        setMfaEnabled(
+          Boolean(data.mfa_enabled)
+        );
 
         return data;
       }
@@ -1381,28 +1721,111 @@ const handleUpdateSharedFile = async (
     }
   };
   // =========================================================
+// DOWNLOAD PUBLIC TEMPORARY FILE
+// =========================================================
+
+const handlePublicTemporaryDownload = async () => {
+  if (!temporaryAccessData?.share_token) {
+    setTemporaryAccessError(
+      "Temporary share link is not available."
+    );
+    return;
+  }
+
+  setLoading(true);
+  setTemporaryAccessError("");
+
+  try {
+    const response = await fetch(
+      `${API}/download/shared/${encodeURIComponent(
+        temporaryAccessData.share_token
+      )}`
+    );
+
+    if (!response.ok) {
+      let errorMessage =
+        "Unable to download the temporary file.";
+
+      try {
+        const data = await response.json();
+
+        errorMessage =
+          data.detail ||
+          errorMessage;
+      } catch {
+        // Ignore JSON parsing error
+      }
+
+      setTemporaryAccessError(errorMessage);
+      return;
+    }
+
+    const blob = await response.blob();
+
+    const url =
+      window.URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+
+    link.download =
+      temporaryAccessData.filename ||
+      "temporary-file";
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error(error);
+
+    setTemporaryAccessError(
+      "Unable to download the temporary file."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
+  // =========================================================
+// COPY TEMPORARY SHARE LINK
+// =========================================================
+
+// =========================================================
 // COPY TEMPORARY SHARE LINK
 // =========================================================
 
 const handleCopyTemporaryLink = async () => {
   if (!temporaryShareResult?.share_token) {
-    setMessage("Temporary share link is not available.");
+    setMessage(
+      "Temporary share link is not available."
+    );
     return;
   }
 
   const temporaryLink =
-    `${API}/download/shared/${encodeURIComponent(
+    `${window.location.origin}/temporary-access?token=${encodeURIComponent(
       temporaryShareResult.share_token
     )}`;
 
   try {
-    await navigator.clipboard.writeText(temporaryLink);
+    await navigator.clipboard.writeText(
+      temporaryLink
+    );
 
-    setMessage("Temporary link copied to clipboard.");
+    setMessage(
+      "Temporary link copied to clipboard."
+    );
   } catch (error) {
     console.error(error);
 
-    setMessage("Unable to copy the temporary link.");
+    setMessage(
+      "Unable to copy the temporary link."
+    );
   }
 };
 
@@ -2110,7 +2533,31 @@ const handleCopyTemporaryLink = async () => {
             <span>🤖</span>
             AI Security
           </button>
-        </div>
+          <div
+  className="nav-section"
+  style={{ marginTop: "8px" }}
+>
+  <button
+    className={
+      page === "mfa-management"
+        ? "nav-item active"
+        : "nav-item"
+    }
+    onClick={() => {
+      setPage("mfa-management");
+      setMessage("");
+      setMobileMenuOpen(false);
+    }}
+  >
+    <span>🔐</span>
+    Multi-Factor Authentication
+  </button>
+
+
+</div>
+
+</div>
+
 
         <div className="nav-section account-section">
           <span className="nav-title">
@@ -2147,8 +2594,8 @@ const handleCopyTemporaryLink = async () => {
   );
 
 
-      
-      
+
+
 
 
   // =========================================================
@@ -2379,10 +2826,10 @@ const handleCopyTemporaryLink = async () => {
   )}
 
 </div>
-            
 
 
-      
+
+
 
           <div
             className="profile-wrapper"
@@ -2498,6 +2945,27 @@ const handleCopyTemporaryLink = async () => {
                   <span>◯</span>
                   My Account
                 </button>
+                {mfaEnabled ? (
+                  <button
+                    type="button"
+                    className="profile-account-button"
+                    onClick={handleMfaDisable}
+                    disabled={loading}
+                  >
+                    <span>🔓</span>
+                    {loading ? "Disabling MFA..." : "Disable MFA"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="profile-account-button"
+                    onClick={handleMfaSetup}
+                    disabled={loading}
+                  >
+                    <span>🔐</span>
+                    {loading ? "Setting up MFA..." : "Enable MFA"}
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -2530,10 +2998,10 @@ const handleCopyTemporaryLink = async () => {
           </span>
 
           <h1>
-           
+
             Welcome back {username || "User"} 👋
 
-            
+
           </h1>
 
           <p>
@@ -2708,6 +3176,118 @@ const handleCopyTemporaryLink = async () => {
       )}
     </div>
   );
+  // =========================================================
+// TEMPORARY ACCESS PAGE
+// =========================================================
+
+if (page === "temporary-access") {
+  return (
+    <AuthLayout
+      theme={theme}
+      toggleTheme={toggleTheme}
+    >
+      <div className="auth-card">
+
+        <div className="forgot-icon">
+          🔗
+        </div>
+
+        <span className="eyebrow">
+          TEMPORARY SECURE ACCESS
+        </span>
+
+        <h2>
+          Secure file access
+        </h2>
+
+        {!temporaryAccessError &&
+          !temporaryAccessData &&
+          loading && (
+            <p className="auth-description">
+              Verifying your secure link...
+            </p>
+          )}
+
+        {temporaryAccessError && (
+          <>
+            <p className="auth-description">
+              {temporaryAccessError}
+            </p>
+
+            <div className="temporary-access-error">
+              🔒
+            </div>
+
+            <button
+              className="auth-button"
+              type="button"
+              onClick={() => {
+                window.location.href = "/";
+              }}
+            >
+              Return to TrustShare
+            </button>
+          </>
+        )}
+
+        {temporaryAccessData &&
+          !temporaryAccessError && (
+            <>
+              <p className="auth-description">
+                You have been given temporary
+                access to this file.
+              </p>
+
+              <div className="temporary-access-details">
+
+                <div className="temporary-access-row">
+                  <span>File</span>
+
+                  <strong>
+                    {temporaryAccessData.filename}
+                  </strong>
+                </div>
+
+                <div className="temporary-access-row">
+                  <span>Expires</span>
+
+                  <strong>
+                    {temporaryAccessData.expires_at
+                      ? new Date(
+                          temporaryAccessData.expires_at
+                        ).toLocaleString()
+                      : "No expiry"}
+                  </strong>
+                </div>
+
+              </div>
+
+              <button
+                className="auth-button"
+                type="button"
+                onClick={
+                  handlePublicTemporaryDownload
+                }
+                disabled={loading}
+              >
+                {loading
+                  ? "Downloading..."
+                  : "Download file"}
+              </button>
+
+              <p className="temporary-access-note">
+                🔒 This secure link is temporary
+                and will automatically expire.
+              </p>
+            </>
+          )}
+
+      </div>
+
+
+    </AuthLayout>
+  );
+}
 
   // =========================================================
   // RESET PASSWORD
@@ -2938,6 +3518,207 @@ const handleCopyTemporaryLink = async () => {
       </AuthLayout>
     );
   }
+  // =========================================================
+// MFA LOGIN
+// =========================================================
+
+if (page === "mfa-login") {
+  return (
+    <AuthLayout
+      theme={theme}
+      toggleTheme={toggleTheme}
+    >
+      <div className="auth-card">
+
+        <span className="eyebrow">
+          TWO-FACTOR AUTHENTICATION
+        </span>
+
+        <h2>
+          Verify your identity
+        </h2>
+
+        <p className="auth-description">
+          Enter the 6-digit code from your
+          authenticator app to continue.
+        </p>
+
+        <label>
+          Authentication code
+        </label>
+
+        <input
+          className="input"
+          type="text"
+          inputMode="numeric"
+          maxLength={6}
+          placeholder="Enter 6-digit code"
+          value={mfaOtp}
+          onChange={(e) => {
+            const value =
+              e.target.value
+                .replace(/\D/g, "")
+                .slice(0, 6);
+
+            setMfaOtp(value);
+          }}
+        />
+
+        {message && (
+          <div className="auth-message">
+            {message}
+          </div>
+        )}
+
+        <button
+          className="auth-button"
+          onClick={handleMfaLogin}
+          disabled={loading}
+        >
+          {loading
+            ? "Verifying..."
+            : "Verify code"}
+        </button>
+
+        <div className="register-prompt">
+          <span>
+            Using a different account?
+          </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMfaToken("");
+              setMfaOtp("");
+              setPassword("");
+              setMessage("");
+              setPage("login");
+            }}
+          >
+            Back to login
+          </button>
+        </div>
+
+      </div>
+    </AuthLayout>
+  );
+}
+if (page === "mfa-setup") {
+  return (
+    <AuthLayout theme={theme} toggleTheme={toggleTheme}>
+      <div
+        className="auth-card"
+        style={{
+          maxWidth: "430px",
+          padding: "28px 30px",
+          margin: "20px auto",
+        }}
+      >
+        <span className="eyebrow">
+          TWO-FACTOR AUTHENTICATION
+        </span>
+
+        <h2>Enable MFA</h2>
+
+        <p className="auth-description">
+          Protect your TrustShare account with an
+          authenticator app.
+        </p>
+
+        {mfaSetupData?.qr_code && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              margin: "14px 0",
+            }}
+          >
+            <div
+              style={{
+                background: "#ffffff",
+                padding: "10px",
+                borderRadius: "12px",
+                boxShadow: "0 6px 18px rgba(0,0,0,0.10)",
+              }}
+            >
+              <img
+                src={mfaSetupData.qr_code}
+                alt="TrustShare MFA QR code"
+                style={{
+                  width: "165px",
+                  height: "165px",
+                  display: "block",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        <p
+          className="auth-description"
+          style={{
+            textAlign: "center",
+            margin: "12px 0 18px",
+            fontSize: "14px",
+            lineHeight: "1.5",
+          }}
+        >
+          Open Google Authenticator or Microsoft Authenticator,
+          scan the QR code, then enter the 6-digit code shown
+          in the app.
+        </p>
+
+        <label>Authentication code</label>
+
+        <input
+          className="input"
+          type="text"
+          inputMode="numeric"
+          maxLength={6}
+          placeholder="Enter 6-digit code"
+          value={mfaSetupOtp}
+          onChange={(e) => {
+            const value = e.target.value
+              .replace(/\D/g, "")
+              .slice(0, 6);
+
+            setMfaSetupOtp(value);
+          }}
+        />
+
+        {message && (
+          <div className="auth-message">
+            {message}
+          </div>
+        )}
+
+        <button
+          className="auth-button"
+          onClick={handleMfaSetupVerify}
+          disabled={loading}
+        >
+          {loading ? "Verifying..." : "Enable MFA"}
+        </button>
+
+        <div className="register-prompt">
+          <span>Changed your mind?</span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMfaSetupData(null);
+              setMfaSetupOtp("");
+              setMessage("");
+              setPage("dashboard");
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </AuthLayout>
+  );
+}
 
   // =========================================================
   // FORGOT PASSWORD
@@ -3159,13 +3940,175 @@ const handleCopyTemporaryLink = async () => {
 
         {/* DASHBOARD */}
 
-        {page === "dashboard" && (
+                {page === "dashboard" && (
           <Dashboard />
         )}
-                {/* ===================================================
+
+        {/* ===================================================
+            MULTI-FACTOR AUTHENTICATION
+            =================================================== */}
+
+        {page === "mfa-management" && (
+          <div className="content-page">
+
+            <div className="page-heading">
+              <div>
+                <span className="eyebrow">
+                  SECURITY
+                </span>
+
+                <h1>
+                  Multi-Factor Authentication
+                </h1>
+
+                <p>
+                  Add an extra layer of security to your
+                  TrustShare account.
+                </p>
+              </div>
+            </div>
+
+            <div
+              className="panel"
+              style={{
+                maxWidth: "720px",
+                margin: "0 auto",
+              }}
+            >
+
+              <div className="panel-header">
+                <h2>
+                  🔐 Account Security
+                </h2>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "20px",
+                  padding: "20px 0",
+                  flexWrap: "wrap",
+                }}
+              >
+
+                <div>
+                  <h3
+                    style={{
+                      margin: "0 0 8px",
+                    }}
+                  >
+                    Multi-Factor Authentication
+                  </h3>
+
+                  <p
+                    style={{
+                      margin: 0,
+                      opacity: 0.75,
+                      lineHeight: "1.6",
+                    }}
+                  >
+                    {mfaEnabled
+                      ? "MFA is enabled. Your account is protected with an authenticator app."
+                      : "MFA is currently disabled. Enable it to protect your account with an authenticator app."
+                    }
+                  </p>
+                </div>
+
+                <div
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "20px",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    whiteSpace: "nowrap",
+                    background: mfaEnabled
+                      ? "rgba(34, 197, 94, 0.12)"
+                      : "rgba(245, 158, 11, 0.12)",
+                    color: mfaEnabled
+                      ? "#16a34a"
+                      : "#d97706",
+                  }}
+                >
+                  {mfaEnabled
+                    ? "● Enabled"
+                    : "● Disabled"
+                  }
+                </div>
+
+              </div>
+
+              <div
+                style={{
+                  borderTop: "1px solid rgba(128,128,128,0.18)",
+                  paddingTop: "20px",
+                }}
+              >
+
+                {!mfaEnabled ? (
+                  <>
+                    <p
+                      style={{
+                        marginTop: 0,
+                        lineHeight: "1.6",
+                      }}
+                    >
+                      When MFA is enabled, you will need to
+                      enter a 6-digit authentication code from
+                      Google Authenticator or Microsoft
+                      Authenticator when signing in.
+                    </p>
+
+                    <button
+                      className="primary-button"
+                      onClick={handleMfaSetup}
+                      disabled={loading}
+                    >
+                      {loading
+                        ? "Setting up MFA..."
+                        : "🔐 Enable MFA"
+                      }
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p
+                      style={{
+                        marginTop: 0,
+                        lineHeight: "1.6",
+                      }}
+                    >
+                      Your account is currently protected with
+                      two-factor authentication.
+                    </p>
+
+                    <button
+                      className="primary-button"
+                      onClick={handleMfaDisable}
+                      disabled={loading}
+                    >
+                      {loading
+                        ? "Disabling MFA..."
+                        : "🔓 Disable MFA"
+                      }
+                    </button>
+                  </>
+                )}
+
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
+        {/* ===================================================
             AI SECURITY
             =================================================== */}
-                  {page === "ai-security" && (
+
+        {page === "ai-security" && (
+
           <div className="content-page">
 
             <div className="page-heading">
@@ -3179,7 +4122,7 @@ const handleCopyTemporaryLink = async () => {
                 </h1>
 
                 <p>
-                  Analyze your recent TrustShare activity using local AI.
+                  Analyze your complete TrustShare activity history using rule-based security analysis.
                 </p>
               </div>
             </div>
@@ -3232,8 +4175,9 @@ const handleCopyTemporaryLink = async () => {
                 </h2>
 
                 <p>
-                  Gemma 3 analyzes recent activity and identifies
-                  potentially suspicious security patterns.
+                  
+                  “TrustShare evaluates historical activity, identifies suspicious patterns, and provides evidence-based security recommendations.”
+
                 </p>
 
               </div>
@@ -3241,113 +4185,380 @@ const handleCopyTemporaryLink = async () => {
             </div>
 
             {aiAnalysis && (
-              <div
-                className="panel ai-result-panel"
-                style={{ marginTop: "18px" }}
-              >
-                
-
-                <div className="panel-header">
-                  <h2>
-                    🤖 AI Security Assessment
-                  </h2>
-                </div>
-
-                                <div
-                  className="stats-grid"
-                  style={{ marginTop: "18px" }}
-                >
-
-                  <div className="stat-card">
-                    <div className="stat-icon">
-                      !
-                    </div>
-
-                    <div>
-                      <span>Risk Level</span>
-                      <strong>
-                        {getAiSection("Risk Level")}
-                      </strong>
-                    </div>
-                  </div>
-
-                  <div className="stat-card">
-                    <div className="stat-icon">
-                      #
-                    </div>
-
-                    <div>
-                      <span>Risk Score</span>
-                      <strong>
-                        {getAiSection("Risk Score")}
-                        <small>/100</small>
-                      </strong>
-                    </div>
-                  </div>
-
-                </div>
-
-                <div style={{ marginTop: "20px" }}>
-
-                  <span
-                    style={{
-                      display: "block",
-                      color: "var(--text)",
-                      fontSize: "11px",
-                      fontWeight: "900",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    REASON
-                  </span>
-
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "var(--muted)",
-                      fontSize: "13px",
-                      lineHeight: "1.7",
-                    }}
-                  >
-                    {getAiSection("Reason")}
-                  </p>
-
-                </div>
-
-                <div style={{ marginTop: "20px" }}>
-
-                  <span
-                    style={{
-                      display: "block",
-                      color: "var(--text)",
-                      fontSize: "11px",
-                      fontWeight: "900",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    RECOMMENDATION
-                  </span>
-
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "var(--text)",
-                      fontSize: "13px",
-                      lineHeight: "1.7",
-                    }}
-                  >
-                    {getAiSection("Recommendation")}
-                  </p>
-
-                </div>
-
-              </div>
-            )}
-            {aiInsights && (
   <div
     className="panel ai-result-panel"
-    style={{ marginTop: "18px" }}
+    
   >
+
+    <div className="panel-header">
+      <h2>
+        🤖 AI Security Assessment
+      </h2>
+    </div>
+
+    {/* Risk Cards */}
+    <div
+      className="stats-grid"
+      style={{ marginTop: "18px" }}
+    >
+
+      {/* Risk Level */}
+      <div className="stat-card">
+        <div
+          className="stat-icon"
+          style={{
+            background:
+              getAiSection("Risk Level")
+                .toUpperCase()
+                .includes("CRITICAL")
+                ? "rgba(239, 68, 68, 0.15)"
+                : getAiSection("Risk Level")
+                    .toUpperCase()
+                    .includes("HIGH")
+                ? "rgba(249, 115, 22, 0.15)"
+                : getAiSection("Risk Level")
+                    .toUpperCase()
+                    .includes("MEDIUM")
+                ? "rgba(245, 158, 11, 0.15)"
+                : "rgba(34, 197, 94, 0.15)",
+            color:
+              getAiSection("Risk Level")
+                .toUpperCase()
+                .includes("CRITICAL")
+                ? "#ef4444"
+                : getAiSection("Risk Level")
+                    .toUpperCase()
+                    .includes("HIGH")
+                ? "#f97316"
+                : getAiSection("Risk Level")
+                    .toUpperCase()
+                    .includes("MEDIUM")
+                ? "#f59e0b"
+                : "#22c55e",
+          }}
+        >
+          !
+        </div>
+
+        <div>
+          <span>Risk Level</span>
+
+          <strong
+            style={{
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            {getAiSection("Risk Level")}
+          </strong>
+        </div>
+      </div>
+
+      {/* Risk Score */}
+      <div className="stat-card">
+
+        <div className="stat-icon">
+          #
+        </div>
+
+        <div>
+          <span>Historical Risk Score</span>
+
+          <strong>
+            {getAiSection("Risk Score")
+              .replace(/\/100/g, "")
+              .trim()}
+
+            <small>/100</small>
+          </strong>
+        </div>
+
+      </div>
+
+    </div>
+
+    {/* Reason */}
+    <div
+      style={{
+        marginTop: "22px",
+        padding: "16px",
+        borderRadius: "12px",
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+      }}
+    >
+
+      <span
+        style={{
+          display: "block",
+          color: "var(--text)",
+          fontSize: "11px",
+          fontWeight: "900",
+          marginBottom: "8px",
+          letterSpacing: "0.6px",
+        }}
+      >
+        REASON
+      </span>
+
+      <p
+  style={{
+    margin: 0,
+    color: "var(--muted)",
+    fontSize: "13px",
+    lineHeight: "1.8",
+  }}
+>
+  {getAiSection("Reason")
+    .replace(/\\\./g, ".")
+    .replace(/\s+/g, " ")
+    .trim()}
+</p>
+
+    </div>
+
+    {/* Recommendation */}
+    <div
+      style={{
+        marginTop: "14px",
+        padding: "16px",
+        borderRadius: "12px",
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+      }}
+    >
+
+      <span
+        style={{
+          display: "block",
+          color: "var(--text)",
+          fontSize: "11px",
+          fontWeight: "900",
+          marginBottom: "8px",
+          letterSpacing: "0.6px",
+        }}
+      >
+        RECOMMENDATION
+      </span>
+
+      <div
+  style={{
+    color: "var(--text)",
+    fontSize: "13px",
+    lineHeight: "1.8",
+  }}
+>
+  {getAiSection("Recommendation")
+    .replace(/\\\./g, ".")
+    .split(/\s(?=\d+\.\s)/)
+    .map((item, index) => {
+      const cleaned = item.trim();
+
+      return (
+        <div
+          key={index}
+          style={{
+            marginBottom: "10px",
+            display: "flex",
+            gap: "10px",
+          }}
+        >
+          <span
+            style={{
+              fontWeight: "800",
+              minWidth: "22px",
+            }}
+          >
+            {index + 1}.
+          </span>
+
+          <span>
+            {cleaned.replace(/^\d+\.\s*/, "")}
+          </span>
+        </div>
+      );
+    })}
+</div>
+
+    </div>
+  
+  
+       
+          
+           
+   {/* Evidence & Findings */}
+<div className="panel ai-result-panel ai-evidence-section">
+  <div className="panel-header">
+    <h2>Evidence &amp; Findings</h2>
+  </div>
+
+  {Array.isArray(aiAnalysis?.evidence) &&
+  aiAnalysis.evidence.length > 0 ? (
+    <div className="ai-evidence-list">
+      {aiAnalysis.evidence.map((item, index) => {
+        const isObject =
+          typeof item === "object" && item !== null;
+
+        const title = isObject
+          ? item.title ||
+            item.rule ||
+            item.finding ||
+            `Finding ${index + 1}`
+          : String(item);
+
+        const description = isObject
+          ? item.description ||
+            item.details ||
+            item.message ||
+            ""
+          : "";
+
+        const observedCount = isObject
+          ? item.observed_count ?? item.observedCount
+          : undefined;
+
+        const failedAttempts = isObject
+          ? item.failed_attempts_before_success ??
+            item.failedAttemptsBeforeSuccess
+          : undefined;
+
+        const sameIpFailures = isObject
+          ? item.same_ip_failed_attempts
+          : undefined;
+
+        const missingIpFailures = isObject
+          ? item.ip_unavailable_failed_attempts
+          : undefined;
+
+        const mfaPairs = isObject
+          ? item.rapid_mfa_change_pairs ??
+            item.rapidMfaChangePairs
+          : undefined;
+
+        const riskPoints = isObject
+          ? item.risk_points ?? item.riskPoints
+          : undefined;
+
+        const isContextual = Number(riskPoints) === 0;
+
+        return (
+          <article
+            className="ai-evidence-row"
+            key={index}
+          >
+            <div className="ai-evidence-row-header">
+              <span
+                className={`ai-evidence-indicator ${
+                  isContextual
+                    ? "contextual"
+                    : "risk"
+                }`}
+              >
+                {isContextual ? "i" : "✓"}
+              </span>
+
+              <div className="ai-evidence-heading">
+                <span className="ai-evidence-label">
+                  {isContextual
+                    ? "Contextual evidence"
+                    : `Finding ${index + 1}`}
+                </span>
+
+                <strong className="ai-evidence-title">
+                  {String(title)
+                    .replaceAll("_", " ")
+                    .replace(/\b\w/g, (char) =>
+                      char.toUpperCase()
+                    )}
+                </strong>
+              </div>
+
+              {riskPoints !== undefined && (
+                <span
+                  className={`ai-evidence-risk ${
+                    isContextual ? "contextual" : "risk"
+                  }`}
+                >
+                  {riskPoints} risk points
+                </span>
+              )}
+            </div>
+
+            {description && (
+              <p className="ai-evidence-description">
+                {description}
+              </p>
+            )}
+
+            {(observedCount !== undefined ||
+              failedAttempts !== undefined ||
+              sameIpFailures !== undefined ||
+              missingIpFailures !== undefined ||
+              mfaPairs !== undefined) && (
+              <div className="ai-evidence-details">
+                {observedCount !== undefined && (
+                  <p>
+                    <span>Observed count</span>
+                    <strong>{observedCount}</strong>
+                  </p>
+                )}
+
+                {failedAttempts !== undefined && (
+                  <p>
+                    <span>Failed attempts before success</span>
+                    <strong>{failedAttempts}</strong>
+                  </p>
+                )}
+
+                {sameIpFailures !== undefined && (
+                  <p>
+                    <span>Same-IP failed attempts</span>
+                    <strong>{sameIpFailures}</strong>
+                  </p>
+                )}
+
+                {missingIpFailures !== undefined && (
+                  <p>
+                    <span>Attempts with unavailable IP data</span>
+                    <strong>{missingIpFailures}</strong>
+                  </p>
+                )}
+
+                {mfaPairs !== undefined && (
+                  <p>
+                    <span>Rapid MFA change pairs</span>
+                    <strong>{mfaPairs}</strong>
+                  </p>
+                )}
+              </div>
+            )}
+          </article>
+        );
+      })}
+    </div>
+  ) : (
+    <p className="ai-evidence-empty">
+      No detailed evidence was returned by the security analysis.
+    </p>
+  )}
+</div>       
+  
+
+
+
+
+
+  
+
+  </div>
+
+
+)}
+              
+                   
+                  
+            {aiInsights && (
+  <div className="panel ai-result-panel ai-insights-panel">
 
     <div className="panel-header">
       <h2>
@@ -3377,7 +4588,7 @@ const handleCopyTemporaryLink = async () => {
           lineHeight: "1.7",
         }}
       >
-        {getAiInsightSection("Security Summary")}
+        {getAiInsightSection("security_summary")}
       </p>
 
     </div>
@@ -3404,7 +4615,7 @@ const handleCopyTemporaryLink = async () => {
           lineHeight: "1.7",
         }}
       >
-        {getAiInsightSection("Activity Insights")}
+        {getAiInsightSection("activity_insights")}
       </p>
 
     </div>
@@ -3431,7 +4642,7 @@ const handleCopyTemporaryLink = async () => {
           lineHeight: "1.7",
         }}
       >
-        {getAiInsightSection("Storage and File Usage")}
+        {getAiInsightSection("storage_and_file_usage")}
       </p>
 
     </div>
@@ -3458,7 +4669,7 @@ const handleCopyTemporaryLink = async () => {
           lineHeight: "1.7",
         }}
       >
-        {getAiInsightSection("Suspicious Patterns")}
+        {getAiInsightSection("suspicious_patterns")}
       </p>
 
     </div>
@@ -3485,20 +4696,31 @@ const handleCopyTemporaryLink = async () => {
           lineHeight: "1.7",
         }}
       >
-        {getAiInsightSection("Recommendations")}
+        
+        {getAiInsightSection("recommendations")}
       </p>
 
     </div>
+      
+    <div className="ai-evidence-section ai-evidence-reference">
+      <p className="ai-evidence-empty">
+        Detailed security evidence and risk points are available in
+        the AI Security Assessment panel above.
+      </p>
+    </div>
+  
+
 
   </div>
 )}
+     
 
           </div>
         )}
-        
-        
 
-            
+
+
+
         {/* ===================================================
     ACTIVITY / AUDIT LOG
     =================================================== */}
@@ -3597,7 +4819,7 @@ const handleCopyTemporaryLink = async () => {
 
         const filteredActivities =
           activities.filter((activity) => {
-            
+
 
             if (reportFilter === "ALL") {
               return true;
@@ -3710,7 +4932,7 @@ const handleCopyTemporaryLink = async () => {
                       })()
                     : ""}
                 </small>
-                     
+
 
               </div>
 
@@ -3724,7 +4946,7 @@ const handleCopyTemporaryLink = async () => {
 
   </div>
 )}
-      
+
 
 
 
@@ -3863,9 +5085,9 @@ const handleCopyTemporaryLink = async () => {
     )}
   </div>
 )}
-      
-            
-        
+
+
+
 
 
         {/* MY FILES */}
@@ -4451,7 +5673,7 @@ const handleCopyTemporaryLink = async () => {
                         <span>Link</span>
 
                         <a
-                          href={`${API}/download/shared/${encodeURIComponent(
+                          href={`${window.location.origin}/temporary-access?token=${encodeURIComponent(
                             temporaryShareResult.share_token
                           )}`}
                           target="_blank"
@@ -4647,8 +5869,8 @@ const handleCopyTemporaryLink = async () => {
                           Delete
                         </button>
                       </div>
-                        
-                           
+
+
                       </div>
                     );
                   }

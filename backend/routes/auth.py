@@ -15,6 +15,13 @@ from pydantic_settings import BaseSettings
 import secrets
 from datetime import datetime, timedelta
 
+import io
+import base64
+import pyotp
+import qrcode
+
+from datetime import datetime, timedelta
+
 
 router = APIRouter()
 
@@ -126,7 +133,6 @@ def register(user: RegisterRequest):
         "email": new_user.email
     }
 
-
 # =========================================================
 # LOGIN
 # =========================================================
@@ -134,6 +140,7 @@ def register(user: RegisterRequest):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
 
 @router.post("/login")
 def login(user: LoginRequest):
@@ -143,7 +150,9 @@ def login(user: LoginRequest):
         User.email == user.email
     ).first()
 
+    # -----------------------------------------------------
     # Email not found
+    # -----------------------------------------------------
     if not existing_user:
         log_activity(
             action="LOGIN_FAILED",
@@ -159,7 +168,9 @@ def login(user: LoginRequest):
             detail="Invalid email or password"
         )
 
+    # -----------------------------------------------------
     # Password incorrect
+    # -----------------------------------------------------
     if not pwd_context.verify(
         user.password,
         existing_user.password
@@ -185,7 +196,35 @@ def login(user: LoginRequest):
             detail="Invalid email or password"
         )
 
-    # Login successful
+    # -----------------------------------------------------
+    # MFA ENABLED
+    # -----------------------------------------------------
+    if existing_user.mfa_enabled:
+        mfa_token = create_access_token(
+            data={
+                "user_id": existing_user.id,
+                "email": existing_user.email,
+                "mfa_pending": True
+            },
+            expires_minutes=5
+        )
+
+        username = existing_user.username
+        email = existing_user.email
+
+        db.close()
+
+        return {
+            "message": "MFA verification required",
+            "mfa_required": True,
+            "mfa_token": mfa_token,
+            "username": username,
+            "email": email
+        }
+
+    # -----------------------------------------------------
+    # MFA NOT ENABLED
+    # -----------------------------------------------------
     access_token = create_access_token(
         data={
             "user_id": existing_user.id,
@@ -207,23 +246,27 @@ def login(user: LoginRequest):
 
     return {
         "message": "Login successful",
+        "mfa_required": False,
         "access_token": access_token,
         "username": username,
         "email": email
     }
 
 
-       
+
 
 # =========================================================
-# CURRENT USER
+# MULTI-FACTOR AUTHENTICATION (MFA)
 # =========================================================
 
-@router.get("/me")
-def get_current_user(
+class MFAVerifyRequest(BaseModel):
+    otp: str
+
+
+@router.post("/mfa/setup")
+def setup_mfa(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
-
     token = credentials.credentials
 
     payload = verify_access_token(token)
@@ -234,11 +277,376 @@ def get_current_user(
             detail="Invalid or expired token"
         )
 
+    user_id = payload.get("user_id")
+
+    db = Session(bind=engine)
+
+    user = db.query(User).filter(
+        User.id == user_id
+    ).first()
+
+    if not user:
+        db.close()
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    # Generate a fresh TOTP secret
+    secret = pyotp.random_base32()
+
+    # Store secret but do not enable MFA yet
+    user.mfa_secret = secret
+    user.mfa_enabled = False
+
+    db.commit()
+
+    email = user.email
+
+    # Create authenticator URI
+    totp = pyotp.TOTP(secret)
+
+    provisioning_uri = totp.provisioning_uri(
+        name=email,
+        issuer_name="TrustShare"
+    )
+
+    # Generate QR code
+    qr = qrcode.QRCode(
+        version=1,
+        box_size=10,
+        border=4
+    )
+
+    qr.add_data(provisioning_uri)
+    qr.make(fit=True)
+
+    qr_image = qr.make_image()
+
+    buffer = io.BytesIO()
+
+    qr_image.save(
+        buffer,
+        format="PNG"
+    )
+
+    qr_base64 = base64.b64encode(
+        buffer.getvalue()
+    ).decode("utf-8")
+
+    db.close()
+
     return {
-        "message": "Authenticated user",
-        "user_id": payload.get("user_id"),
-        "email": payload.get("email")
+        "message": "MFA setup initiated",
+        "qr_code": f"data:image/png;base64,{qr_base64}",
+        "secret": secret,
+        "otpauth_url": provisioning_uri
     }
+
+
+@router.post("/mfa/verify-setup")
+def verify_mfa_setup(
+    request: MFAVerifyRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    token = credentials.credentials
+
+    payload = verify_access_token(token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token"
+        )
+
+    user_id = payload.get("user_id")
+
+    db = Session(bind=engine)
+
+    user = db.query(User).filter(
+        User.id == user_id
+    ).first()
+
+    if not user:
+        db.close()
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    if not user.mfa_secret:
+        db.close()
+        raise HTTPException(
+            status_code=400,
+            detail="MFA setup has not been initiated"
+        )
+
+    # Verify the 6-digit authenticator code
+    totp = pyotp.TOTP(user.mfa_secret)
+
+    if not totp.verify(
+        request.otp,
+        valid_window=1
+    ):
+        db.close()
+
+        create_notification(
+            user_id=user.id,
+            title="MFA Setup Failed",
+            message="An incorrect MFA verification code was entered.",
+            notification_type="SECURITY_ALERT"
+        )
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid MFA verification code"
+        )
+
+    # MFA successfully verified
+    user.mfa_enabled = True
+
+    db.commit()
+
+    log_activity(
+        action="MFA_ENABLED",
+        user_id=user.id,
+        user_email=user.email,
+        details="Two-factor authentication enabled successfully"
+    )
+
+    create_notification(
+        user_id=user.id,
+        title="MFA Enabled",
+        message="Two-factor authentication has been enabled on your TrustShare account.",
+        notification_type="SECURITY_ALERT"
+    )
+
+    db.close()
+
+    return {
+        "message": "MFA enabled successfully",
+        "mfa_enabled": True
+    }
+
+
+@router.post("/mfa/disable")
+def disable_mfa(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    token = credentials.credentials
+
+    payload = verify_access_token(token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token"
+        )
+
+    user_id = payload.get("user_id")
+
+    db = Session(bind=engine)
+
+    user = db.query(User).filter(
+        User.id == user_id
+    ).first()
+
+    if not user:
+        db.close()
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    user.mfa_enabled = False
+    user.mfa_secret = None
+
+    db.commit()
+
+    log_activity(
+        action="MFA_DISABLED",
+        user_id=user.id,
+        user_email=user.email,
+        details="Two-factor authentication disabled"
+    )
+
+    create_notification(
+        user_id=user.id,
+        title="MFA Disabled",
+        message="Two-factor authentication has been disabled on your TrustShare account.",
+        notification_type="SECURITY_ALERT"
+    )
+
+    db.close()
+
+    return {
+        "message": "MFA disabled successfully",
+        "mfa_enabled": False
+    }
+# =========================================================
+# MFA LOGIN VERIFICATION
+# =========================================================
+
+@router.post("/mfa/verify-login")
+def verify_mfa_login(
+    request: MFAVerifyRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    # Get MFA challenge token
+    mfa_token = credentials.credentials
+
+    # Verify the short-lived MFA token
+    payload = verify_access_token(mfa_token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=401,
+            detail="MFA session expired. Please log in again."
+        )
+
+    # Make sure this is an MFA challenge token
+    if payload.get("mfa_pending") is not True:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid MFA challenge token"
+        )
+
+    user_id = payload.get("user_id")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid MFA challenge"
+        )
+
+    db = Session(bind=engine)
+
+    user = db.query(User).filter(
+        User.id == user_id
+    ).first()
+
+    if not user:
+        db.close()
+
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    # Make sure MFA is enabled
+    if not user.mfa_enabled or not user.mfa_secret:
+        db.close()
+
+        raise HTTPException(
+            status_code=400,
+            detail="MFA is not enabled for this account"
+        )
+
+    # Verify 6-digit authenticator code
+    totp = pyotp.TOTP(user.mfa_secret)
+
+    if not totp.verify(
+        request.otp,
+        valid_window=1
+    ):
+        log_activity(
+            action="MFA_LOGIN_FAILED",
+            user_id=user.id,
+            user_email=user.email,
+            details="Incorrect MFA verification code during login"
+        )
+
+        create_notification(
+            user_id=user.id,
+            title="MFA Login Failed",
+            message="An incorrect MFA verification code was entered during login.",
+            notification_type="SECURITY_ALERT"
+        )
+
+        db.close()
+
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid MFA verification code"
+        )
+
+    # MFA verification successful
+    access_token = create_access_token(
+        data={
+            "user_id": user.id,
+            "email": user.email
+        }
+    )
+
+    log_activity(
+        action="MFA_LOGIN_SUCCESS",
+        user_id=user.id,
+        user_email=user.email,
+        details="MFA verification completed successfully"
+    )
+
+    create_notification(
+        user_id=user.id,
+        title="MFA Login Successful",
+        message="Two-factor authentication was successfully verified during login.",
+        notification_type="SECURITY_ALERT"
+    )
+
+    username = user.username
+    email = user.email
+
+    db.close()
+
+    return {
+        "message": "MFA verification successful",
+        "access_token": access_token,
+        "username": username,
+        "email": email
+    }
+
+# =========================================================
+# CURRENT USER
+# =========================================================
+
+@router.get("/me")
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    token = credentials.credentials
+
+    payload = verify_access_token(token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token"
+        )
+
+    user_id = payload.get("user_id")
+
+    db = Session(bind=engine)
+
+    try:
+        user = db.query(User).filter(
+            User.id == user_id
+        ).first()
+
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
+
+        return {
+            "message": "Authenticated user",
+            "user_id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "mfa_enabled": bool(user.mfa_enabled)
+        }
+
+    finally:
+        db.close()
 
 
 # =========================================================

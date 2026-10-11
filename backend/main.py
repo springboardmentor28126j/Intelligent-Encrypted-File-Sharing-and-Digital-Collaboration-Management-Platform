@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 import secrets
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from encryption import (
     generate_key,
@@ -240,7 +241,11 @@ async def upload_file(
 
             new_file = FileModel(
                 filename=filename,
-                owner_id=current_user["user_id"]
+                owner_id=current_user["user_id"],
+                stored_name=storage_path,
+                owner_email=current_user["email"],
+                file_size=len(content),
+                is_encrypted=True
             )
 
             db.add(new_file)
@@ -452,7 +457,8 @@ def download_shared_file(token: str):
         # Check expiration
         if (
             shared_file.expires_at is not None
-            and datetime.utcnow() > shared_file.expires_at
+            and datetime.now(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
+            > shared_file.expires_at
         ):
             raise HTTPException(
                 status_code=403,
@@ -816,9 +822,10 @@ def create_temporary_share(
         # Generate secure random token
         token = secrets.token_urlsafe(32)
 
-        # Calculate expiration time
-        expires_at = datetime.utcnow() + timedelta(
-            minutes=expires_in_minutes
+        # Calculate expiration time using India Standard Time
+        expires_at = (
+            datetime.now(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
+            + timedelta(minutes=expires_in_minutes)
         )
 
         # Create share record
@@ -859,8 +866,52 @@ def create_temporary_share(
             "message": "Temporary share link created successfully",
             "filename": filename,
             "recipient_email": recipient_email,
-            "expires_at": expires_at.isoformat(),
+            "expires_at": expires_at.isoformat() + "+05:30",
             "share_token": token
+        }
+
+    finally:
+        db.close()
+# =========================================================
+# GET TEMPORARY SHARE INFORMATION
+# =========================================================
+
+@app.get("/share/temporary/{token}")
+def get_temporary_share_info(token: str):
+    db = Session(bind=engine)
+
+    try:
+        shared_file = db.query(FileShare).filter(
+            FileShare.share_token == token
+        ).first()
+
+        if not shared_file:
+            raise HTTPException(
+                status_code=404,
+                detail="Invalid or expired share link"
+            )
+
+        # Check expiration
+        if (
+            shared_file.expires_at is not None
+            and datetime.now(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
+            > shared_file.expires_at
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="This share link has expired"
+            )
+
+        return {
+            "valid": True,
+            "filename": shared_file.filename,
+            "expires_at": (
+                shared_file.expires_at.isoformat() + "+05:30"
+                if shared_file.expires_at
+                else None
+            )
+            if shared_file.expires_at
+            else None
         }
 
     finally:

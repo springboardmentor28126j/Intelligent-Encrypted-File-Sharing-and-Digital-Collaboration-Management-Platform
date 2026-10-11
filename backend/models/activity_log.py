@@ -6,6 +6,7 @@ from database.connection import Base
 
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
+    __table_args__ = {"schema": "public"}
 
     id = Column(
         Integer,

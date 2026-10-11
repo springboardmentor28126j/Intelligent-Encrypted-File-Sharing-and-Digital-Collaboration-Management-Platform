@@ -6,6 +6,7 @@ from database.connection import Base
 
 class Notification(Base):
     __tablename__ = "notifications"
+    __table_args__ = {"schema": "public"}
 
     id = Column(
         Integer,

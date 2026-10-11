@@ -6,6 +6,7 @@ from database.connection import Base
 
 class FileShare(Base):
     __tablename__ = "file_shares"
+    __table_args__ = {"schema": "public"}
 
     id = Column(Integer, primary_key=True, index=True)
 
