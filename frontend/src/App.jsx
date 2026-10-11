@@ -4122,7 +4122,7 @@ if (page === "mfa-setup") {
                 </h1>
 
                 <p>
-                  Analyze your recent TrustShare activity using local AI.
+                  Analyze your complete TrustShare activity history using rule-based security analysis.
                 </p>
               </div>
             </div>
@@ -4175,7 +4175,8 @@ if (page === "mfa-setup") {
                 </h2>
 
                 <p>
-                  Ollama AI analyzes recent TrustShare activity and highlights potentially suspicious patterns based on recorded evidence.
+                  
+                  “TrustShare evaluates historical activity, identifies suspicious patterns, and provides evidence-based security recommendations.”
 
                 </p>
 
@@ -4186,7 +4187,7 @@ if (page === "mfa-setup") {
             {aiAnalysis && (
   <div
     className="panel ai-result-panel"
-    style={{ marginTop: "18px" }}
+    
   >
 
     <div className="panel-header">
@@ -4261,7 +4262,7 @@ if (page === "mfa-setup") {
         </div>
 
         <div>
-          <span>Risk Score</span>
+          <span>Historical Risk Score</span>
 
           <strong>
             {getAiSection("Risk Score")
@@ -4380,17 +4381,184 @@ if (page === "mfa-setup") {
 </div>
 
     </div>
+  
+  
+       
+          
+           
+   {/* Evidence & Findings */}
+<div className="panel ai-result-panel ai-evidence-section">
+  <div className="panel-header">
+    <h2>Evidence &amp; Findings</h2>
+  </div>
+
+  {Array.isArray(aiAnalysis?.evidence) &&
+  aiAnalysis.evidence.length > 0 ? (
+    <div className="ai-evidence-list">
+      {aiAnalysis.evidence.map((item, index) => {
+        const isObject =
+          typeof item === "object" && item !== null;
+
+        const title = isObject
+          ? item.title ||
+            item.rule ||
+            item.finding ||
+            `Finding ${index + 1}`
+          : String(item);
+
+        const description = isObject
+          ? item.description ||
+            item.details ||
+            item.message ||
+            ""
+          : "";
+
+        const observedCount = isObject
+          ? item.observed_count ?? item.observedCount
+          : undefined;
+
+        const failedAttempts = isObject
+          ? item.failed_attempts_before_success ??
+            item.failedAttemptsBeforeSuccess
+          : undefined;
+
+        const sameIpFailures = isObject
+          ? item.same_ip_failed_attempts
+          : undefined;
+
+        const missingIpFailures = isObject
+          ? item.ip_unavailable_failed_attempts
+          : undefined;
+
+        const mfaPairs = isObject
+          ? item.rapid_mfa_change_pairs ??
+            item.rapidMfaChangePairs
+          : undefined;
+
+        const riskPoints = isObject
+          ? item.risk_points ?? item.riskPoints
+          : undefined;
+
+        const isContextual = Number(riskPoints) === 0;
+
+        return (
+          <article
+            className="ai-evidence-row"
+            key={index}
+          >
+            <div className="ai-evidence-row-header">
+              <span
+                className={`ai-evidence-indicator ${
+                  isContextual
+                    ? "contextual"
+                    : "risk"
+                }`}
+              >
+                {isContextual ? "i" : "✓"}
+              </span>
+
+              <div className="ai-evidence-heading">
+                <span className="ai-evidence-label">
+                  {isContextual
+                    ? "Contextual evidence"
+                    : `Finding ${index + 1}`}
+                </span>
+
+                <strong className="ai-evidence-title">
+                  {String(title)
+                    .replaceAll("_", " ")
+                    .replace(/\b\w/g, (char) =>
+                      char.toUpperCase()
+                    )}
+                </strong>
+              </div>
+
+              {riskPoints !== undefined && (
+                <span
+                  className={`ai-evidence-risk ${
+                    isContextual ? "contextual" : "risk"
+                  }`}
+                >
+                  {riskPoints} risk points
+                </span>
+              )}
+            </div>
+
+            {description && (
+              <p className="ai-evidence-description">
+                {description}
+              </p>
+            )}
+
+            {(observedCount !== undefined ||
+              failedAttempts !== undefined ||
+              sameIpFailures !== undefined ||
+              missingIpFailures !== undefined ||
+              mfaPairs !== undefined) && (
+              <div className="ai-evidence-details">
+                {observedCount !== undefined && (
+                  <p>
+                    <span>Observed count</span>
+                    <strong>{observedCount}</strong>
+                  </p>
+                )}
+
+                {failedAttempts !== undefined && (
+                  <p>
+                    <span>Failed attempts before success</span>
+                    <strong>{failedAttempts}</strong>
+                  </p>
+                )}
+
+                {sameIpFailures !== undefined && (
+                  <p>
+                    <span>Same-IP failed attempts</span>
+                    <strong>{sameIpFailures}</strong>
+                  </p>
+                )}
+
+                {missingIpFailures !== undefined && (
+                  <p>
+                    <span>Attempts with unavailable IP data</span>
+                    <strong>{missingIpFailures}</strong>
+                  </p>
+                )}
+
+                {mfaPairs !== undefined && (
+                  <p>
+                    <span>Rapid MFA change pairs</span>
+                    <strong>{mfaPairs}</strong>
+                  </p>
+                )}
+              </div>
+            )}
+          </article>
+        );
+      })}
+    </div>
+  ) : (
+    <p className="ai-evidence-empty">
+      No detailed evidence was returned by the security analysis.
+    </p>
+  )}
+</div>       
+  
+
+
+
+
+
+  
 
   </div>
+
+
 )}
               
-                    
+                   
                   
             {aiInsights && (
-  <div
-    className="panel ai-result-panel"
-    style={{ marginTop: "18px" }}
-  >
+  <div className="panel ai-result-panel ai-insights-panel">
 
     <div className="panel-header">
       <h2>
@@ -4528,13 +4696,24 @@ if (page === "mfa-setup") {
           lineHeight: "1.7",
         }}
       >
+        
         {getAiInsightSection("recommendations")}
       </p>
 
     </div>
+      
+    <div className="ai-evidence-section ai-evidence-reference">
+      <p className="ai-evidence-empty">
+        Detailed security evidence and risk points are available in
+        the AI Security Assessment panel above.
+      </p>
+    </div>
+  
+
 
   </div>
 )}
+     
 
           </div>
         )}
