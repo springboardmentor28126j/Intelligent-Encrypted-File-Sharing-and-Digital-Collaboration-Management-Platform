@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
+const API_URL = import.meta.env.VITE_API_URL;
 function Upload() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
