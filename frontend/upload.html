@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Upload File | TrustShare</title>
+
+    <!-- COMMON DASHBOARD STYLES -->
+    <link rel="stylesheet" href="css/dashboard.css">
+
+    <!-- UPLOAD PAGE STYLES -->
+    <link rel="stylesheet" href="upload.css">
+</head>
+
+<body>
+
+    <!-- =====================================================
+         SIDEBAR
+         SAME SIDEBAR AS DASHBOARD
+         ===================================================== -->
+
+    <!-- SIDEBAR -->
+<aside class="sidebar">
+
+    <!-- Logo -->
+    <div class="sidebar-logo">
+
+        <div class="sidebar-logo-icon">
+            🔐
+        </div>
+
+        <h1>TrustShare</h1>
+
+    </div>
+
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+
+        <ul>
+
+            <!-- Dashboard -->
+            <li>
+
+                <a href="dashboard.html">
+
+                    <span class="nav-icon">🏠</span>
+
+                    <span>Dashboard</span>
+
+                </a>
+
+            </li>
+
+
+            <!-- Files -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    onclick="toggleSidebarMenu('filesSubmenu', 'filesArrow')"
+                >
+
+                    <span class="nav-icon">📁</span>
+
+                    <span>Files</span>
+
+                    <span
+                        class="nav-arrow"
+                        id="filesArrow"
+                    >
+                        ▾
+                    </span>
+
+                </a>
+
+
+                <ul
+                    class="sidebar-submenu"
+                    id="filesSubmenu"
+                >
+
+                    <li>
+
+                        <a
+                            href="files.html"
+                            class="active"
+                        >
+                            My Files
+                        </a>
+
+                    </li>
+
+                    <li>
+
+                        <a href="shared-files.html">
+                            Shared Files
+                        </a>
+
+                    </li>
+
+                </ul>
+
+            </li>
+
+            <!-- Share -->
+<li>
+    <a href="share.html">
+
+        <span class="nav-icon">🔗</span>
+
+        <span>Share</span>
+
+    </a>
+</li>
+
+            <!-- Activity -->
+            <li>
+
+                <a href="activity.html">
+
+                    <span class="nav-icon">📋</span>
+
+                    <span>Activity</span>
+
+                </a>
+
+            </li>
+
+
+            <!-- Notifications -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    id="notificationButton"
+                    onclick="toggleNotifications()"
+                >
+
+                    <span class="nav-icon">🔔</span>
+
+                    <span>Notifications</span>
+
+                    <span
+                        id="sidebarNotificationBadge"
+                        class="notification-badge"
+                        style="display:none;"
+                    >
+                        0
+                    </span>
+
+                </a>
+
+            </li>
+
+
+            <!-- Security -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    onclick="toggleSidebarMenu('securitySubmenu', 'securityArrow')"
+                >
+
+                    <span class="nav-icon">🛡</span>
+
+                    <span>Security</span>
+
+                    <span
+                        class="nav-arrow"
+                        id="securityArrow"
+                    >
+                        ▾
+                    </span>
+
+                </a>
+
+
+                <ul
+                    class="sidebar-submenu"
+                    id="securitySubmenu"
+                >
+
+                    <li>
+
+                        <a href="dashboard.html#securityAlertsSection">
+                            Security Alerts
+                        </a>
+
+                    </li>
+
+                    <li>
+
+                        <a href="dashboard.html#securityReportSection">
+                            Security Report
+                        </a>
+
+                    </li>
+
+                </ul>
+
+            </li>
+
+
+            <!-- Analytics -->
+            <li>
+
+                <a href="dashboard.html#storageAnalyticsSection">
+
+                    <span class="nav-icon">📊</span>
+
+                    <span>Analytics</span>
+
+                </a>
+
+            </li>
+
+        </ul>
+
+    </nav>
+
+
+    <!-- Logout -->
+    <div class="sidebar-bottom">
+
+        <a
+            href="javascript:void(0)"
+            onclick="logout()"
+        >
+
+            <span class="nav-icon">🚪</span>
+
+            <span>Logout</span>
+
+        </a>
+
+    </div>
+
+</aside>
+    <!-- =====================================================
+         MAIN CONTENT
+         ===================================================== -->
+
+    <main class="main-content">
+
+
+        <!-- =================================================
+             SAME TOPBAR AS DASHBOARD
+             ================================================= -->
+
+        <div class="dashboard-topbar">
+
+            <div class="topbar-spacer"></div>
+
+
+            <div class="topbar-actions">
+
+                <!-- DARK MODE -->
+                <button
+                    type="button"
+                    class="topbar-icon-button"
+                    id="themeToggle"
+                    onclick="toggleDarkMode()"
+                    aria-label="Toggle dark mode"
+                >
+                    🌙
+                </button>
+
+
+                <!-- NOTIFICATIONS -->
+                <div class="topbar-notification-wrapper">
+
+                    <button
+                        type="button"
+                        class="topbar-icon-button"
+                        id="topNotificationButton"
+                        onclick="toggleTopNotifications()"
+                        aria-label="Notifications"
+                    >
+                        🔔
+
+                        <span
+                            id="topNotificationBadge"
+                            class="top-notification-badge"
+                            style="display:none;"
+                        >
+                            0
+                        </span>
+
+                    </button>
+
+
+                    <!-- TOP NOTIFICATION DROPDOWN -->
+                    <div
+                        id="topNotificationDropdown"
+                        class="top-notification-dropdown"
+                    >
+
+                        <div class="notification-header">
+
+                            <strong>Notifications</strong>
+
+                            <button
+                                type="button"
+                                id="topMarkAllReadBtn"
+                                onclick="markAllNotificationsAsRead()"
+                            >
+                                Mark all as read
+                            </button>
+
+                        </div>
+
+
+                        <div id="topNotificationsList">
+
+                            <div class="no-notifications">
+                                Loading notifications...
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- PROFILE -->
+                <button
+                    type="button"
+                    class="topbar-profile"
+                    onclick="openProfile()"
+                >
+
+                    <div class="profile-avatar">
+                        👤
+                    </div>
+
+                    <div class="profile-info">
+
+                        <span class="profile-name">
+                            Profile
+                        </span>
+
+                        <span class="profile-role">
+                            Account
+                        </span>
+
+                    </div>
+
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             UPLOAD PAGE CONTENT
+             ================================================= -->
+
+        <section class="upload-container">
+
+
+            <!-- PAGE INTRO -->
+
+            <div class="page-intro">
+
+                <div>
+
+                    <h2>
+                        Upload a new file
+                    </h2>
+
+                    <p>
+                        Securely upload your files to your TrustShare storage.
+                        Your files are encrypted before being stored.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <!-- =================================================
+                 UPLOAD CARD
+                 ================================================= -->
+
+            <div class="upload-card">
+
+                <form id="uploadForm">
+
+
+                    <!-- =================================================
+                         DROP ZONE
+                         ================================================= -->
+
+                    <div
+                        class="drop-zone"
+                        id="dropZone"
+                    >
+
+                        <input
+                            type="file"
+                            id="fileInput"
+                            hidden
+                        >
+
+
+                        <div class="upload-icon">
+                            ↑
+                        </div>
+
+
+                        <h3>
+                            Drop your file here
+                        </h3>
+
+
+                        <p>
+                            or choose a file from your computer
+                        </p>
+
+
+                        <button
+                            type="button"
+                            class="choose-btn"
+                            id="chooseFileBtn"
+                        >
+                            Choose File
+                        </button>
+
+
+                        <span class="supported">
+                            Documents, images, projects and other files
+                        </span>
+
+                    </div>
+
+
+                    <!-- =================================================
+                         SELECTED FILE
+                         ================================================= -->
+
+                    <div
+                        class="selected-file"
+                        id="selectedFile"
+                    >
+
+                        <div class="file-icon">
+                            📄
+                        </div>
+
+
+                        <div class="file-info">
+
+                            <strong id="fileName">
+                                No file selected
+                            </strong>
+
+                            <span id="fileSize">
+                                Select a file to continue
+                            </span>
+
+                        </div>
+
+
+                        <button
+                            type="button"
+                            id="removeFile"
+                            class="remove-file"
+                        >
+                            ×
+                        </button>
+
+                    </div>
+
+
+                    <!-- =================================================
+                         FILE CATEGORY
+                         ================================================= -->
+
+                    <div class="form-section">
+
+                        <label for="category">
+                            File Category
+                        </label>
+
+                        <p class="field-description">
+                            Select a category to organize your files.
+                        </p>
+
+
+                        <div class="category-grid">
+
+
+                            <!-- DOCUMENT -->
+
+                            <label class="category-option">
+
+                                <input
+                                    type="radio"
+                                    name="category"
+                                    value="Document"
+                                    checked
+                                >
+
+                                <div class="category-card">
+
+                                    <span class="category-icon">
+                                        📄
+                                    </span>
+
+                                    <div>
+
+                                        <strong>
+                                            Document
+                                        </strong>
+
+                                        <small>
+                                            PDF, DOCX, TXT
+                                        </small>
+
+                                    </div>
+
+                                </div>
+
+                            </label>
+
+
+                            <!-- IMAGE -->
+
+                            <label class="category-option">
+
+                                <input
+                                    type="radio"
+                                    name="category"
+                                    value="Image"
+                                >
+
+                                <div class="category-card">
+
+                                    <span class="category-icon">
+                                        🖼
+                                    </span>
+
+                                    <div>
+
+                                        <strong>
+                                            Image
+                                        </strong>
+
+                                        <small>
+                                            JPG, PNG, SVG
+                                        </small>
+
+                                    </div>
+
+                                </div>
+
+                            </label>
+
+
+                            <!-- PROJECT -->
+
+                            <label class="category-option">
+
+                                <input
+                                    type="radio"
+                                    name="category"
+                                    value="Project"
+                                >
+
+                                <div class="category-card">
+
+                                    <span class="category-icon">
+                                        📁
+                                    </span>
+
+                                    <div>
+
+                                        <strong>
+                                            Project
+                                        </strong>
+
+                                        <small>
+                                            Project files
+                                        </small>
+
+                                    </div>
+
+                                </div>
+
+                            </label>
+
+
+                            <!-- OTHER -->
+
+                            <label class="category-option">
+
+                                <input
+                                    type="radio"
+                                    name="category"
+                                    value="Other"
+                                >
+
+                                <div class="category-card">
+
+                                    <span class="category-icon">
+                                        ▣
+                                    </span>
+
+                                    <div>
+
+                                        <strong>
+                                            Other
+                                        </strong>
+
+                                        <small>
+                                            Other file types
+                                        </small>
+
+                                    </div>
+
+                                </div>
+
+                            </label>
+
+                        </div>
+
+
+                        <!-- Hidden select for JS compatibility -->
+
+                        <select id="category" hidden>
+
+                            <option value="Document">
+                                Document
+                            </option>
+
+                            <option value="Image">
+                                Image
+                            </option>
+
+                            <option value="Project">
+                                Project
+                            </option>
+
+                            <option value="Other">
+                                Other
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <!-- =================================================
+                         SECURITY NOTICE
+                         ================================================= -->
+
+                    <div class="security-notice">
+
+                        <div class="notice-icon">
+                            ✓
+                        </div>
+
+                        <div>
+
+                            <strong>
+                                Your file is protected
+                            </strong>
+
+                            <p>
+                                TrustShare encrypts your file using
+                                AES-256 before storing it in secure cloud
+                                storage.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- =================================================
+                         UPLOAD PROGRESS
+                         ================================================= -->
+
+                    <div
+                        class="upload-progress"
+                        id="uploadProgress"
+                    >
+
+                        <div class="progress-header">
+
+                            <span>
+                                Uploading file...
+                            </span>
+
+                            <span id="progressText">
+                                0%
+                            </span>
+
+                        </div>
+
+
+                        <div class="progress-bar">
+
+                            <div
+                                class="progress-fill"
+                                id="progressFill"
+                            ></div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- =================================================
+                         ACTION BUTTONS
+                         ================================================= -->
+
+                    <div class="form-actions">
+
+                        <a
+                            href="files.html"
+                            class="cancel-btn"
+                        >
+                            Cancel
+                        </a>
+
+
+                        <button
+                            type="submit"
+                            class="upload-btn"
+                            id="uploadButton"
+                        >
+
+                            <span>
+                                ↑
+                            </span>
+
+                            Upload Securely
+
+                        </button>
+
+                    </div>
+
+                </form>
+
+            </div>
+
+
+            <!-- =================================================
+                 SECURITY FEATURES
+                 ================================================= -->
+
+            <div class="security-features">
+
+
+                <!-- AES-256 -->
+
+                <div class="feature">
+
+                    <div class="feature-icon">
+                        🔐
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            AES-256 Encryption
+                        </strong>
+
+                        <span>
+                            Your file is encrypted before storage.
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <!-- CLOUD STORAGE -->
+
+                <div class="feature">
+
+                    <div class="feature-icon">
+                        ☁
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            Secure Cloud Storage
+                        </strong>
+
+                        <span>
+                            Encrypted files are stored securely.
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <!-- ACCESS CONTROL -->
+
+                <div class="feature">
+
+                    <div class="feature-icon">
+                        🛡
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            Access Control
+                        </strong>
+
+                        <span>
+                            Only authorized users can access files.
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- =====================================================
+         JAVASCRIPT
+         ===================================================== -->
+
+    <!-- COMMON DASHBOARD JS -->
+    <script src="js/dashboard.js"></script>
+
+    <!-- UPLOAD PAGE JS -->
+    <script src="upload.js"></script>
+
+
+    <!-- =====================================================
+         PAGE-SPECIFIC JS
+         ===================================================== -->
+
+    <script>
+
+        // =====================================================
+        // CHOOSE FILE BUTTON
+        // =====================================================
+
+        const chooseFileBtn =
+            document.getElementById("chooseFileBtn");
+
+        const fileInput =
+            document.getElementById("fileInput");
+
+
+        chooseFileBtn.addEventListener("click", () => {
+            fileInput.click();
+        });
+
+
+        // =====================================================
+        // CATEGORY SYNCHRONIZATION
+        // =====================================================
+
+        const categorySelect =
+            document.getElementById("category");
+
+        const categoryRadios =
+            document.querySelectorAll(
+                'input[name="category"]'
+            );
+
+
+        categoryRadios.forEach(radio => {
+
+            radio.addEventListener("change", () => {
+
+                categorySelect.value = radio.value;
+
+            });
+
+        });
+
+    </script>
+
+</body>
+
+</html>

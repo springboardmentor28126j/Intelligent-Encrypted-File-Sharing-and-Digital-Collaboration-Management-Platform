@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Notifications - TrustShare</title>
+
+    <!-- Common TrustShare shell -->
+    <link rel="stylesheet" href="css/dashboard.css">
+
+    <!-- Notifications page styles -->
+    <link rel="stylesheet" href="css/notifications.css">
+</head>
+
+<body>
+
+<div class="dashboard-container">
+
+    <!-- =====================================================
+         COMMON SIDEBAR
+         ===================================================== -->
+    <!-- SIDEBAR -->
+<aside class="sidebar">
+
+    <!-- Logo -->
+    <div class="sidebar-logo">
+
+        <div class="sidebar-logo-icon">
+            🔐
+        </div>
+
+        <h1>TrustShare</h1>
+
+    </div>
+
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+
+        <ul>
+
+            <!-- Dashboard -->
+            <li>
+
+                <a href="dashboard.html">
+
+                    <span class="nav-icon">🏠</span>
+
+                    <span>Dashboard</span>
+
+                </a>
+
+            </li>
+
+
+            <!-- Files -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    onclick="toggleSidebarMenu('filesSubmenu', 'filesArrow')"
+                >
+
+                    <span class="nav-icon">📁</span>
+
+                    <span>Files</span>
+
+                    <span
+                        class="nav-arrow"
+                        id="filesArrow"
+                    >
+                        ▾
+                    </span>
+
+                </a>
+
+
+                <ul
+                    class="sidebar-submenu"
+                    id="filesSubmenu"
+                >
+
+                    <li>
+
+                        <a
+                            href="files.html"
+                            class="active"
+                        >
+                            My Files
+                        </a>
+
+                    </li>
+
+                    <li>
+
+                        <a href="shared-files.html">
+                            Shared Files
+                        </a>
+
+                    </li>
+
+                </ul>
+
+            </li>
+
+             <!-- Share -->
+<li>
+    <a href="share.html">
+
+        <span class="nav-icon">🔗</span>
+
+        <span>Share</span>
+
+    </a>
+</li>
+
+            <!-- Activity -->
+            <li>
+
+                <a href="activity.html">
+
+                    <span class="nav-icon">📋</span>
+
+                    <span>Activity</span>
+
+                </a>
+
+            </li>
+
+
+            <!-- Notifications -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    id="notificationButton"
+                    onclick="toggleNotifications()"
+                >
+
+                    <span class="nav-icon">🔔</span>
+
+                    <span>Notifications</span>
+
+                    <span
+                        id="sidebarNotificationBadge"
+                        class="notification-badge"
+                        style="display:none;"
+                    >
+                        0
+                    </span>
+
+                </a>
+
+            </li>
+
+
+            <!-- Security -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    onclick="toggleSidebarMenu('securitySubmenu', 'securityArrow')"
+                >
+
+                    <span class="nav-icon">🛡</span>
+
+                    <span>Security</span>
+
+                    <span
+                        class="nav-arrow"
+                        id="securityArrow"
+                    >
+                        ▾
+                    </span>
+
+                </a>
+
+
+                <ul
+                    class="sidebar-submenu"
+                    id="securitySubmenu"
+                >
+
+                    <li>
+
+                        <a href="dashboard.html#securityAlertsSection">
+                            Security Alerts
+                        </a>
+
+                    </li>
+
+                    <li>
+
+                        <a href="dashboard.html#securityReportSection">
+                            Security Report
+                        </a>
+
+                    </li>
+
+                </ul>
+
+            </li>
+
+
+            <!-- Analytics -->
+            <li>
+
+                <a href="dashboard.html#storageAnalyticsSection">
+
+                    <span class="nav-icon">📊</span>
+
+                    <span>Analytics</span>
+
+                </a>
+
+            </li>
+
+        </ul>
+
+    </nav>
+
+
+    <!-- Logout -->
+    <div class="sidebar-bottom">
+
+        <a
+            href="javascript:void(0)"
+            onclick="logout()"
+        >
+
+            <span class="nav-icon">🚪</span>
+
+            <span>Logout</span>
+
+        </a>
+
+    </div>
+
+</aside>
+
+
+
+    <!-- =====================================================
+         MAIN AREA
+         ===================================================== -->
+    <main class="main-content">
+
+        <!-- =================================================
+             COMMON TOPBAR
+             ================================================= -->
+        <div class="dashboard-topbar">
+
+            <div class="topbar-spacer"></div>
+
+            <div class="topbar-actions">
+
+                <!-- Theme -->
+                <button
+                    type="button"
+                    class="topbar-icon-button"
+                    id="themeToggle"
+                    onclick="toggleDarkMode()"
+                    aria-label="Toggle dark mode"
+                >
+                    🌙
+                </button>
+
+
+                <!-- Notifications -->
+                <div class="topbar-notification-wrapper">
+
+                    <button
+                        type="button"
+                        class="topbar-icon-button"
+                        id="topNotificationButton"
+                        onclick="toggleTopNotifications()"
+                        aria-label="Notifications"
+                    >
+                        🔔
+
+                        <span
+                            id="topNotificationBadge"
+                            class="top-notification-badge"
+                            style="display:none;"
+                        >
+                            0
+                        </span>
+
+                    </button>
+
+
+                    <!-- Top notification dropdown -->
+                    <div
+                        id="topNotificationDropdown"
+                        class="top-notification-dropdown"
+                    >
+
+                        <div class="notification-header">
+
+                            <strong>Notifications</strong>
+
+                            <button
+                                type="button"
+                                id="topMarkAllReadBtn"
+                                onclick="markAllNotificationsAsRead()"
+                            >
+                                Mark all as read
+                            </button>
+
+                        </div>
+
+                        <div id="topNotificationsList">
+
+                            <div class="no-notifications">
+                                Loading notifications...
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Profile -->
+                <button
+                    type="button"
+                    class="topbar-profile"
+                    onclick="openProfile()"
+                >
+
+                    <div class="profile-avatar">
+                        👤
+                    </div>
+
+                    <div class="profile-info">
+
+                        <span class="profile-name">
+                            Profile
+                        </span>
+
+                        <span class="profile-role">
+                            Account
+                        </span>
+
+                    </div>
+
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             NOTIFICATIONS CONTENT
+             ================================================= -->
+        <section class="notifications-page">
+
+            <!-- Page header -->
+            <div class="notifications-page-header">
+
+                <div>
+
+                    <h1>Notifications</h1>
+
+                    <p>
+                        Stay updated with file activity, sharing,
+                        downloads and security events.
+                    </p>
+
+                </div>
+
+
+                <button
+                    type="button"
+                    class="mark-all-btn"
+                    onclick="markAllNotificationsAsRead()"
+                >
+                    ✓ Mark all as read
+                </button>
+
+            </div>
+
+
+            <!-- =================================================
+                 SUMMARY CARDS
+                 ================================================= -->
+            <div class="notification-summary-grid">
+
+                <!-- Total -->
+                <div class="notification-summary-card">
+
+                    <div class="summary-card-icon blue">
+                        🔔
+                    </div>
+
+                    <div>
+
+                        <div
+                            class="summary-card-value"
+                            id="totalNotifications"
+                        >
+                            —
+                        </div>
+
+                        <div class="summary-card-label">
+                            Total Notifications
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Unread -->
+                <div class="notification-summary-card">
+
+                    <div class="summary-card-icon orange">
+                        ●
+                    </div>
+
+                    <div>
+
+                        <div
+                            class="summary-card-value"
+                            id="unreadNotifications"
+                        >
+                            —
+                        </div>
+
+                        <div class="summary-card-label">
+                            Unread
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Security -->
+                <div class="notification-summary-card">
+
+                    <div class="summary-card-icon red">
+                        🛡
+                    </div>
+
+                    <div>
+
+                        <div
+                            class="summary-card-value"
+                            id="securityNotifications"
+                        >
+                            —
+                        </div>
+
+                        <div class="summary-card-label">
+                            Security Alerts
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- =================================================
+                 FILTERS
+                 ================================================= -->
+            <div class="notifications-toolbar">
+
+                <div class="notification-tabs">
+
+                    <button
+                        type="button"
+                        class="notification-tab active"
+                        id="allNotificationsTab"
+                    >
+                        All
+                    </button>
+
+                    <button
+                        type="button"
+                        class="notification-tab"
+                        id="unreadNotificationsTab"
+                    >
+                        Unread
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- =================================================
+                 NOTIFICATION LIST
+                 ================================================= -->
+            <section class="notifications-card">
+
+                <div class="notifications-card-header">
+
+                    <div>
+
+                        <h2>Recent Notifications</h2>
+
+                        <p>
+                            Your latest TrustShare updates
+                        </p>
+
+                    </div>
+
+                    <button
+                        type="button"
+                        class="refresh-notifications-btn"
+                        onclick="loadNotificationPage()"
+                    >
+                        ↻ Refresh
+                    </button>
+
+                </div>
+
+
+                <div
+                    id="notificationPageList"
+                    class="notification-page-list"
+                >
+
+                    <div class="notification-page-loading">
+                        <div class="loading-spinner"></div>
+
+                        <span>
+                            Loading notifications...
+                        </span>
+                    </div>
+
+                </div>
+
+
+                <!-- Empty state -->
+                <div
+                    id="notificationPageEmpty"
+                    class="notification-page-empty"
+                    style="display:none;"
+                >
+
+                    <div class="empty-notification-icon">
+                        🔔
+                    </div>
+
+                    <h3>No notifications</h3>
+
+                    <p>
+                        You don't have any notifications right now.
+                    </p>
+
+                </div>
+
+            </section>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<!-- =========================================================
+     EXISTING COMMON JAVASCRIPT
+     ========================================================= -->
+<script src="js/dashboard.js"></script>
+
+
+<!-- =========================================================
+     NOTIFICATION PAGE JAVASCRIPT
+     ========================================================= -->
+<script>
+
+let notificationPageData = [];
+let notificationPageFilter = "all";
+
+
+/* =========================================================
+   LOAD NOTIFICATIONS
+   ========================================================= */
+
+async function loadNotificationPage() {
+
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+
+        window.location.href = "login.html";
+
+        return;
+    }
+
+
+    const list = document.getElementById(
+        "notificationPageList"
+    );
+
+    const empty = document.getElementById(
+        "notificationPageEmpty"
+    );
+
+
+    if (list) {
+
+        list.innerHTML = `
+            <div class="notification-page-loading">
+                <div class="loading-spinner"></div>
+                <span>Loading notifications...</span>
+            </div>
+        `;
+    }
+
+
+    try {
+
+        const response = await fetch(
+            `${API_URL}/notifications`,
+            {
+                method: "GET",
+
+                headers: {
+                    "Authorization": "Bearer " + token
+                }
+            }
+        );
+
+
+        if (response.status === 401) {
+
+            localStorage.removeItem("access_token");
+
+            window.location.href = "login.html";
+
+            return;
+        }
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                "Unable to load notifications."
+            );
+        }
+
+
+        const data = await response.json();
+
+
+        notificationPageData =
+            Array.isArray(data.notifications)
+                ? data.notifications
+                : [];
+
+
+        updateNotificationSummary();
+
+        displayNotificationPage();
+
+
+    } catch (error) {
+
+        console.error(
+            "Notification page error:",
+            error
+        );
+
+
+        if (list) {
+
+            list.innerHTML = `
+                <div class="notification-page-error">
+                    <div class="error-icon">⚠️</div>
+
+                    <h3>Unable to load notifications</h3>
+
+                    <p>
+                        Please try again.
+                    </p>
+
+                    <button
+                        type="button"
+                        onclick="loadNotificationPage()"
+                    >
+                        Try Again
+                    </button>
+                </div>
+            `;
+        }
+
+        if (empty) {
+
+            empty.style.display = "none";
+        }
+    }
+}
+
+
+/* =========================================================
+   UPDATE SUMMARY
+   ========================================================= */
+
+function updateNotificationSummary() {
+
+    const total =
+        notificationPageData.length;
+
+
+    const unread =
+        notificationPageData.filter(
+            notification => !notification.is_read
+        ).length;
+
+
+    const security =
+        notificationPageData.filter(
+            notification => {
+
+                const type =
+                    String(
+                        notification.notification_type || ""
+                    ).toLowerCase();
+
+                const title =
+                    String(
+                        notification.title || ""
+                    ).toLowerCase();
+
+                return (
+                    type.includes("security") ||
+                    title.includes("security") ||
+                    title.includes("suspicious") ||
+                    title.includes("failed")
+                );
+            }
+        ).length;
+
+
+    const totalElement =
+        document.getElementById(
+            "totalNotifications"
+        );
+
+    const unreadElement =
+        document.getElementById(
+            "unreadNotifications"
+        );
+
+    const securityElement =
+        document.getElementById(
+            "securityNotifications"
+        );
+
+
+    if (totalElement) {
+
+        totalElement.textContent = total;
+    }
+
+
+    if (unreadElement) {
+
+        unreadElement.textContent = unread;
+    }
+
+
+    if (securityElement) {
+
+        securityElement.textContent = security;
+    }
+}
+
+
+/* =========================================================
+   DISPLAY NOTIFICATIONS
+   ========================================================= */
+
+function displayNotificationPage() {
+
+    const list =
+        document.getElementById(
+            "notificationPageList"
+        );
+
+    const empty =
+        document.getElementById(
+            "notificationPageEmpty"
+        );
+
+
+    if (!list) return;
+
+
+    let notifications =
+        notificationPageData;
+
+
+    if (notificationPageFilter === "unread") {
+
+        notifications =
+            notificationPageData.filter(
+                notification => !notification.is_read
+            );
+    }
+
+
+    if (!notifications.length) {
+
+        list.innerHTML = "";
+
+        if (empty) {
+
+            empty.style.display = "block";
+        }
+
+        return;
+    }
+
+
+    if (empty) {
+
+        empty.style.display = "none";
+    }
+
+
+    list.innerHTML = "";
+
+
+    notifications.forEach(notification => {
+
+        const item =
+            document.createElement("div");
+
+
+        item.className =
+            "notification-page-item" +
+            (!notification.is_read
+                ? " unread"
+                : "");
+
+
+        const date =
+            notification.created_at
+                ? new Date(
+                    notification.created_at
+                ).toLocaleString()
+                : "";
+
+
+        const type =
+            notification.notification_type
+                ? notification.notification_type
+                : "Notification";
+
+
+        item.innerHTML = `
+
+            <div class="notification-page-icon">
+
+                ${getNotificationIcon(notification)}
+
+            </div>
+
+
+            <div class="notification-page-content">
+
+                <div class="notification-page-title-row">
+
+                    <h3>
+                        ${escapeNotificationHtml(
+                            notification.title ||
+                            "Notification"
+                        )}
+                    </h3>
+
+                    ${
+                        !notification.is_read
+                            ? `
+                                <span class="unread-dot">
+                                </span>
+                            `
+                            : ""
+                    }
+
+                </div>
+
+
+                <p class="notification-page-message">
+
+                    ${escapeNotificationHtml(
+                        notification.message || ""
+                    )}
+
+                </p>
+
+
+                <div class="notification-page-meta">
+
+                    <span>
+                        ${escapeNotificationHtml(type)}
+                    </span>
+
+                    <span>
+                        ${date}
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            ${
+                !notification.is_read
+                    ? `
+                        <button
+                            type="button"
+                            class="notification-read-btn"
+                            onclick="event.stopPropagation(); markPageNotificationRead(${notification.id})"
+                        >
+                            Mark as read
+                        </button>
+                    `
+                    : `
+                        <span class="notification-read-label">
+                            Read
+                        </span>
+                    `
+            }
+
+        `;
+
+
+        item.addEventListener(
+            "click",
+            () => {
+
+                if (!notification.is_read) {
+
+                    markPageNotificationRead(
+                        notification.id
+                    );
+                }
+
+            }
+        );
+
+
+        list.appendChild(item);
+
+    });
+}
+
+
+/* =========================================================
+   NOTIFICATION ICON
+   ========================================================= */
+
+function getNotificationIcon(notification) {
+
+    const type =
+        String(
+            notification.notification_type || ""
+        ).toLowerCase();
+
+
+    const title =
+        String(
+            notification.title || ""
+        ).toLowerCase();
+
+
+    if (
+        type.includes("security") ||
+        title.includes("security") ||
+        title.includes("suspicious")
+    ) {
+
+        return "🛡️";
+    }
+
+
+    if (
+        type.includes("download") ||
+        title.includes("download")
+    ) {
+
+        return "📥";
+    }
+
+
+    if (
+        type.includes("share") ||
+        title.includes("share")
+    ) {
+
+        return "🔗";
+    }
+
+
+    if (
+        type.includes("upload") ||
+        title.includes("upload")
+    ) {
+
+        return "📤";
+    }
+
+
+    if (
+        type.includes("expiration") ||
+        title.includes("expiration") ||
+        title.includes("expired")
+    ) {
+
+        return "⏰";
+    }
+
+
+    return "🔔";
+}
+
+
+/* =========================================================
+   MARK SINGLE NOTIFICATION AS READ
+   ========================================================= */
+
+async function markPageNotificationRead(
+    notificationId
+) {
+
+    const token =
+        localStorage.getItem(
+            "access_token"
+        );
+
+
+    if (!token) {
+
+        window.location.href =
+            "login.html";
+
+        return;
+    }
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${API_URL}/notifications/${notificationId}/read`,
+                {
+                    method: "PUT",
+
+                    headers: {
+                        "Authorization":
+                            "Bearer " + token
+                    }
+                }
+            );
+
+
+        if (response.status === 401) {
+
+            localStorage.removeItem(
+                "access_token"
+            );
+
+            window.location.href =
+                "login.html";
+
+            return;
+        }
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                "Unable to mark notification as read."
+            );
+        }
+
+
+        /*
+         * Reload page notifications.
+         */
+        await loadNotificationPage();
+
+
+        /*
+         * Also refresh the global
+         * top-bar notification badge.
+         */
+        if (
+            typeof loadNotifications ===
+            "function"
+        ) {
+
+            await loadNotifications();
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "Mark notification read error:",
+            error
+        );
+    }
+}
+
+
+/* =========================================================
+   FILTER TABS
+   ========================================================= */
+
+document.addEventListener(
+    "DOMContentLoaded",
+    () => {
+
+        const allTab =
+            document.getElementById(
+                "allNotificationsTab"
+            );
+
+
+        const unreadTab =
+            document.getElementById(
+                "unreadNotificationsTab"
+            );
+
+
+        if (allTab) {
+
+            allTab.addEventListener(
+                "click",
+                () => {
+
+                    notificationPageFilter =
+                        "all";
+
+
+                    allTab.classList.add(
+                        "active"
+                    );
+
+
+                    if (unreadTab) {
+
+                        unreadTab.classList.remove(
+                            "active"
+                        );
+                    }
+
+
+                    displayNotificationPage();
+
+                }
+            );
+        }
+
+
+        if (unreadTab) {
+
+            unreadTab.addEventListener(
+                "click",
+                () => {
+
+                    notificationPageFilter =
+                        "unread";
+
+
+                    unreadTab.classList.add(
+                        "active"
+                    );
+
+
+                    if (allTab) {
+
+                        allTab.classList.remove(
+                            "active"
+                        );
+                    }
+
+
+                    displayNotificationPage();
+
+                }
+            );
+        }
+
+
+        /*
+         * Load the dedicated notification page.
+         */
+        loadNotificationPage();
+
+    }
+);
+
+
+/* =========================================================
+   HTML ESCAPE
+   ========================================================= */
+
+function escapeNotificationHtml(value) {
+
+    return String(value)
+
+        .replace(/&/g, "&amp;")
+
+        .replace(/</g, "&lt;")
+
+        .replace(/>/g, "&gt;")
+
+        .replace(/"/g, "&quot;")
+
+        .replace(/'/g, "&#039;");
+}
+
+</script>
+
+</body>
+</html>

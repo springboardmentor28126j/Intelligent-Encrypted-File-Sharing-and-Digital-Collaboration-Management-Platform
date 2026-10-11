@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# TrustShare secrets and local files
+.env.*
+!.env.example
+uploads/
+*.tmp
+
+# Local virtual environments
+.venv/
+venv/

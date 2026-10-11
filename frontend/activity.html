@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Activity & Audit | TrustShare</title>
+
+    <!-- COMMON TRUSTSHARE STYLES -->
+    <link rel="stylesheet" href="css/dashboard.css">
+
+    <!-- ACTIVITY PAGE STYLES -->
+    <link rel="stylesheet" href="css/activity.css">
+</head>
+
+<body>
+
+    <!-- =====================================================
+         SIDEBAR
+         SAME ON ALL AUTHENTICATED PAGES
+         ===================================================== -->
+
+    <!-- SIDEBAR -->
+<aside class="sidebar">
+
+    <!-- Logo -->
+    <div class="sidebar-logo">
+
+        <div class="sidebar-logo-icon">
+            🔐
+        </div>
+
+        <h1>TrustShare</h1>
+
+    </div>
+
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+
+        <ul>
+
+            <!-- Dashboard -->
+            <li>
+
+                <a href="dashboard.html">
+
+                    <span class="nav-icon">🏠</span>
+
+                    <span>Dashboard</span>
+
+                </a>
+
+            </li>
+
+
+            <!-- Files -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    onclick="toggleSidebarMenu('filesSubmenu', 'filesArrow')"
+                >
+
+                    <span class="nav-icon">📁</span>
+
+                    <span>Files</span>
+
+                    <span
+                        class="nav-arrow"
+                        id="filesArrow"
+                    >
+                        ▾
+                    </span>
+
+                </a>
+
+
+                <ul
+                    class="sidebar-submenu"
+                    id="filesSubmenu"
+                >
+
+                    <li>
+
+                        <a
+                            href="files.html"
+                            class="active"
+                        >
+                            My Files
+                        </a>
+
+                    </li>
+
+                    <li>
+
+                        <a href="shared-files.html">
+                            Shared Files
+                        </a>
+
+                    </li>
+
+                </ul>
+
+            </li>
+
+             <!-- Share -->
+<li>
+    <a href="share.html">
+
+        <span class="nav-icon">🔗</span>
+
+        <span>Share</span>
+
+    </a>
+</li>
+
+            <!-- Activity -->
+            <li>
+
+                <a href="activity.html">
+
+                    <span class="nav-icon">📋</span>
+
+                    <span>Activity</span>
+
+                </a>
+
+            </li>
+
+
+            <!-- Notifications -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    id="notificationButton"
+                    onclick="toggleNotifications()"
+                >
+
+                    <span class="nav-icon">🔔</span>
+
+                    <span>Notifications</span>
+
+                    <span
+                        id="sidebarNotificationBadge"
+                        class="notification-badge"
+                        style="display:none;"
+                    >
+                        0
+                    </span>
+
+                </a>
+
+            </li>
+
+
+            <!-- Security -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    onclick="toggleSidebarMenu('securitySubmenu', 'securityArrow')"
+                >
+
+                    <span class="nav-icon">🛡</span>
+
+                    <span>Security</span>
+
+                    <span
+                        class="nav-arrow"
+                        id="securityArrow"
+                    >
+                        ▾
+                    </span>
+
+                </a>
+
+
+                <ul
+                    class="sidebar-submenu"
+                    id="securitySubmenu"
+                >
+
+                    <li>
+
+                        <a href="dashboard.html#securityAlertsSection">
+                            Security Alerts
+                        </a>
+
+                    </li>
+
+                    <li>
+
+                        <a href="dashboard.html#securityReportSection">
+                            Security Report
+                        </a>
+
+                    </li>
+
+                </ul>
+
+            </li>
+
+
+            <!-- Analytics -->
+            <li>
+
+                <a href="dashboard.html#storageAnalyticsSection">
+
+                    <span class="nav-icon">📊</span>
+
+                    <span>Analytics</span>
+
+                </a>
+
+            </li>
+
+        </ul>
+
+    </nav>
+
+
+    <!-- Logout -->
+    <div class="sidebar-bottom">
+
+        <a
+            href="javascript:void(0)"
+            onclick="logout()"
+        >
+
+            <span class="nav-icon">🚪</span>
+
+            <span>Logout</span>
+
+        </a>
+
+    </div>
+
+</aside>
+
+    <!-- =====================================================
+         SIDEBAR NOTIFICATION DROPDOWN
+         ===================================================== -->
+
+    <div
+        id="notificationDropdown"
+        class="notification-dropdown"
+    >
+
+        <div class="notification-header">
+
+            <strong>
+                Notifications
+            </strong>
+
+            <button
+                type="button"
+                id="markAllReadBtn"
+                onclick="markAllNotificationsAsRead()"
+            >
+                Mark all as read
+            </button>
+
+        </div>
+
+
+        <div id="notificationsList">
+
+            <div class="no-notifications">
+                Loading notifications...
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         MAIN CONTENT
+         ===================================================== -->
+
+    <main class="main-content">
+
+
+        <!-- =================================================
+             COMMON TOPBAR
+             ================================================= -->
+
+        <div class="dashboard-topbar">
+
+            <div class="topbar-spacer"></div>
+
+
+            <div class="topbar-actions">
+
+
+                <!-- DARK MODE -->
+
+                <button
+                    type="button"
+                    class="topbar-icon-button"
+                    id="themeToggle"
+                    onclick="toggleDarkMode()"
+                    aria-label="Toggle dark mode"
+                >
+                    🌙
+                </button>
+
+
+                <!-- NOTIFICATIONS -->
+
+                <div class="topbar-notification-wrapper">
+
+                    <button
+                        type="button"
+                        class="topbar-icon-button"
+                        id="topNotificationButton"
+                        onclick="toggleTopNotifications()"
+                        aria-label="Notifications"
+                    >
+
+                        🔔
+
+                        <span
+                            id="topNotificationBadge"
+                            class="top-notification-badge"
+                            style="display:none;"
+                        >
+                            0
+                        </span>
+
+                    </button>
+
+
+                    <!-- TOP NOTIFICATION DROPDOWN -->
+
+                    <div
+                        id="topNotificationDropdown"
+                        class="top-notification-dropdown"
+                    >
+
+                        <div class="notification-header">
+
+                            <strong>
+                                Notifications
+                            </strong>
+
+                            <button
+                                type="button"
+                                id="topMarkAllReadBtn"
+                                onclick="markAllNotificationsAsRead()"
+                            >
+                                Mark all as read
+                            </button>
+
+                        </div>
+
+
+                        <div id="topNotificationsList">
+
+                            <div class="no-notifications">
+                                Loading notifications...
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- PROFILE -->
+
+                <button
+                    type="button"
+                    class="topbar-profile"
+                    onclick="openProfile()"
+                >
+
+                    <div class="profile-avatar">
+                        👤
+                    </div>
+
+                    <div class="profile-info">
+
+                        <span class="profile-name">
+                            Profile
+                        </span>
+
+                        <span class="profile-role">
+                            Account
+                        </span>
+
+                    </div>
+
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             ACTIVITY CONTENT
+             ================================================= -->
+
+        <section class="activity-page">
+
+
+            <!-- PAGE HEADER -->
+
+            <div class="activity-page-header">
+
+                <div>
+
+                    <h1>
+                        Activity &amp; Audit
+                    </h1>
+
+                    <p>
+                        Track your uploads, downloads, sharing,
+                        login activity and security events.
+                    </p>
+
+                </div>
+
+
+                <button
+                    type="button"
+                    class="activity-refresh-btn"
+                    onclick="loadAllActivity()"
+                >
+
+                    <span>
+                        ↻
+                    </span>
+
+                    Refresh
+
+                </button>
+
+            </div>
+
+
+            <!-- =================================================
+                 SUMMARY CARDS
+                 ================================================= -->
+
+            <div class="activity-summary-grid">
+
+
+                <!-- TOTAL ACTIVITIES -->
+
+                <div class="activity-summary-card">
+
+                    <div class="activity-summary-icon blue">
+                        ◷
+                    </div>
+
+                    <div>
+
+                        <span class="activity-summary-label">
+                            Total Activities
+                        </span>
+
+                        <strong
+                            id="totalActivityCount"
+                            class="activity-summary-value"
+                        >
+                            —
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <!-- DOWNLOADS -->
+
+                <div class="activity-summary-card">
+
+                    <div class="activity-summary-icon green">
+                        ↓
+                    </div>
+
+                    <div>
+
+                        <span class="activity-summary-label">
+                            Downloads
+                        </span>
+
+                        <strong
+                            id="downloadActivityCount"
+                            class="activity-summary-value"
+                        >
+                            —
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <!-- SHARES -->
+
+                <div class="activity-summary-card">
+
+                    <div class="activity-summary-icon purple">
+                        ↗
+                    </div>
+
+                    <div>
+
+                        <span class="activity-summary-label">
+                            Shares
+                        </span>
+
+                        <strong
+                            id="shareActivityCount"
+                            class="activity-summary-value"
+                        >
+                            —
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <!-- LOGINS -->
+
+                <div class="activity-summary-card">
+
+                    <div class="activity-summary-icon orange">
+                        ◉
+                    </div>
+
+                    <div>
+
+                        <span class="activity-summary-label">
+                            Login Events
+                        </span>
+
+                        <strong
+                            id="loginActivityCount"
+                            class="activity-summary-value"
+                        >
+                            —
+                        </strong>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- =================================================
+                 FILTER / SEARCH BAR
+                 ================================================= -->
+
+            <div class="activity-controls">
+
+                <div class="activity-search">
+
+                    <span class="activity-search-icon">
+                        ⌕
+                    </span>
+
+                    <input
+                        type="text"
+                        id="activitySearchInput"
+                        placeholder="Search activity..."
+                    >
+
+                </div>
+
+
+                <select
+                    id="activityTypeFilter"
+                    class="activity-filter"
+                >
+
+                    <option value="all">
+                        All Activities
+                    </option>
+
+                    <option value="upload">
+                        Uploads
+                    </option>
+
+                    <option value="download">
+                        Downloads
+                    </option>
+
+                    <option value="share">
+                        Sharing
+                    </option>
+
+                    <option value="login">
+                        Login Activity
+                    </option>
+
+                    <option value="security">
+                        Security Events
+                    </option>
+
+                </select>
+
+
+                <button
+                    type="button"
+                    class="activity-clear-filter"
+                    id="clearActivityFilters"
+                >
+                    Clear Filters
+                </button>
+
+            </div>
+
+
+            <!-- =================================================
+                 ACTIVITY HISTORY CARD
+                 ================================================= -->
+
+            <section class="activity-history-card">
+
+
+                <div class="activity-history-header">
+
+                    <div>
+
+                        <h2>
+                            Activity History
+                        </h2>
+
+                        <p>
+                            Complete record of actions performed
+                            in your TrustShare account.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <!-- TABLE -->
+
+                <div class="activity-table-wrapper">
+
+                    <table class="activity-table">
+
+                        <thead>
+
+                            <tr>
+
+                                <th>
+                                    Date &amp; Time
+                                </th>
+
+                                <th>
+                                    Activity
+                                </th>
+
+                                <th>
+                                    File
+                                </th>
+
+                                <th>
+                                    Details
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody id="activityTableBody">
+
+                            <tr>
+
+                                <td
+                                    colspan="4"
+                                    class="activity-table-loading"
+                                >
+
+                                    <div class="activity-loading-spinner">
+                                        ⟳
+                                    </div>
+
+                                    Loading activity...
+
+                                </td>
+
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+
+                <!-- EMPTY STATE -->
+
+                <div
+                    id="activityHistoryEmpty"
+                    class="activity-history-empty"
+                    style="display:none;"
+                >
+
+                    <div class="activity-empty-icon">
+                        📋
+                    </div>
+
+                    <h3>
+                        No activity yet
+                    </h3>
+
+                    <p>
+                        Your TrustShare activities will appear here.
+                    </p>
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
+                 AUDIT INFORMATION
+                 ================================================= -->
+
+            <div class="audit-information">
+
+                <div class="audit-information-icon">
+                    🛡
+                </div>
+
+                <div>
+
+                    <strong>
+                        Audit Logging
+                    </strong>
+
+                    <p>
+                        TrustShare records important account,
+                        file and security activities to help
+                        monitor access and maintain a secure
+                        file-sharing environment.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- =====================================================
+         COMMON DASHBOARD JAVASCRIPT
+         ===================================================== -->
+
+    <script src="js/dashboard.js"></script>
+
+
+    <!-- =====================================================
+         ACTIVITY JAVASCRIPT
+         ===================================================== -->
+
+    <script>
+
+        document.addEventListener("DOMContentLoaded", () => {
+
+            loadAllActivity();
+
+        });
+
+
+        /* =====================================================
+           ACTIVITY SEARCH
+           ===================================================== */
+
+        const activitySearchInput =
+            document.getElementById("activitySearchInput");
+
+        const activityTypeFilter =
+            document.getElementById("activityTypeFilter");
+
+        const clearActivityFilters =
+            document.getElementById("clearActivityFilters");
+
+
+        function filterActivityRows() {
+
+            const searchValue =
+                activitySearchInput.value
+                    .toLowerCase()
+                    .trim();
+
+            const selectedType =
+                activityTypeFilter.value
+                    .toLowerCase();
+
+            const rows =
+                document.querySelectorAll(
+                    "#activityTableBody tr"
+                );
+
+
+            rows.forEach(row => {
+
+                const rowText =
+                    row.textContent.toLowerCase();
+
+
+                if (
+                    row.querySelector(
+                        ".activity-table-loading"
+                    )
+                ) {
+                    return;
+                }
+
+
+                let matchesSearch =
+                    !searchValue ||
+                    rowText.includes(searchValue);
+
+
+                let matchesType = true;
+
+
+                if (selectedType !== "all") {
+
+                    matchesType =
+                        rowText.includes(selectedType);
+
+                }
+
+
+                row.style.display =
+                    matchesSearch && matchesType
+                        ? ""
+                        : "none";
+
+            });
+
+        }
+
+
+        activitySearchInput.addEventListener(
+            "input",
+            filterActivityRows
+        );
+
+
+        activityTypeFilter.addEventListener(
+            "change",
+            filterActivityRows
+        );
+
+
+        clearActivityFilters.addEventListener(
+            "click",
+            () => {
+
+                activitySearchInput.value = "";
+                activityTypeFilter.value = "all";
+
+                filterActivityRows();
+
+            }
+        );
+
+    </script>
+
+</body>
+
+</html>

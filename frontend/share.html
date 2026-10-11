@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Share Files - TrustShare</title>
+
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/share.css">
+</head>
+
+<body>
+
+    <div class="dashboard-layout">
+
+        <!-- ================= SIDEBAR ================= -->
+
+        <aside class="sidebar">
+
+            <div class="sidebar-logo">
+                <span class="logo-icon">🔐</span>
+                <span>TrustShare</span>
+            </div>
+
+            <nav class="sidebar-nav">
+
+                <!-- Dashboard -->
+                <ul>
+
+                    <li>
+                        <a href="dashboard.html">
+                            <span class="nav-icon">🏠</span>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+
+                    <!-- Files -->
+                    <li>
+
+                        <a
+                            href="javascript:void(0)"
+                            onclick="toggleSidebarMenu('filesSubmenu', 'filesArrow')"
+                        >
+
+                            <span class="nav-icon">📁</span>
+
+                            <span>Files</span>
+
+                            <span
+                                class="nav-arrow"
+                                id="filesArrow"
+                            >
+                                ▾
+                            </span>
+
+                        </a>
+
+                        <ul
+                            class="sidebar-submenu"
+                            id="filesSubmenu"
+                        >
+
+                            <li>
+                                <a href="files.html">
+                                    My Files
+                                </a>
+                            </li>
+
+                            <li>
+                                <a href="shared-files.html">
+                                    Shared Files
+                                </a>
+                            </li>
+
+                        </ul>
+
+                    </li>
+
+                    <!-- Share -->
+                    <li class="active">
+                        <a href="share.html">
+
+                            <span class="nav-icon">🔗</span>
+
+                            <span>Share</span>
+
+                        </a>
+                    </li>
+
+                    <!-- Activity -->
+                    <li>
+                        <a href="activity.html">
+
+                            <span class="nav-icon">📋</span>
+
+                            <span>Activity</span>
+
+                        </a>
+                    </li>
+
+                    <!-- Notifications -->
+                    <li>
+                        <a href="notifications.html">
+
+                            <span class="nav-icon">🔔</span>
+
+                            <span>Notifications</span>
+
+                            <span
+                                id="sidebarNotificationBadge"
+                                class="notification-badge"
+                                style="display:none;"
+                            >
+                                0
+                            </span>
+
+                        </a>
+                    </li>
+
+                    <!-- Security -->
+                    <li>
+
+                        <a
+                            href="javascript:void(0)"
+                            onclick="toggleSidebarMenu('securitySubmenu', 'securityArrow')"
+                        >
+
+                            <span class="nav-icon">🛡</span>
+
+                            <span>Security</span>
+
+                            <span
+                                class="nav-arrow"
+                                id="securityArrow"
+                            >
+                                ▾
+                            </span>
+
+                        </a>
+
+                        <ul
+                            class="sidebar-submenu"
+                            id="securitySubmenu"
+                        >
+
+                            <li>
+                                <a href="#">
+                                    Security Alerts
+                                </a>
+                            </li>
+
+                            <li>
+                                <a href="#">
+                                    Security Report
+                                </a>
+                            </li>
+
+                        </ul>
+
+                    </li>
+
+                    <!-- Analytics -->
+                    <li>
+                        <a href="#">
+
+                            <span class="nav-icon">📊</span>
+
+                            <span>Analytics</span>
+
+                        </a>
+                    </li>
+
+                </ul>
+
+            </nav>
+
+            <!-- Logout -->
+
+            <div class="sidebar-bottom">
+
+                <a href="login.html" class="logout-link">
+
+                    <span class="nav-icon">🚪</span>
+
+                    <span>Logout</span>
+
+                </a>
+
+            </div>
+
+        </aside>
+
+
+        <!-- ================= MAIN AREA ================= -->
+
+        <div class="main-content">
+
+            <!-- TOP BAR -->
+
+            <header class="topbar">
+
+                <div class="topbar-left">
+
+                    <button
+                        class="sidebar-toggle"
+                        onclick="toggleSidebar()"
+                    >
+                        ☰
+                    </button>
+
+                    <h2>Share Files</h2>
+
+                </div>
+
+
+                <div class="topbar-right">
+
+                    <!-- Notification -->
+
+                    <div class="notification-wrapper">
+
+                        <button
+                            class="notification-button"
+                            onclick="toggleTopNotifications()"
+                        >
+
+                            🔔
+
+                            <span
+                                id="notificationBadge"
+                                class="notification-badge"
+                                style="display:none;"
+                            >
+                                0
+                            </span>
+
+                        </button>
+
+                        <div
+                            id="notificationDropdown"
+                            class="notification-dropdown"
+                        >
+
+                            <div class="notification-dropdown-header">
+                                Notifications
+                            </div>
+
+                            <div id="notificationsList">
+
+                                <p class="no-notifications">
+                                    No new notifications
+                                </p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- Profile -->
+
+                    <div class="topbar-profile">
+
+                        <div class="profile-avatar">
+                            👤
+                        </div>
+
+                        <div class="profile-info">
+
+                            <span id="topbarUserName">
+                                User
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </header>
+
+
+            <!-- ================= SHARE CONTENT ================= -->
+
+            <main class="share-page">
+
+                <div class="share-header">
+
+                    <div>
+
+                        <h1>Share Files</h1>
+
+                        <p>
+                            Securely share your files with other users.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Main Share Card -->
+
+                <section class="share-card">
+
+                    <div class="share-card-icon">
+                        🔗
+                    </div>
+
+                    <h2>Share a File Securely</h2>
+
+                    <p>
+                        Select a file from your files and generate a
+                        secure sharing link.
+                    </p>
+
+                    <div class="share-features">
+
+                        <div class="share-feature">
+
+                            <span>🔐</span>
+
+                            <div>
+                                <strong>Secure</strong>
+
+                                <p>
+                                    Files are encrypted before storage.
+                                </p>
+                            </div>
+
+                        </div>
+
+
+                        <div class="share-feature">
+
+                            <span>⏱️</span>
+
+                            <div>
+                                <strong>Expiration</strong>
+
+                                <p>
+                                    Set how long the sharing link remains active.
+                                </p>
+                            </div>
+
+                        </div>
+
+
+                        <div class="share-feature">
+
+                            <span>📥</span>
+
+                            <div>
+                                <strong>Download Limit</strong>
+
+                                <p>
+                                    Optionally limit the number of downloads.
+                                </p>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <a
+                        href="files.html"
+                        class="share-primary-button"
+                    >
+                        📁 Go to My Files
+                    </a>
+
+                </section>
+
+
+                <!-- Information -->
+
+                <section class="share-info-card">
+
+                    <h3>How file sharing works</h3>
+
+                    <div class="share-steps">
+
+                        <div class="share-step">
+
+                            <div class="step-number">
+                                1
+                            </div>
+
+                            <div>
+                                <h4>Select a File</h4>
+
+                                <p>
+                                    Open My Files and choose the file
+                                    you want to share.
+                                </p>
+                            </div>
+
+                        </div>
+
+
+                        <div class="share-step">
+
+                            <div class="step-number">
+                                2
+                            </div>
+
+                            <div>
+                                <h4>Generate Link</h4>
+
+                                <p>
+                                    Set expiration and optional download
+                                    limits, then generate a secure link.
+                                </p>
+                            </div>
+
+                        </div>
+
+
+                        <div class="share-step">
+
+                            <div class="step-number">
+                                3
+                            </div>
+
+                            <div>
+                                <h4>Send the Link</h4>
+
+                                <p>
+                                    Copy the generated link and share it
+                                    with the recipient.
+                                </p>
+                            </div>
+
+                        </div>
+
+
+                        <div class="share-step">
+
+                            <div class="step-number">
+                                4
+                            </div>
+
+                            <div>
+                                <h4>Recipient Downloads</h4>
+
+                                <p>
+                                    The recipient can open the secure link
+                                    and download the file.
+                                </p>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+            </main>
+
+        </div>
+
+    </div>
+
+
+    <!-- Dashboard JavaScript -->
+
+    <script src="js/dashboard.js"></script>
+
+</body>
+
+</html>

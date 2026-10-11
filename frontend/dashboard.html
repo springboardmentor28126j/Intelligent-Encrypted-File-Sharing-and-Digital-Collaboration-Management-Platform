@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>TrustShare - Dashboard</title>
+
+    <link
+        rel="stylesheet"
+        href="css/dashboard.css"
+    >
+</head>
+
+<body>
+
+<!-- =====================================================
+     SIDEBAR
+===================================================== -->
+
+<aside class="sidebar">
+
+    <!-- Logo -->
+    <div class="sidebar-logo">
+
+        <div class="sidebar-logo-icon">
+            🔐
+        </div>
+
+        <h1>TrustShare</h1>
+
+    </div>
+
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+
+        <ul>
+
+            <!-- Dashboard -->
+            <li>
+                <a
+                    href="dashboard.html"
+                    class="active"
+                >
+                    <span class="nav-icon">🏠</span>
+                    <span>Dashboard</span>
+                </a>
+            </li>
+
+
+            <!-- Files -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    onclick="toggleSidebarMenu('filesSubmenu', 'filesArrow')"
+                >
+
+                    <span class="nav-icon">📁</span>
+
+                    <span>Files</span>
+
+                    <span
+                        class="nav-arrow"
+                        id="filesArrow"
+                    >
+                        ▾
+                    </span>
+
+                </a>
+
+                <ul
+                    class="sidebar-submenu"
+                    id="filesSubmenu"
+                >
+
+                    <li>
+                        <a href="files.html">
+                            My Files
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="shared-files.html">
+                            Shared Files
+                        </a>
+                    </li>
+
+                </ul>
+
+            </li>
+             <!-- Share -->
+<li>
+    <a href="share.html">
+
+        <span class="nav-icon">🔗</span>
+
+        <span>Share</span>
+
+    </a>
+</li>
+
+
+            <!-- Activity -->
+            <li>
+                <a href="activity.html">
+
+                    <span class="nav-icon">📋</span>
+
+                    <span>Activity</span>
+
+                </a>
+            </li>
+
+
+            <!-- Notifications -->
+            <!-- Notifications -->
+<li>
+    <a
+        href="notifications.html"
+    >
+        <span class="nav-icon">🔔</span>
+
+        <span>Notifications</span>
+
+        <span
+            id="sidebarNotificationBadge"
+            class="notification-badge"
+            style="display:none;"
+        >
+            0
+        </span>
+    </a>
+</li>
+
+
+            <!-- Security -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    onclick="toggleSidebarMenu('securitySubmenu', 'securityArrow')"
+                >
+
+                    <span class="nav-icon">🛡</span>
+
+                    <span>Security</span>
+
+                    <span
+                        class="nav-arrow"
+                        id="securityArrow"
+                    >
+                        ▾
+                    </span>
+
+                </a>
+
+                <ul
+                    class="sidebar-submenu"
+                    id="securitySubmenu"
+                >
+
+                    <li>
+                        <a href="#securityAlertsSection">
+                            Security Alerts
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="#securityReportSection">
+                            Security Report
+                        </a>
+                    </li>
+
+                </ul>
+
+            </li>
+
+
+            <!-- Analytics -->
+            <li>
+
+                <a href="#storageAnalyticsSection">
+
+                    <span class="nav-icon">📊</span>
+
+                    <span>Analytics</span>
+
+                </a>
+
+            </li>
+
+
+
+        </ul>
+
+    </nav>
+
+
+    <!-- Logout -->
+    <div class="sidebar-bottom">
+
+        <a
+            href="javascript:void(0)"
+            onclick="logout()"
+            style="
+                display:flex;
+                align-items:center;
+                text-decoration:none;
+                color:#cbd5e1;
+                padding:10px 13px;
+                border-radius:8px;
+                font-size:14px;
+            "
+        >
+
+            <span class="nav-icon">🚪</span>
+
+            <span>Logout</span>
+
+        </a>
+
+    </div>
+
+</aside>
+
+
+<!-- =====================================================
+     NOTIFICATION DROPDOWN
+===================================================== -->
+
+<div
+    id="notificationDropdown"
+    class="notification-dropdown"
+>
+
+    <div class="notification-header">
+
+        <strong>
+            Notifications
+        </strong>
+
+        <button
+            type="button"
+            id="markAllReadBtn"
+            onclick="markAllNotificationsAsRead()"
+        >
+            Mark all as read
+        </button>
+
+    </div>
+
+
+    <div id="notificationsList">
+
+        <div
+            style="
+                padding:20px;
+                text-align:center;
+                color:#64748b;
+                font-size:12px;
+            "
+        >
+            Loading notifications...
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     MAIN CONTENT
+===================================================== -->
+
+<main class="main-content">
+
+    <!-- =================================================
+     TOP BAR
+    ================================================== -->
+
+<div class="dashboard-topbar">
+
+    <div class="topbar-spacer"></div>
+
+    <div class="topbar-actions">
+        <!-- Dark Mode -->
+        <button
+            type="button"
+            class="topbar-icon-button"
+            id="themeToggle"
+            onclick="toggleDarkMode()"
+            aria-label="Toggle dark mode"
+        >
+        🌙
+         </button>
+
+        <!-- Notifications -->
+        <div class="topbar-notification-wrapper">
+
+            <button
+                type="button"
+                class="topbar-icon-button"
+                id="topNotificationButton"
+                onclick="toggleTopNotifications()"
+                aria-label="Notifications"
+            >
+                🔔
+
+                <span
+                    id="topNotificationBadge"
+                    class="top-notification-badge"
+                    style="display:none;"
+                >
+                    0
+                </span>
+
+            </button>
+
+            <!-- Notification Dropdown -->
+            <div
+                id="topNotificationDropdown"
+                class="top-notification-dropdown"
+            >
+
+                <div class="notification-header">
+
+                    <strong>Notifications</strong>
+
+                    <button
+                        type="button"
+                        id="topMarkAllReadBtn"
+                        onclick="markAllNotificationsAsRead()"
+                    >
+                        Mark all as read
+                    </button>
+
+                </div>
+
+                <div id="topNotificationsList">
+                    <div class="no-notifications">
+                        Loading notifications...
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- Profile -->
+        <button
+            type="button"
+            class="topbar-profile"
+            onclick="openProfile()"
+        >
+
+            <div class="profile-avatar">
+                👤
+            </div>
+
+            <div class="profile-info">
+
+                <span class="profile-name">
+                    Profile
+                </span>
+
+                <span class="profile-role">
+                    Account
+                </span>
+
+            </div>
+
+        </button>
+
+    </div>
+
+</div>
+    <!-- =================================================
+         WELCOME HEADER
+    ================================================== -->
+
+    <header class="dashboard-header">
+
+        <div>
+
+            <h1>
+                Welcome back!
+            </h1>
+
+            <p>
+                Manage your files securely with TrustShare.
+            </p>
+
+        </div>
+
+    </header>
+
+
+    <!-- =================================================
+         STATISTICS
+    ================================================== -->
+
+    <section class="dashboard-stats">
+
+
+        <!-- Total Files -->
+        <div class="stat-card">
+
+            <div class="stat-icon">
+                📁
+            </div>
+
+            <div>
+
+                <h3>
+                    Total Files
+                </h3>
+
+                <div
+                    class="stat-value"
+                    id="totalFiles"
+                >
+                    0
+                </div>
+
+                <div class="stat-description">
+                    Files in your account
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- Storage -->
+        <div class="stat-card">
+
+            <div class="stat-icon">
+                💾
+            </div>
+
+            <div>
+
+                <h3>
+                    Storage Used
+                </h3>
+
+                <div
+                    class="stat-value"
+                    id="storageUsed"
+                >
+                    0 MB
+                </div>
+
+                <div class="stat-description">
+                    Current storage usage
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- Security -->
+        <div class="stat-card">
+
+            <div class="stat-icon">
+                🛡
+            </div>
+
+            <div>
+
+                <h3>
+                    Security Status
+                </h3>
+
+                <div
+                    class="stat-value security-status-safe"
+                    id="securityStatus"
+                >
+                    Secure
+                </div>
+
+                <div
+                    class="stat-description"
+                    id="securityStatusDescription"
+                >
+                    No suspicious activity detected
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- =================================================
+         UPLOAD FILE
+    ================================================== -->
+
+    <section class="dashboard-upload">
+
+        <div class="section-heading">
+
+            <div>
+
+                <h2>
+                    Upload File
+                </h2>
+
+                <p>
+                    Securely upload a file to your TrustShare account.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <!-- Drop Zone -->
+
+        <div
+            id="dropZone"
+            class="drop-zone"
+        >
+
+            <div class="upload-icon">
+                ↑
+            </div>
+
+            <h3>
+                Drag & Drop your file here
+            </h3>
+
+            <p>
+                or
+            </p>
+
+            <label
+                for="fileInput"
+                class="browse-btn"
+            >
+                Browse Files
+            </label>
+
+            <input
+                type="file"
+                id="fileInput"
+                hidden
+            >
+
+            <small>
+                Select a file from your computer
+            </small>
+
+        </div>
+
+
+        <!-- Selected File -->
+
+        <div
+            id="selectedFile"
+            class="selected-file"
+        >
+
+            <div class="selected-file-info">
+
+                <div class="selected-file-icon">
+                    📄
+                </div>
+
+                <div>
+
+                    <strong id="selectedFileName">
+                        File
+                    </strong>
+
+                    <p id="selectedFileSize">
+                        0 MB
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <button
+                type="button"
+                class="remove-file-btn"
+                onclick="removeSelectedFile()"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <!-- Upload Options -->
+
+        <div class="dashboard-upload-form">
+
+            <div class="share-form-group">
+
+                <label for="fileCategory">
+                    File Category
+                </label>
+
+                <select id="fileCategory">
+
+                    <option value="document">
+                        Document
+                    </option>
+
+                    <option value="image">
+                        Image
+                    </option>
+
+                    <option value="video">
+                        Video
+                    </option>
+
+                    <option value="archive">
+                        Archive
+                    </option>
+
+                    <option value="other">
+                        Other
+                    </option>
+
+                </select>
+
+            </div>
+
+
+            <button
+                type="button"
+                id="uploadButton"
+                class="dashboard-upload-btn"
+                onclick="uploadFile()"
+            >
+                Upload File
+            </button>
+
+        </div>
+
+
+        <!-- Upload Status -->
+
+        <div
+            id="uploadStatus"
+            class="upload-status"
+        ></div>
+
+    </section>
+
+
+    <!-- =================================================
+         RECENT FILES
+    ================================================== -->
+
+    <section class="recent-files">
+
+        <div class="section-heading">
+
+            <div>
+
+                <h2>
+                    Recent Files
+                </h2>
+
+                <p>
+                    Your recently uploaded files.
+                </p>
+
+            </div>
+
+            <a href="files.html">
+                View All
+            </a>
+
+        </div>
+
+
+        <div class="file-table">
+
+            <!-- Table Header -->
+
+            <div class="file-row file-header">
+
+                <span>
+                    File Name
+                </span>
+
+                <span>
+                    Size
+                </span>
+
+                <span>
+                    Uploaded
+                </span>
+
+                <span>
+                    Actions
+                </span>
+
+            </div>
+
+
+            <!-- Files loaded by dashboard.js -->
+
+            <div id="filesContainer">
+            </div>
+
+
+            <!-- Empty State -->
+
+            <div
+                id="emptyState"
+                class="empty-state"
+            >
+
+                <h3>
+                    No files yet
+                </h3>
+
+                <p>
+                    Upload your first file to start using TrustShare.
+                </p>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- =================================================
+         SECURITY ALERTS + STORAGE ANALYTICS
+    ================================================== -->
+
+    <div class="dashboard-two-column">
+
+
+        <!-- SECURITY ALERTS -->
+
+        <section
+            class="security-alerts"
+            id="securityAlertsSection"
+        >
+
+            <div class="section-heading">
+
+                <div>
+
+                    <h2>
+                        Security Alerts
+                    </h2>
+
+                    <p>
+                        Potentially suspicious activity detected in your account.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div id="securityAlertsContainer">
+
+                <div class="security-alert-loading">
+                    Checking security activity...
+                </div>
+
+            </div>
+
+        </section>
+
+
+        
+<!-- Storage Analytics -->
+        <section
+            class="storage-analytics"
+            id="storageAnalyticsSection"
+        >
+
+            <div class="section-heading">
+
+                <div>
+
+                    <h2>
+                        Storage Analytics
+                    </h2>
+
+                    <p>
+                        Overview of your stored files and storage usage.
+                    </p>
+
+                </div>
+
+
+                <button
+                    type="button"
+                    class="activity-refresh-btn"
+                    onclick="loadStorageAnalytics()"
+                >
+                    ↻ Refresh
+                </button>
+
+            </div>
+
+
+            <div id="storageAnalyticsContainer">
+
+                <div class="storage-analytics-loading">
+                    Loading storage analytics...
+                </div>
+
+            </div>
+
+        </section>
+
+    </div>
+
+
+    <!-- =================================================
+         RECENT ACTIVITY
+    ================================================== -->
+
+    <section class="recent-activity">
+
+        <div class="recent-activity-header">
+
+            <div class="recent-activity-title">
+
+                <h2>
+                    Recent Activity
+                </h2>
+
+                <p>
+                    Track your recent TrustShare activities.
+                </p>
+
+            </div>
+
+
+            <div class="activity-actions">
+
+                <button
+                    type="button"
+                    class="activity-refresh-btn"
+                    onclick="loadActivity()"
+                >
+                    ↻ &nbsp; Refresh
+                </button>
+
+
+                <button
+                    type="button"
+                    class="activity-view-all-btn"
+                    onclick="window.location.href='activity.html'"
+                >
+                    View All Activity
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <div id="activityContainer">
+
+            <div class="activity-loading">
+                Loading activity...
+            </div>
+
+        </div>
+
+
+        <div
+            id="activityEmpty"
+            class="activity-empty"
+            style="display:none;"
+        >
+
+            <div class="activity-empty-icon">
+                📋
+            </div>
+
+            <h3>
+                No activity yet
+            </h3>
+
+            <p>
+                Your TrustShare activities will appear here.
+            </p>
+
+        </div>
+
+    </section>
+
+
+    <!-- =================================================
+         SECURITY REPORT
+    ================================================== -->
+
+    <section
+        class="security-report"
+        id="securityReportSection"
+    >
+
+        <div class="section-heading">
+
+            <div>
+
+                <h2>
+                    Security Report
+                </h2>
+
+                <p>
+                    Overview of your TrustShare activity and security events.
+                </p>
+
+            </div>
+
+
+            <button
+                type="button"
+                class="activity-refresh-btn"
+                onclick="loadSecurityReport()"
+            >
+                ↻ Refresh
+            </button>
+
+        </div>
+
+
+        <div id="securityReportContainer">
+
+            <div class="security-report-loading">
+                Loading security report...
+            </div>
+
+        </div>
+
+    </section>
+
+
+</main>
+
+
+<!-- =====================================================
+     SHARE MODAL
+===================================================== -->
+
+<div
+    id="shareModal"
+    class="share-modal"
+>
+
+    <div class="share-modal-content">
+
+
+        <!-- Header -->
+
+        <div class="share-modal-header">
+
+            <div>
+
+                <h2>
+                    Share File
+                </h2>
+
+                <p>
+                    Securely share this file with another person.
+                </p>
+
+            </div>
+
+
+            <button
+                type="button"
+                class="modal-close"
+                onclick="closeShareModal()"
+            >
+                &times;
+            </button>
+
+        </div>
+
+
+        <!-- File Information -->
+
+        <div class="share-file-info">
+
+            <div class="file-icon">
+                📄
+            </div>
+
+            <div>
+
+                <strong id="shareFileName">
+                    File
+                </strong>
+
+                <p>
+                    Secure file sharing
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <input
+            type="hidden"
+            id="shareFileId"
+        >
+
+
+        <!-- Recipient -->
+
+        <div class="share-form-group">
+
+            <label for="shareEmail">
+                Recipient Email
+            </label>
+
+            <input
+                type="email"
+                id="shareEmail"
+                placeholder="recipient@example.com"
+            >
+
+        </div>
+
+
+        <!-- Expiration -->
+
+        <div class="share-form-group">
+
+            <label for="shareExpiration">
+                Link Expiration
+            </label>
+
+            <select id="shareExpiration">
+
+                <option value="1">
+                    1 hour
+                </option>
+
+                <option value="6">
+                    6 hours
+                </option>
+
+                <option
+                    value="24"
+                    selected
+                >
+                    24 hours
+                </option>
+
+                <option value="72">
+                    3 days
+                </option>
+
+                <option value="168">
+                    7 days
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <!-- Generate -->
+
+        <button
+            type="button"
+            id="generateShareBtn"
+            class="share-generate-btn"
+            onclick="submitShare()"
+        >
+            Generate Secure Link
+        </button>
+
+
+        <!-- Result -->
+
+        <div
+            id="shareResult"
+            class="share-result"
+        >
+
+            <div class="success-message">
+
+                <span class="success-icon">
+                    ✓
+                </span>
+
+                <div>
+
+                    <strong>
+                        Secure link created
+                    </strong>
+
+                    <p>
+                        Your sharing link has been generated.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <label>
+                Share Link
+            </label>
+
+
+            <div class="share-link-container">
+
+                <input
+                    type="text"
+                    id="shareLink"
+                    readonly
+                >
+
+
+                <button
+                    type="button"
+                    id="copyLinkBtn"
+                    onclick="copyShareLink()"
+                >
+                    Copy Link
+                </button>
+
+            </div>
+
+
+            <p class="share-expiry">
+
+                Expires:
+
+                <strong id="shareExpiry"></strong>
+
+            </p>
+
+        </div>
+
+
+        <!-- Footer -->
+
+        <div class="share-modal-footer">
+
+            <button
+                type="button"
+                class="cancel-share-btn"
+                onclick="closeShareModal()"
+            >
+                Close
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     FILE METADATA MODAL
+===================================================== -->
+
+<div
+    id="metadataModal"
+    class="metadata-modal"
+>
+
+    <div class="metadata-modal-content">
+
+
+        <!-- Header -->
+
+        <div class="metadata-header">
+
+            <div>
+
+                <h2>
+                    File Details
+                </h2>
+
+                <p>
+                    Information about this file
+                </p>
+
+            </div>
+
+
+            <button
+                type="button"
+                class="modal-close"
+                onclick="closeMetadataModal()"
+            >
+                &times;
+            </button>
+
+        </div>
+
+
+        <!-- File Information -->
+
+        <div class="metadata-file">
+
+            <div class="metadata-file-icon">
+                📄
+            </div>
+
+            <div>
+
+                <strong id="metadataFileName">
+                    File
+                </strong>
+
+                <p id="metadataCategory">
+                    Category
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <!-- Metadata -->
+
+        <div class="metadata-grid">
+
+
+            <div class="metadata-item">
+
+                <span>
+                    File ID
+                </span>
+
+                <strong id="metadataFileId">
+                    -
+                </strong>
+
+            </div>
+
+
+            <div class="metadata-item">
+
+                <span>
+                    File Type
+                </span>
+
+                <strong id="metadataFileType">
+                    -
+                </strong>
+
+            </div>
+
+
+            <div class="metadata-item">
+
+                <span>
+                    File Size
+                </span>
+
+                <strong id="metadataFileSize">
+                    -
+                </strong>
+
+            </div>
+
+
+            <div class="metadata-item">
+
+                <span>
+                    Category
+                </span>
+
+                <strong id="metadataFileCategory">
+                    -
+                </strong>
+
+            </div>
+
+
+            <div class="metadata-item">
+
+                <span>
+                    Uploaded
+                </span>
+
+                <strong id="metadataUploadedAt">
+                    -
+                </strong>
+
+            </div>
+
+
+            <div class="metadata-item">
+
+                <span>
+                    Owner
+                </span>
+
+                <strong id="metadataOwner">
+                    -
+                </strong>
+
+            </div>
+
+        </div>
+
+
+        <!-- Storage Path -->
+
+        <div class="metadata-path">
+
+            <span>
+                Storage Path
+            </span>
+
+            <p id="metadataFilePath">
+                -
+            </p>
+
+        </div>
+
+
+        <!-- Footer -->
+
+        <div class="metadata-footer">
+
+            <button
+                type="button"
+                class="cancel-share-btn"
+                onclick="closeMetadataModal()"
+            >
+                Close
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     JAVASCRIPT
+===================================================== -->
+
+<script src="js/dashboard.js"></script>
+
+
+<!-- =====================================================
+     SIDEBAR FUNCTIONS
+===================================================== -->
+
+<script>
+
+function toggleSidebarMenu(menuId, arrowId) {
+
+    const menu = document.getElementById(menuId);
+    const arrow = document.getElementById(arrowId);
+
+    if (!menu) {
+        return;
+    }
+
+    if (menu.style.display === "none") {
+
+        menu.style.display = "block";
+
+        if (arrow) {
+            arrow.textContent = "▾";
+        }
+
+    } else {
+
+        menu.style.display = "none";
+
+        if (arrow) {
+            arrow.textContent = "▸";
+        }
+
+    }
+
+}
+
+
+/* =====================================================
+   NOTIFICATION DROPDOWN
+===================================================== */
+
+function toggleNotifications() {
+
+    const dropdown =
+        document.getElementById("notificationDropdown");
+
+    if (!dropdown) {
+        return;
+    }
+
+    dropdown.classList.toggle("show");
+
+}
+
+
+/* =====================================================
+   CLOSE NOTIFICATION DROPDOWN WHEN CLICKING OUTSIDE
+===================================================== */
+
+document.addEventListener("click", function(event) {
+
+    const dropdown =
+        document.getElementById("notificationDropdown");
+
+    const button =
+        document.getElementById("notificationButton");
+
+    if (!dropdown || !button) {
+        return;
+    }
+
+    if (
+        !dropdown.contains(event.target) &&
+        !button.contains(event.target)
+    ) {
+
+        dropdown.classList.remove("show");
+
+    }
+
+});
+
+
+/* =====================================================
+   LOGOUT
+===================================================== */
+
+function logout() {
+
+    localStorage.removeItem("access_token");
+
+    window.location.href = "login.html";
+
+}
+
+
+/* =====================================================
+   SIDEBAR INITIAL STATE
+===================================================== */
+
+document.addEventListener("DOMContentLoaded", function() {
+
+    const filesMenu =
+        document.getElementById("filesSubmenu");
+
+    const securityMenu =
+        document.getElementById("securitySubmenu");
+
+    if (filesMenu) {
+        filesMenu.style.display = "block";
+    }
+
+    if (securityMenu) {
+        securityMenu.style.display = "block";
+    }
+
+});
+
+</script>
+
+</body>
+</html>

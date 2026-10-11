@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>My Files - TrustShare</title>
+
+
+    <!-- SAME CSS AS DASHBOARD -->
+    <link
+        rel="stylesheet"
+        href="css/style.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="css/dashboard.css"
+    >
+
+    <!-- FILES PAGE CSS -->
+    <link
+        rel="stylesheet"
+        href="css/files.css"
+    >
+
+</head>
+
+
+<body>
+
+
+<!-- =====================================================
+     TRUSTSHARE SIDEBAR
+===================================================== -->
+<!-- SIDEBAR -->
+<aside class="sidebar">
+
+    <!-- Logo -->
+    <div class="sidebar-logo">
+
+        <div class="sidebar-logo-icon">
+            🔐
+        </div>
+
+        <h1>TrustShare</h1>
+
+    </div>
+
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+
+        <ul>
+
+            <!-- Dashboard -->
+            <li>
+
+                <a href="dashboard.html">
+
+                    <span class="nav-icon">🏠</span>
+
+                    <span>Dashboard</span>
+
+                </a>
+
+            </li>
+
+
+            <!-- Files -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    onclick="toggleSidebarMenu('filesSubmenu', 'filesArrow')"
+                >
+
+                    <span class="nav-icon">📁</span>
+
+                    <span>Files</span>
+
+                    <span
+                        class="nav-arrow"
+                        id="filesArrow"
+                    >
+                        ▾
+                    </span>
+
+                </a>
+
+
+                <ul
+                    class="sidebar-submenu"
+                    id="filesSubmenu"
+                >
+
+                    <li>
+
+                        <a
+                            href="files.html"
+                            class="active"
+                        >
+                            My Files
+                        </a>
+
+                    </li>
+
+                    <li>
+
+                        <a href="shared-files.html">
+                            Shared Files
+                        </a>
+
+                    </li>
+
+                </ul>
+
+            </li>
+
+              <!-- Share -->
+<li>
+    <a href="share.html">
+
+        <span class="nav-icon">🔗</span>
+
+        <span>Share</span>
+
+    </a>
+</li>
+
+            <!-- Activity -->
+            <li>
+
+                <a href="activity.html">
+
+                    <span class="nav-icon">📋</span>
+
+                    <span>Activity</span>
+
+                </a>
+
+            </li>
+
+
+            <!-- Notifications -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    id="notificationButton"
+                    onclick="toggleNotifications()"
+                >
+
+                    <span class="nav-icon">🔔</span>
+
+                    <span>Notifications</span>
+
+                    <span
+                        id="sidebarNotificationBadge"
+                        class="notification-badge"
+                        style="display:none;"
+                    >
+                        0
+                    </span>
+
+                </a>
+
+            </li>
+
+
+            <!-- Security -->
+            <li>
+
+                <a
+                    href="javascript:void(0)"
+                    onclick="toggleSidebarMenu('securitySubmenu', 'securityArrow')"
+                >
+
+                    <span class="nav-icon">🛡</span>
+
+                    <span>Security</span>
+
+                    <span
+                        class="nav-arrow"
+                        id="securityArrow"
+                    >
+                        ▾
+                    </span>
+
+                </a>
+
+
+                <ul
+                    class="sidebar-submenu"
+                    id="securitySubmenu"
+                >
+
+                    <li>
+
+                        <a href="dashboard.html#securityAlertsSection">
+                            Security Alerts
+                        </a>
+
+                    </li>
+
+                    <li>
+
+                        <a href="dashboard.html#securityReportSection">
+                            Security Report
+                        </a>
+
+                    </li>
+
+                </ul>
+
+            </li>
+
+
+            <!-- Analytics -->
+            <li>
+
+                <a href="dashboard.html#storageAnalyticsSection">
+
+                    <span class="nav-icon">📊</span>
+
+                    <span>Analytics</span>
+
+                </a>
+
+            </li>
+
+        </ul>
+
+    </nav>
+
+
+    <!-- Logout -->
+    <div class="sidebar-bottom">
+
+        <a
+            href="javascript:void(0)"
+            onclick="logout()"
+        >
+
+            <span class="nav-icon">🚪</span>
+
+            <span>Logout</span>
+
+        </a>
+
+    </div>
+
+</aside>
+
+
+<!-- =====================================================
+     NOTIFICATION DROPDOWN
+===================================================== -->
+
+<div
+    id="notificationDropdown"
+    class="notification-dropdown"
+>
+
+
+    <div class="notification-header">
+
+        <strong>
+            Notifications
+        </strong>
+
+
+        <button
+            type="button"
+            id="markAllReadBtn"
+            onclick="markAllNotificationsAsRead()"
+        >
+            Mark all as read
+        </button>
+
+    </div>
+
+
+    <div id="notificationsList">
+
+        <div
+            style="
+                padding:20px;
+                text-align:center;
+                color:#64748b;
+                font-size:12px;
+            "
+        >
+            Loading notifications...
+        </div>
+
+    </div>
+
+
+</div>
+
+
+
+<!-- =====================================================
+     MAIN CONTENT
+===================================================== -->
+
+<main class="main-content">
+
+
+    <!-- =================================================
+         DASHBOARD TOP BAR
+    ================================================== -->
+
+    <div class="dashboard-topbar">
+
+
+        <div class="topbar-spacer">
+        </div>
+
+
+        <div class="topbar-actions">
+
+
+            <!-- DARK MODE -->
+
+            <button
+                type="button"
+                class="topbar-icon-button"
+                id="themeToggle"
+                onclick="toggleDarkMode()"
+                aria-label="Toggle dark mode"
+            >
+                🌙
+            </button>
+
+
+
+            <!-- NOTIFICATIONS -->
+
+            <div class="topbar-notification-wrapper">
+
+
+                <button
+                    type="button"
+                    class="topbar-icon-button"
+                    id="topNotificationButton"
+                    onclick="toggleTopNotifications()"
+                    aria-label="Notifications"
+                >
+
+                    🔔
+
+
+                    <span
+                        id="topNotificationBadge"
+                        class="top-notification-badge"
+                        style="display:none;"
+                    >
+                        0
+                    </span>
+
+                </button>
+
+
+
+                <!-- TOP NOTIFICATION DROPDOWN -->
+
+                <div
+                    id="topNotificationDropdown"
+                    class="top-notification-dropdown"
+                >
+
+
+                    <div class="notification-header">
+
+
+                        <strong>
+                            Notifications
+                        </strong>
+
+
+                        <button
+                            type="button"
+                            id="topMarkAllReadBtn"
+                            onclick="markAllNotificationsAsRead()"
+                        >
+                            Mark all as read
+                        </button>
+
+
+                    </div>
+
+
+                    <div id="topNotificationsList">
+
+
+                        <div class="no-notifications">
+
+                            Loading notifications...
+
+                        </div>
+
+
+                    </div>
+
+
+                </div>
+
+
+            </div>
+
+
+
+            <!-- PROFILE -->
+
+            <button
+                type="button"
+                class="topbar-profile"
+                onclick="openProfile()"
+            >
+
+
+                <div class="profile-avatar">
+                    👤
+                </div>
+
+
+                <div class="profile-info">
+
+
+                    <span class="profile-name">
+                        Profile
+                    </span>
+
+
+                    <span class="profile-role">
+                        Account
+                    </span>
+
+
+                </div>
+
+
+            </button>
+
+
+        </div>
+
+
+    </div>
+
+
+
+    <!-- =================================================
+         FILES PAGE
+    ================================================== -->
+
+    <section class="files-section">
+
+
+        <!-- PAGE HEADER -->
+
+        <div class="files-header">
+
+
+            <div>
+
+                <p
+                    style="
+                        margin-bottom:6px;
+                        color:#94a3b8;
+                        font-size:12px;
+                    "
+                >
+                    Workspace / Files
+                </p>
+
+
+                <h2>
+                    My Files
+                </h2>
+
+
+                <p>
+                    View, download and securely share your uploaded files.
+                </p>
+
+            </div>
+
+
+            <!-- Upload -->
+
+            <a
+                href="upload.html"
+                class="btn primary-btn"
+            >
+
+                ↑ Upload File
+
+            </a>
+
+
+        </div>
+
+
+
+        <!-- =================================================
+             SEARCH + FILTER
+        ================================================== -->
+
+        <div class="file-controls">
+
+
+            <div class="search-wrapper">
+
+
+                <span class="search-icon">
+                    🔍
+                </span>
+
+
+                <input
+                    type="text"
+                    id="searchInput"
+                    placeholder="Search files..."
+                >
+
+
+            </div>
+
+
+            <select id="categoryFilter">
+
+
+                <option value="all">
+                    All Categories
+                </option>
+
+
+                <option value="document">
+                    Documents
+                </option>
+
+
+                <option value="image">
+                    Images
+                </option>
+
+
+                <option value="project">
+                    Projects
+                </option>
+
+
+                <option value="other">
+                    Other
+                </option>
+
+
+            </select>
+
+
+        </div>
+
+
+
+        <!-- =================================================
+             FILE TABLE
+        ================================================== -->
+
+        <div class="files-container">
+
+
+            <table>
+
+
+                <thead>
+
+                    <tr>
+
+                        <th>
+                            File Name
+                        </th>
+
+                        <th>
+                            Category
+                        </th>
+
+                        <th>
+                            Size
+                        </th>
+
+                        <th>
+                            Uploaded
+                        </th>
+
+                        <th>
+                            Actions
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody
+                    id="filesTableBody"
+                >
+
+                </tbody>
+
+
+            </table>
+
+
+        </div>
+
+
+    </section>
+
+
+
+</main>
+
+
+
+<!-- =====================================================
+     SHARE MODAL
+===================================================== -->
+
+<div
+    id="shareModal"
+    class="share-modal"
+>
+
+
+    <div class="share-modal-content">
+
+
+        <!-- Close -->
+
+        <button
+            type="button"
+            class="share-close"
+            onclick="closeShareModal()"
+        >
+            &times;
+        </button>
+
+
+        <!-- Heading -->
+
+        <h2>
+            Share File
+        </h2>
+
+
+        <p id="shareFileName">
+            Create a secure sharing link for this file.
+        </p>
+
+
+        <!-- File ID -->
+
+        <input
+            type="hidden"
+            id="shareFileId"
+        >
+
+
+        <!-- Recipient -->
+
+        <label for="shareEmail">
+            Recipient Email
+        </label>
+
+
+        <input
+            type="email"
+            id="shareEmail"
+            placeholder="Optional"
+        >
+
+
+        <!-- Expiration -->
+
+        <label for="shareExpiration">
+            Link Expiration
+        </label>
+
+
+        <select id="shareExpiration">
+
+
+            <option value="1">
+                1 Hour
+            </option>
+
+
+            <option value="6">
+                6 Hours
+            </option>
+
+
+            <option
+                value="24"
+                selected
+            >
+                24 Hours
+            </option>
+
+
+            <option value="72">
+                3 Days
+            </option>
+
+
+            <option value="168">
+                7 Days
+            </option>
+
+
+        </select>
+
+
+        <!-- Maximum Downloads -->
+
+        <label for="shareMaxDownloads">
+            Maximum Downloads
+        </label>
+
+
+        <input
+            type="number"
+            id="shareMaxDownloads"
+            min="1"
+            placeholder="Optional"
+        >
+
+
+        <!-- Generate -->
+
+        <button
+            type="button"
+            id="generateShareBtn"
+            class="btn primary-btn"
+            onclick="generateShareLink()"
+        >
+            Generate Secure Link
+        </button>
+
+
+        <!-- Result -->
+
+        <div
+            id="shareResult"
+            style="display:none;"
+        >
+
+
+            <p>
+                Secure sharing link:
+            </p>
+
+
+            <div class="share-link-container">
+
+
+                <input
+                    type="text"
+                    id="shareLink"
+                    readonly
+                >
+
+
+                <button
+                    type="button"
+                    id="copyLinkBtn"
+                    onclick="copyShareLink()"
+                >
+                    Copy
+                </button>
+
+
+            </div>
+
+
+            <button
+                type="button"
+                id="openShareLinkBtn"
+                class="btn primary-btn"
+                onclick="openShareLink()"
+            >
+                Open Link
+            </button>
+
+
+            <button
+                type="button"
+                id="revokeShareBtn"
+                class="btn"
+                onclick="revokeShareLink()"
+            >
+                Revoke Link
+            </button>
+
+
+        </div>
+
+
+        <!-- Message -->
+
+        <p id="shareMessage"></p>
+
+
+    </div>
+
+
+</div>
+
+
+
+<!-- =====================================================
+     FILE METADATA MODAL
+===================================================== -->
+
+<div
+    id="metadataModal"
+    class="metadata-modal"
+>
+
+
+    <div class="metadata-modal-content">
+
+
+        <div class="metadata-header">
+
+
+            <div>
+
+                <h2>
+                    File Details
+                </h2>
+
+                <p>
+                    Information about this file
+                </p>
+
+            </div>
+
+
+            <button
+                type="button"
+                class="modal-close"
+                onclick="closeMetadataModal()"
+            >
+                &times;
+            </button>
+
+
+        </div>
+
+
+
+        <div class="metadata-file">
+
+
+            <div class="metadata-file-icon">
+                📄
+            </div>
+
+
+            <div>
+
+                <strong id="metadataFileName">
+                    File
+                </strong>
+
+
+                <p id="metadataCategory">
+                    Category
+                </p>
+
+            </div>
+
+
+        </div>
+
+
+
+        <div class="metadata-grid">
+
+
+            <div class="metadata-item">
+
+                <span>
+                    File ID
+                </span>
+
+                <strong id="metadataFileId">
+                    -
+                </strong>
+
+            </div>
+
+
+            <div class="metadata-item">
+
+                <span>
+                    File Type
+                </span>
+
+                <strong id="metadataFileType">
+                    -
+                </strong>
+
+            </div>
+
+
+            <div class="metadata-item">
+
+                <span>
+                    File Size
+                </span>
+
+                <strong id="metadataFileSize">
+                    -
+                </strong>
+
+            </div>
+
+
+            <div class="metadata-item">
+
+                <span>
+                    Category
+                </span>
+
+                <strong id="metadataFileCategory">
+                    -
+                </strong>
+
+            </div>
+
+
+            <div class="metadata-item">
+
+                <span>
+                    Uploaded
+                </span>
+
+                <strong id="metadataUploadedAt">
+                    -
+                </strong>
+
+            </div>
+
+
+            <div class="metadata-item">
+
+                <span>
+                    Owner
+                </span>
+
+                <strong id="metadataOwner">
+                    -
+                </strong>
+
+            </div>
+
+
+        </div>
+
+
+
+        <div class="metadata-path">
+
+            <span>
+                Storage Path
+            </span>
+
+            <p id="metadataFilePath">
+                -
+            </p>
+
+        </div>
+
+
+
+        <div class="metadata-footer">
+
+            <button
+                type="button"
+                class="cancel-share-btn"
+                onclick="closeMetadataModal()"
+            >
+                Close
+            </button>
+
+        </div>
+
+
+    </div>
+
+
+</div>
+
+
+
+<!-- =====================================================
+     JAVASCRIPT
+===================================================== -->
+
+
+
+<script src="js/files.js"></script>
+
+
+</body>
+
+</html>
