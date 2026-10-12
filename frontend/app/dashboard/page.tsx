@@ -84,7 +84,19 @@ const formatDateTime = (
     return "-";
   }
 
-  return new Date(timestamp).toLocaleString("en-IN", {
+  // Backend timestamps without a timezone are stored as UTC.
+  // Add Z so JavaScript does not interpret them as local India time.
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(timestamp);
+  const normalizedTimestamp = hasTimezone
+    ? timestamp
+    : `${timestamp}Z`;
+  const parsedDate = new Date(normalizedTimestamp);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "-";
+  }
+
+  return parsedDate.toLocaleString("en-IN", {
     timeZone: "Asia/Kolkata",
     day: "numeric",
     month: "numeric",
@@ -109,6 +121,14 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [userRole, setUserRole] = useState("");
+
+  /* =======================================================
+     NOTIFICATIONS
+  ======================================================= */
+
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   /* =======================================================
      NAVIGATION
@@ -162,11 +182,34 @@ const [reportLoading, setReportLoading] =
   const [loading, setLoading] =
     useState(true);
 
+  // Re-render periodically so expired shares update without a page refresh.
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
   const [uploading, setUploading] =
     useState(false);
 
   const [sharing, setSharing] =
     useState(false);
+
+  // Public share-link form state
+  const [publicLinkFileId, setPublicLinkFileId] =
+    useState<number | "">("");
+  const [publicLinkPermission, setPublicLinkPermission] =
+    useState("download");
+  const [publicLinkExpiration, setPublicLinkExpiration] =
+    useState("60");
+  const [creatingPublicLink, setCreatingPublicLink] =
+    useState(false);
+  const [generatedPublicLink, setGeneratedPublicLink] =
+    useState("");
 
   const [searchText, setSearchText] =
     useState("");
@@ -234,6 +277,7 @@ const [reportLoading, setReportLoading] =
     }
 
     loadAllData();
+    loadNotifications();
   }, [router]);
 
   useEffect(() => {
@@ -824,6 +868,94 @@ const [reportLoading, setReportLoading] =
   };
 
   /* =======================================================
+     NOTIFICATIONS
+  ======================================================= */
+
+  const loadNotifications = async () => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${API_URL}/notifications/`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        console.error("Unable to load notifications:", response.status);
+        return;
+      }
+
+      const data = await response.json();
+      const items = Array.isArray(data?.notifications)
+        ? data.notifications
+        : [];
+
+      setNotifications(items);
+      setUnreadCount(items.filter((item: any) => !item.is_read).length);
+    } catch (err) {
+      console.error("Load notifications error:", err);
+    }
+  };
+
+  const markNotificationRead = async (notificationId: number) => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+
+    try {
+      const response = await fetch(
+        `${API_URL}/notifications/${notificationId}/read`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error("Unable to mark notification as read:", response.status);
+        return;
+      }
+
+      await loadNotifications();
+    } catch (err) {
+      console.error("Mark notification read error:", err);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+
+    try {
+      const response = await fetch(
+        `${API_URL}/notifications/mark-all-read`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error("Unable to mark all notifications as read:", response.status);
+        return;
+      }
+
+      await loadNotifications();
+    } catch (err) {
+      console.error("Mark all notifications read error:", err);
+    }
+  };
+
+  /* =======================================================
      UPLOAD
   ======================================================= */
 
@@ -1186,6 +1318,71 @@ const [reportLoading, setReportLoading] =
       setSharing(false);
     }
   };
+  /* =========================================================
+     CREATE PUBLIC SHARE LINK
+  ========================================================= */
+  const handleCreatePublicLink = async () => {
+    if (publicLinkFileId === "") {
+      setError("Please select a file for the public link.");
+      return;
+    }
+
+    const authToken = localStorage.getItem("access_token");
+    if (!authToken) {
+      router.push("/");
+      return;
+    }
+
+    setCreatingPublicLink(true);
+    setMessage("");
+    setError("");
+    setGeneratedPublicLink("");
+
+    try {
+      const query = new URLSearchParams({
+        permission: publicLinkPermission,
+        expires_in_minutes: publicLinkExpiration,
+      });
+      const response = await fetch(
+        `${API_URL}/sharing/files/${publicLinkFileId}/link?${query.toString()}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.detail || "Unable to create public share link.");
+      }
+      if (!data?.share_url) {
+        throw new Error("The server did not return a share URL.");
+      }
+
+      setGeneratedPublicLink(data.share_url);
+      setMessage("Public share link created successfully.");
+    } catch (err: any) {
+      console.error("Create public share link error:", err);
+      setError(err?.message || "Unable to create public share link.");
+    } finally {
+      setCreatingPublicLink(false);
+    }
+  };
+
+  const handleCopyPublicLink = async () => {
+    if (!generatedPublicLink) return;
+    try {
+      await navigator.clipboard.writeText(generatedPublicLink);
+      setMessage("Public share link copied to clipboard.");
+      setError("");
+    } catch (err) {
+      setError("Unable to copy automatically. Select and copy the link manually.");
+    }
+  };
+
   /* =======================================================
    REVOKE FILE SHARE
 ======================================================= */
@@ -1833,6 +2030,69 @@ const handleRevokeShare = async (
   };
 
   /* =======================================================
+     DOWNLOAD SHARED FILE
+  ======================================================= */
+  const handleDownloadShared = async (
+    shareId: number,
+    filename: string
+  ) => {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      router.push("/");
+      return;
+    }
+
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(
+        `${API_URL}/sharing/shared/${shareId}/download`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/octet-stream, application/json, */*",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const contentType = response.headers.get("content-type") || "";
+        let detail = "Download failed.";
+        if (contentType.includes("application/json")) {
+          const data = await response.json().catch(() => null);
+          detail = data?.detail || detail;
+        } else {
+          const text = await response.text().catch(() => "");
+          if (text) detail = text.slice(0, 300);
+        }
+        throw new Error(detail);
+      }
+
+      const blob = await response.blob();
+      if (!blob.size) {
+        throw new Error("The server returned an empty file.");
+      }
+
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename || "download";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
+
+      setMessage(`Downloaded ${filename || "file"} successfully.`);
+    } catch (err: any) {
+      console.error("Shared file download error:", err);
+      setError(err?.message || "Unable to download shared file.");
+    }
+  };
+
+  /* =======================================================
      LOGOUT
   ======================================================= */
 
@@ -2365,64 +2625,130 @@ const navigationItems = [
 
             </div>
 
-            {/* USER */}
+            {/* USER AND NOTIFICATIONS */}
 
-            <div
-              className="
-                ml-5
-                flex
-                items-center
-                gap-3
-              "
-            >
+            <div className="ml-5 flex items-center gap-3">
+              {/* NOTIFICATION BELL */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !showNotifications;
+                    setShowNotifications(next);
+                    if (next) {
+                      loadNotifications();
+                    }
+                  }}
+                  aria-label="Notifications"
+                  aria-expanded={showNotifications}
+                  className="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-100"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="21"
+                    height="21"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+                    <path d="M10 21h4" />
+                  </svg>
 
+                  {unreadCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {showNotifications && (
+                  <div className="absolute right-0 top-12 z-50 w-80 max-w-[90vw] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+                    <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                      <h3 className="text-sm font-semibold text-gray-900">
+                        Notifications
+                      </h3>
+
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={markAllNotificationsRead}
+                          className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                        >
+                          Mark all as read
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <p className="px-4 py-8 text-center text-sm text-gray-500">
+                          No notifications yet.
+                        </p>
+                      ) : (
+                        notifications.map((notification: any) => (
+                          <button
+                            key={notification.id}
+                            type="button"
+                            onClick={() => {
+                              if (!notification.is_read) {
+                                markNotificationRead(notification.id);
+                              }
+                            }}
+                            className={`block w-full border-b border-gray-100 px-4 py-3 text-left transition hover:bg-gray-50 ${
+                              notification.is_read ? "bg-white" : "bg-blue-50"
+                            }`}
+                          >
+                            <div className="flex items-start gap-2">
+                              {!notification.is_read && (
+                                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-600" />
+                              )}
+
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm text-gray-800">
+                                  {notification.message}
+                                </p>
+                                <p className="mt-1 text-xs text-gray-400">
+                                  {notification.created_at
+                                    ? formatDateTime(notification.created_at)
+                                    : ""}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* USER NAME AND ROLE */}
               <div className="hidden text-right sm:block">
-
                 <p className="text-sm font-semibold">
                   {userName || "User"}
                 </p>
-
                 <p className="text-xs text-gray-400">
                   {userRole || "User"}
                 </p>
-
               </div>
 
-              <div
-                className="
-                  flex
-                  h-10
-                  w-10
-                  items-center
-                  justify-center
-                  rounded-full
-                  bg-gray-900
-                  text-xs
-                  font-bold
-                  text-white
-                "
-              >
+              {/* USER AVATAR */}
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-xs font-bold text-white">
                 {getInitials()}
               </div>
 
+              {/* LOGOUT */}
               <button
                 onClick={handleLogout}
-                className="
-                  hidden
-                  rounded-lg
-                  px-3
-                  py-2
-                  text-xs
-                  font-semibold
-                  text-gray-500
-                  hover:bg-gray-100
-                  hover:text-gray-900
-                  sm:block
-                "
+                className="hidden rounded-lg px-3 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-100 hover:text-gray-900 sm:block"
               >
                 Logout
               </button>
-
             </div>
 
           </div>
@@ -3057,9 +3383,15 @@ const navigationItems = [
     </div>
   ) : (
     <div className="space-y-4">
-      {myShares.map((share) => (
+      {myShares.map((share) => {
+        const expired =
+          share.expired === true ||
+          (!!share.expires_at &&
+            new Date(share.expires_at).getTime() <= currentTime);
+
+        return (
         <div
-          key={share.share_id}
+          key={share.share_id ?? share.id}
           className="rounded-xl border border-slate-200 p-5"
         >
           <div className="flex items-center justify-between gap-4">
@@ -3092,19 +3424,26 @@ const navigationItems = [
 
             <button
               type="button"
+              disabled={expired}
               onClick={() =>
                 handleRevokeShare(
                   share.file_id,
-                  share.share_id
+                  share.share_id ?? share.id
                 )
               }
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+              title={expired ? "This share has expired" : "Revoke access to this share"}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+                expired
+                  ? "cursor-not-allowed bg-gray-100 text-gray-400"
+                  : "bg-red-600 text-white hover:bg-red-700"
+              }`}
             >
-              Revoke
+              {expired ? "Expired" : "Revoke"}
             </button>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   )}
 </div>
@@ -3474,6 +3813,96 @@ const navigationItems = [
 
               </div>
 
+              {/* PUBLIC SHARE LINK */}
+              <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 md:p-8">
+                <div className="mb-6">
+                  <h3 className="text-xl font-bold">Share by Link</h3>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Create a secure link for anyone, including people who do not have a TrustShare account.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <label className="block text-sm font-medium text-gray-700">
+                    File
+                    <select
+                      value={publicLinkFileId}
+                      onChange={(event) => setPublicLinkFileId(event.target.value ? Number(event.target.value) : "")}
+                      className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-gray-400"
+                    >
+                      <option value="">Select file</option>
+                      {files.map((file) => (
+                        <option key={file.id} value={file.id}>{file.filename}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block text-sm font-medium text-gray-700">
+                    Permission
+                    <select
+                      value={publicLinkPermission}
+                      onChange={(event) => setPublicLinkPermission(event.target.value)}
+                      className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-gray-400"
+                    >
+                      <option value="view">View Only</option>
+                      <option value="download">Download</option>
+                    </select>
+                  </label>
+
+                  <label className="block text-sm font-medium text-gray-700">
+                    Expires After
+                    <select
+                      value={publicLinkExpiration}
+                      onChange={(event) => setPublicLinkExpiration(event.target.value)}
+                      className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-gray-400"
+                    >
+                      <option value="5">5 minutes</option>
+                      <option value="10">10 minutes</option>
+                      <option value="30">30 minutes</option>
+                      <option value="60">1 hour</option>
+                      <option value="1440">24 hours</option>
+                      <option value="10080">7 days</option>
+                    </select>
+                  </label>
+
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={handleCreatePublicLink}
+                      disabled={creatingPublicLink || files.length === 0}
+                      className="w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {creatingPublicLink ? "Creating Link..." : "Create Share Link"}
+                    </button>
+                  </div>
+                </div>
+
+                {generatedPublicLink && (
+                  <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="text-sm font-semibold text-emerald-800">Your public share link is ready</p>
+                    <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                      <input
+                        aria-label="Generated public share link"
+                        readOnly
+                        value={generatedPublicLink}
+                        onFocus={(event) => event.currentTarget.select()}
+                        className="min-w-0 flex-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-gray-700"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCopyPublicLink}
+                        className="rounded-lg bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-800"
+                      >
+                        Copy Link
+                      </button>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-600">
+                      Anyone with this link can access the file according to the selected permission until it expires.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div
                 className="
                   mt-6
@@ -3760,33 +4189,31 @@ const navigationItems = [
 
                                 <td className="px-6 py-5 text-right">
 
-                                  <button
-                                    disabled={
-                                      expired
-                                    }
-                                    onClick={() =>
-                                      handleViewShared(
-                                        actualShareId
-                                      )
-                                    }
-                                    className={`
-                                      rounded-lg
-                                      px-4
-                                      py-2
-                                      text-xs
-                                      font-semibold
-
-                                      ${
-                                        expired
-                                          ? "cursor-not-allowed bg-gray-100 text-gray-400"
-                                          : "bg-gray-900 text-white hover:bg-gray-800"
-                                      }
-                                    `}
-                                  >
-                                    {expired
-                                      ? "Expired"
-                                      : "View"}
-                                  </button>
+                                  {expired ? (
+                                    <button
+                                      type="button"
+                                      disabled
+                                      className="cursor-not-allowed rounded-lg bg-gray-100 px-4 py-2 text-xs font-semibold text-gray-400"
+                                    >
+                                      Expired
+                                    </button>
+                                  ) : (shared.permission || "view").trim().toLowerCase() === "download" ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadShared(actualShareId, shared.filename)}
+                                      className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                                    >
+                                      Download
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleViewShared(actualShareId)}
+                                      className="rounded-lg bg-gray-900 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-800"
+                                    >
+                                      View
+                                    </button>
+                                  )}
 
                                 </td>
 
@@ -4217,7 +4644,7 @@ const navigationItems = [
                   (
                     share.expires_at &&
                     new Date(share.expires_at).getTime() <=
-                      Date.now()
+                      currentTime
                   );
 
                 return (
@@ -4356,24 +4783,29 @@ const navigationItems = [
                     <td className="px-6 py-5 text-right">
 
                       <button
+                        type="button"
+                        disabled={expired}
                         onClick={() =>
                           handleRevokeShare(
                             share.file_id,
                             share.share_id ?? share.id
                           )
                         }
-                        className="
+                        title={expired ? "This share has expired" : "Revoke access to this share"}
+                        className={`
                           rounded-lg
-                          bg-red-50
                           px-4
                           py-2
                           text-xs
                           font-semibold
-                          text-red-600
-                          hover:bg-red-100
-                        "
+                          ${
+                            expired
+                              ? "cursor-not-allowed bg-gray-100 text-gray-400"
+                              : "bg-red-50 text-red-600 hover:bg-red-100"
+                          }
+                        `}
                       >
-                        Revoke Access
+                        {expired ? "Expired" : "Revoke Access"}
                       </button>
 
                     </td>

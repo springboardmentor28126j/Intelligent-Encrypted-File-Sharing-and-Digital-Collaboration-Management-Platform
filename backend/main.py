@@ -13,6 +13,7 @@ from security_alerts import router as security_alerts_router
 from routes.reports import router as reports_router
 from routes.analytics import router as analytics_router
 from suspicious_activity import router as suspicious_activity_router
+from routes.notifications import router as notifications_router
 
 
 
@@ -78,6 +79,8 @@ app.include_router(reports_router)
 app.include_router(analytics_router)
 
 app.include_router(suspicious_activity_router)
+
+app.include_router(notifications_router)
 
 
 

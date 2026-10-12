@@ -1,6 +1,12 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Boolean,
+)
 
 from database import Base
 
@@ -122,11 +128,10 @@ class FileShare(Base):
     # ID of the user receiving access
     shared_with_user_id = Column(
         Integer,
-        nullable=False,
+        nullable=True,
         index=True
     )
 
-    # Permission given to the recipient
     # Examples: "view", "download"
     permission = Column(
         String,
@@ -142,15 +147,64 @@ class FileShare(Base):
         index=True
     )
 
-    # Optional expiration time
+    # Optional expiration time; stored as a timezone-aware UTC timestamp
     expires_at = Column(
         DateTime(timezone=True),
         nullable=True
     )
 
-    # Time when the share was created
+    # Time when the share was created; use timezone-aware UTC
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow
+        default=lambda: datetime.now(timezone.utc)
+    )
+
+
+# =========================================================
+# Notification Model
+# =========================================================
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    # ID of the user receiving the notification
+    user_id = Column(
+        Integer,
+        nullable=False,
+        index=True
+    )
+
+    # Notification message
+    message = Column(
+        String,
+        nullable=False
+    )
+
+    # Examples:
+    # file_shared, file_expiring, security, file_downloaded
+    type = Column(
+        String,
+        nullable=False
+    )
+
+    # False = unread, True = read
+    is_read = Column(
+        Boolean,
+        nullable=False,
+        default=False
+    )
+
+    # Notification creation time; use timezone-aware UTC
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        index=True
     )
