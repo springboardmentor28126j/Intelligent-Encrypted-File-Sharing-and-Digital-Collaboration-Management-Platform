@@ -1,8 +1,18 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import api, { getErrorMessage } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { Notice, PasswordField } from '../components/common'
+
+const RECOVERY_KEYS = {
+  email: 'trustshare_recovery_email',
+  otpExpiresAt: 'trustshare_recovery_otp_expires_at',
+  resetToken: 'trustshare_recovery_reset_token',
+}
+
+function clearRecoverySession() {
+  Object.values(RECOVERY_KEYS).forEach(key => sessionStorage.removeItem(key))
+}
 
 function AuthLayout({ children }) {
   return (
@@ -12,7 +22,10 @@ function AuthLayout({ children }) {
         <h1>Your files,<br /><em>kept close.</em></h1>
         <p>A calm, private home for the documents that matter.</p>
       </div>
-      {children}
+      <div className="auth-panel">
+        <div className="auth-logo"><span className="brand-mark">T</span><strong>TrustShare</strong></div>
+        {children}
+      </div>
     </div>
   )
 }
@@ -219,8 +232,12 @@ export function ForgotPassword() {
   async function submit(e) {
     e.preventDefault()
     try {
-      await api.post('/auth/forgot-password', { email })
-      navigate('/verify-otp', { state: { email } })
+      const { data } = await api.post('/auth/forgot-password', { email })
+      const otpExpiresAt = Date.now() + (data.expires_in_seconds * 1000)
+      sessionStorage.setItem(RECOVERY_KEYS.email, email)
+      sessionStorage.setItem(RECOVERY_KEYS.otpExpiresAt, String(otpExpiresAt))
+      sessionStorage.removeItem(RECOVERY_KEYS.resetToken)
+      navigate('/verify-otp', { state: { email, otpExpiresAt } })
     } catch (x) {
       setError(getErrorMessage(x))
     }
@@ -244,16 +261,51 @@ export function ForgotPassword() {
 export function VerifyOTP() {
   const [otp, setOtp] = useState('')
   const [error, setError] = useState('')
+  const [remaining, setRemaining] = useState(0)
+  const [sending, setSending] = useState(false)
+  const location = useLocation()
   const navigate = useNavigate()
-  const email = window.history.state.usr?.email || ''
+  const email = location.state?.email || sessionStorage.getItem(RECOVERY_KEYS.email) || ''
+
+  useEffect(() => {
+    const expiresAt = Number(location.state?.otpExpiresAt || sessionStorage.getItem(RECOVERY_KEYS.otpExpiresAt) || 0)
+    setRemaining(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)))
+  }, [location.state?.otpExpiresAt])
+
+  useEffect(() => {
+    if (remaining <= 0) return
+    const timer = setInterval(() => setRemaining(value => Math.max(0, value - 1)), 1000)
+    return () => clearInterval(timer)
+  }, [remaining])
+
+  const formatTime = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 
   async function submit(e) {
     e.preventDefault()
+    if (remaining <= 0) return setError('This OTP has expired. Request a new code.')
     try {
       const { data } = await api.post('/auth/verify-otp', { email, otp })
+      sessionStorage.setItem(RECOVERY_KEYS.resetToken, data.reset_token)
       navigate('/reset-password', { state: { resetToken: data.reset_token } })
     } catch (x) {
       setError(getErrorMessage(x))
+    }
+  }
+
+  async function resend() {
+    if (!email || sending) return
+    setSending(true)
+    setError('')
+    try {
+      const { data } = await api.post('/auth/forgot-password', { email })
+      setOtp('')
+      const otpExpiresAt = Date.now() + ((data.expires_in_seconds || 0) * 1000)
+      sessionStorage.setItem(RECOVERY_KEYS.otpExpiresAt, String(otpExpiresAt))
+      setRemaining(Math.max(0, Math.ceil((otpExpiresAt - Date.now()) / 1000)))
+    } catch (requestError) {
+      setError(getErrorMessage(requestError))
+    } finally {
+      setSending(false)
     }
   }
 
@@ -264,8 +316,15 @@ export function VerifyOTP() {
         <h2>Verify your OTP</h2>
         <p className="muted">Enter the six-digit code sent to your email.</p>
         <Notice error={error} />
-        <label>OTP<input required pattern="[0-9]{6}" maxLength="6" inputMode="numeric" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, ''))} /></label>
-        <button className="primary full">Verify OTP</button>
+        <label>OTP<input className="otp-input" required pattern="[0-9]{6}" maxLength="6" inputMode="numeric" autoComplete="one-time-code" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
+        <div className={`otp-timer ${remaining === 0 ? 'expired' : ''}`}>
+          {remaining > 0 ? `Code expires in ${formatTime(remaining)}` : 'Code expired'}
+        </div>
+        <button className="primary full" disabled={remaining === 0}>Verify OTP</button>
+        <button className="center-link" type="button" onClick={resend} disabled={sending || remaining > 0}>
+          {sending ? 'Sending...' : remaining > 0 ? 'Resend available after expiry' : 'Send a new code'}
+        </button>
+        {!email && <Link className="center-link" to="/forgot-password">Request an OTP</Link>}
       </form>
     </AuthLayout>
   )
@@ -275,8 +334,9 @@ export function ResetPassword() {
   const [form, setForm] = useState({ token: '', new_password: '', confirm_password: '' })
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const location = useLocation()
   const navigate = useNavigate()
-  const resetToken = window.history.state.usr?.resetToken || ''
+  const resetToken = location.state?.resetToken || sessionStorage.getItem(RECOVERY_KEYS.resetToken) || ''
 
   async function submit(e) {
     e.preventDefault()
@@ -285,6 +345,7 @@ export function ResetPassword() {
     try {
       const { data } = await api.post('/auth/reset-password', { token: form.token || resetToken, new_password: form.new_password })
       setMessage(data.message)
+      clearRecoverySession()
       setTimeout(() => navigate('/login'), 900)
     } catch (x) {
       setError(getErrorMessage(x))

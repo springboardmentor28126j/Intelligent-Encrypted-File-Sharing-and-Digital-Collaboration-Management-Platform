@@ -14,7 +14,12 @@ export function formatBytes(bytes) {
 }
 
 export function Protected({ children }) { 
-  return useAuth().user ? children : <Navigate to="/login" replace /> 
+  const { user } = useAuth()
+  return user && sessionStorage.getItem('trustshare_token') ? children : <Navigate to="/login" replace />
+}
+
+export function PublicOnly({ children }) {
+  return children
 }
 
 export function Layout({ children }) {
@@ -47,7 +52,7 @@ export function Layout({ children }) {
   function signOut() { 
     setMenuOpen(false)
     logout()
-    navigate('/login') 
+    navigate('/login', { replace: true }) 
   }
 
   return (

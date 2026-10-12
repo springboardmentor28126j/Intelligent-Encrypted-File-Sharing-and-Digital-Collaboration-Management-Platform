@@ -3,7 +3,7 @@ import logging
 import platform
 import socket
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Form, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -75,6 +75,16 @@ def _extract_client_ip(request: Request) -> tuple[str, str | None]:
 
     ua = request.headers.get("user-agent")
     return system_name, ua
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 @router.post("/register", response_model=UserResponse, status_code=201)
 def register(data: RegisterRequest, db: Session = Depends(get_db)):
@@ -358,7 +368,8 @@ def forgot_password(
     ).first()
 
     response = {
-        "message": "If that email exists, an OTP was sent."
+        "message": "If that email exists, an OTP was sent.",
+        "expires_in_seconds": settings.otp_expire_minutes * 60,
     }
 
     if not user:
@@ -377,7 +388,7 @@ def forgot_password(
         PasswordResetToken(
             user_id=user.id,
             token_hash=hash_reset_token(otp),
-            expires_at=datetime.utcnow()
+            expires_at=_utc_now()
             + timedelta(minutes=settings.otp_expire_minutes),
         )
     )
@@ -423,7 +434,7 @@ def verify_otp(
         PasswordResetToken.used.is_(False),
     ).first()
 
-    if not reset or reset.expires_at < datetime.utcnow():
+    if not reset or _as_utc(reset.expires_at) < _utc_now():
         raise HTTPException(
             400,
             "OTP is invalid or expired"

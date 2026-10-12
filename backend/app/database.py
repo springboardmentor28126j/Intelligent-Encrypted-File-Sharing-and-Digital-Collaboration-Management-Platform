@@ -75,6 +75,23 @@ def ensure_schema_compatibility():
         if folders:
             _add_column_if_missing(connection, "folders", folders, "parent_id", "parent_id INTEGER")
 
+        password_reset_tokens = _table_columns("password_reset_tokens")
+        if password_reset_tokens:
+            _add_column_if_missing(
+                connection,
+                "password_reset_tokens",
+                password_reset_tokens,
+                "used",
+                "used BOOLEAN NOT NULL DEFAULT FALSE",
+            )
+            _add_column_if_missing(
+                connection,
+                "password_reset_tokens",
+                password_reset_tokens,
+                "created_at",
+                "created_at TIMESTAMP NOT NULL DEFAULT NOW()",
+            )
+
         shares = _table_columns("file_shares")
         if shares:
             _add_column_if_missing(connection, "file_shares", shares, "owner_id", "owner_id INTEGER")
