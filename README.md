@@ -1,253 +1,178 @@
 # 🛡️ TrustShare
+**Intelligent Encrypted File Sharing and Digital Collaboration Management Platform**
 
-### Intelligent Encrypted File Sharing and Digital Collaboration Management Platform
+## 1. About the Project
 
-TrustShare is a **secure web-based file sharing and collaboration platform** designed to protect sensitive files and provide controlled access between users.
+TrustShare is a web-based application that helps users store and share files securely. It allows users to create accounts, log in, upload files, and share them with other registered users.
 
-It allows users to securely **register, login, upload files, encrypt files, share files with specific users, manage permissions, and monitor file activities**.
+The main goal of TrustShare is to protect files from unauthorized access. Users can control who can view their files, manage permissions, and remove access whenever needed. The system also records file activities and sends security notifications to help users monitor their accounts.
 
----
+## 2. Problem Statement
 
-## 🎯 Problem Statement
+Sharing files through traditional methods can sometimes put sensitive information at risk.
 
-Traditional file-sharing methods can expose sensitive information to unauthorized users.
+Some common problems are:
+- Unauthorized people accessing files.
+- Files not being properly encrypted.
+- Difficulty controlling who can access shared files.
+- Lack of information about who accessed or shared files.
+- Risk of sensitive data being exposed.
 
-Common problems include:
+TrustShare helps solve these problems by providing secure login, file encryption, permission-based sharing, and activity monitoring in one application.
 
-* Unauthorized file access
-* Lack of encryption
-* Poor access control
-* No proper activity tracking
-* Risk of data leakage
+## 3. Key Features
 
-**TrustShare solves these problems by combining encryption, authentication, access control and activity monitoring in one platform.**
+- **Secure Registration and Login:** Users can create accounts and log in securely.
+- **JWT Authentication:** JWT tokens help protect pages and APIs that require authentication.
+- **File Encryption:** Files are encrypted using AES-GCM encryption to protect their contents.
+- **File Management:** Users can upload, view, download, and manage their files according to their permissions.
+- **Secure File Sharing:** Users can share files with other registered users.
+- **Permission Control:** File owners can decide whether recipients can view or download shared files.
+- **Access Revocation:** Owners can remove a user's access when necessary.
+- **User and Admin Roles:** Normal users manage their files, while administrators can manage users and their roles.
+- **Activity Monitoring:** The system records important actions, such as logins, uploads, and file sharing.
+- **Audit Logs:** Recorded activities help users and administrators review system operations.
+- **Security Notifications:** Users receive notifications about important security events.
+- **File Activity Reports:** Users can review file-related activities and security information.
 
----
+## 4. System Architecture
 
-## 💡 Key Features
+TrustShare works through three main components:
 
-* 🔐 Secure Registration & Login
-* 🎫 JWT Authentication
-* 🔒 AES-256 File Encryption
-* 📁 Secure File Upload & Management
-* 🤝 File Sharing with Registered Users
-* 👁️ Permission-Based File Access
-* 🚫 Access Revocation
-* 👥 Role-Based Access Control (User/Admin)
-* 📊 Activity Monitoring
-* 📝 Audit Logging
-* 🔔 Security Notifications
-* 📄 File Activity Reports
+1. **Frontend:** HTML, CSS, and JavaScript provide the interface that users interact with.
+2. **Backend:** Python and FastAPI process requests, verify permissions, handle encryption, and manage file operations.
+3. **Database and Storage:** PostgreSQL stores application data, while encrypted files are stored securely.
 
----
+The frontend communicates with the backend through REST APIs. The backend connects to the database and handles file storage and security operations.
 
-## 🏗️ System Architecture
+## 5. Technology Stack
 
-```text
-User
-  │
-  ▼
-HTML / CSS / JavaScript
-  │
-  ▼
-FastAPI REST APIs
-  │
-  ├──────────────► PostgreSQL
-  │
-  ├──────────────► AES-256 Encryption
-  │
-  └──────────────► Encrypted File Storage
-```
+- **Frontend:** HTML, CSS, JavaScript
+- **Backend:** Python, FastAPI
+- **Database:** PostgreSQL
+- **Authentication:** JWT
+- **Password Security:** bcrypt password hashing
+- **File Encryption:** AES-GCM
+- **File Storage:** Local storage and Backblaze B2 cloud storage
+- **Deployment:** Docker and Render
 
----
+## 6. How TrustShare Works
 
-## 🛠️ Technology Stack
+### A. Login Process
 
-| Layer             | Technology              |
-| ----------------- | ----------------------- |
-| Frontend          | HTML, CSS, JavaScript   |
-| Backend           | Python, FastAPI         |
-| Database          | PostgreSQL              |
-| Authentication    | JWT                     |
-| Password Security | bcrypt                  |
-| File Encryption   | AES-256                 |
-| Storage           | Local Encrypted Storage |
-| Deployment        | Docker                  |
+1. The user enters their email and password.
+2. The backend checks the login details.
+3. If the details are correct, the system provides a JWT token.
+4. The token is used to access protected features.
+5. The system records the login activity.
 
----
+### B. File Upload Process
 
-## 🔐 Security Workflow
+1. The user selects a file to upload.
+2. The file is sent to the FastAPI backend.
+3. The backend encrypts the file using AES-GCM.
+4. The encrypted file is stored.
+5. The system records the upload activity.
 
-### Login
+### C. File Sharing Process
 
-```text
-User Login
-   ↓
-Credentials Verification
-   ↓
-JWT Token
-   ↓
-Protected APIs
-```
+1. The owner selects a file.
+2. The owner enters the recipient's email address.
+3. The owner selects the required permission.
+4. The recipient can access the file according to the granted permission.
+5. The owner can revoke access whenever needed.
 
-### File Upload
-
-```text
-Select File
-   ↓
-FastAPI Backend
-   ↓
-AES-256 Encryption
-   ↓
-Encrypted Storage
-```
-
-### File Sharing
-
-```text
-Owner
-  ↓
-Select File
-  ↓
-Recipient Email
-  ↓
-Select Permission
-  ↓
-Recipient Access
-```
-
-The owner can also **revoke access** when required.
-
----
-
-## 👥 User Roles
+## 7. User Roles
 
 ### Normal User
 
-* Upload and manage files
-* Share files
-* Access shared files
-* View relevant activities
+A normal user can:
+- Manage their profile.
+- Upload and manage files.
+- Share files with registered users.
+- Access files shared with them.
+- View relevant notifications and activities.
 
 ### Administrator
 
-* Manage users
-* Manage user roles
-* Monitor security-related activities
-* Perform administrative operations
+An administrator can:
+- View and manage users.
+- Change user roles.
+- Perform administrative operations.
+- Monitor security-related activities.
 
----
+## 8. Activity Monitoring
 
-## 📊 Activity Monitoring
+TrustShare records important actions performed within the application. These include successful and failed login attempts, file uploads, file sharing, and other file-related events.
 
-TrustShare records important activities such as:
+The system also provides activity reports, notifications, and security alerts for relevant events. This helps users understand what is happening in their accounts and helps administrators monitor suspicious activity.
 
-* Login
-* File upload
-* File sharing
-* File access
-* Security-related events
+## 9. Project Structure
 
-This helps users and administrators monitor what is happening in the system.
+The project is organized into three main folders:
 
----
+- **backend:** Contains the FastAPI application, backend logic, database operations, and related configuration files.
+- **frontend:** Contains the HTML pages, CSS styles, and JavaScript files.
+- **docs:** Contains project documentation and supporting materials.
 
-## 📂 Project Structure
+## 10. How to Run the Project
 
-```text
-TrustShare/
-│
-├── backend/
-│   ├── app/
-│   ├── uploads/
-│   ├── Dockerfile
-│   └── requirements.txt
-│
-├── frontend/
-│   ├── HTML files
-│   ├── CSS
-│   ├── JavaScript
-│   └── Dockerfile
-│
-└── docs/
-```
+### Start the Backend
 
----
+Open a terminal and run:
 
-## ▶️ How to Run
-
-### Backend
-
-```powershell
+```bash
 cd backend
 venv\Scripts\activate
 python -m uvicorn app.main:app --reload
 ```
 
-Backend:
+Backend URL: http://127.0.0.1:8000
 
-```text
-http://127.0.0.1:8000
-```
+API documentation: http://127.0.0.1:8000/docs
 
-Swagger API documentation:
+### Start the Frontend
 
-```text
-http://127.0.0.1:8000/docs
-```
+Open another terminal and run:
 
-### Frontend
-
-```powershell
+```bash
 cd frontend
 python -m http.server 5500
 ```
 
-Frontend:
+Frontend URL: http://127.0.0.1:5500
 
-```text
-http://127.0.0.1:5500
-```
+Make sure the database and required environment variables are configured before starting the application.
 
----
+## 11. Practical Applications
 
-## 🎯 Practical Applications
+TrustShare can be useful in:
+- Colleges and educational institutions.
+- Companies and business organizations.
+- Software development teams.
+- Organizations that handle confidential documents.
+- Teams that need controlled and secure file sharing.
 
-TrustShare can be used for:
+## 12. Future Improvements
 
-* Educational institutions
-* Companies
-* Development teams
-* Organizations handling sensitive documents
-* Secure internal file sharing
+Possible future improvements include:
+- More advanced AI-based suspicious activity detection.
+- Real-time security alerts.
+- A mobile application.
+- Multi-factor authentication.
+- Improved document collaboration.
+- Advanced file version management.
 
----
+## 13. Project Summary
 
-## 🚀 Future Scope
+TrustShare is designed to make file sharing safer and easier. It combines secure login, file encryption, access permissions, user roles, and activity monitoring in one platform.
 
-Future improvements can include:
+Users can upload files, share them with specific people, control their permissions, and revoke access when needed. Activity logs and security notifications also help users monitor important events.
 
-* ☁️ Cloud storage integration
-* 🤖 AI-based suspicious activity detection
-* 🔔 Advanced real-time security alerts
-* 📱 Mobile application
-* 🔑 Multi-factor authentication
-* 👥 Advanced collaboration and document versioning
+The main objective of TrustShare is to provide a secure and reliable platform for managing and sharing digital files.
 
----
-
-## 📌 Project Summary
-
-**TrustShare provides a secure way to store, share and manage files using:**
-
-> **JWT Authentication + AES-256 Encryption + RBAC + Permission Control + Activity Monitoring**
-
-The project focuses on making digital file sharing **secure, controlled and easy to manage**.
-
----
-
-## 👨‍💻 Team
-
-**Project:** TrustShare
-**Domain:** Secure File Sharing
-
+**Project Name:** TrustShare  
+**Domain:** Secure File Sharing and Digital Collaboration  
+**Backend:** Python and FastAPI  
+**Frontend:** HTML, CSS, and JavaScript  
+**Database:** PostgreSQL
