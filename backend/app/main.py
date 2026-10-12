@@ -28,6 +28,6 @@ app.include_router(analytics.router)
 app.include_router(folders.router)
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health():
     return {"status": "ok"}
