@@ -870,3 +870,13 @@ body {
     font-size: 28px;
   }
 }
+.share-sent {
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(45, 212, 191, 0.08);
+  border: 1px solid rgba(45, 212, 191, 0.3);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #6EE7DB;
+  line-height: 1.5;
+}

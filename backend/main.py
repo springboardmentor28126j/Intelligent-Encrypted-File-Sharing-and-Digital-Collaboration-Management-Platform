@@ -1,5 +1,5 @@
 from redis_client import redis_client
-from mongo import activity_logs
+from mongo import activity_logs, db  # db added for notifications
 from datetime import datetime, timedelta
 from fastapi import UploadFile, File, Form
 from fastapi.responses import FileResponse, Response
@@ -52,9 +52,49 @@ def log_activity(action: str, filename: str, performed_by: str, **extra):
         print(f"MongoDB logging failed (non-critical): {e}")
 
 
+# Helper function to create notification
+def create_notification(user_email: str, message: str, notif_type: str):
+    try:
+        notif = {
+            "user_email": user_email,
+            "message": message,
+            "type": notif_type,
+            "is_read": False,
+            "timestamp": datetime.utcnow()
+        }
+        db.notifications.insert_one(notif)
+    except Exception as e:
+        print(f"Notification creation failed (non-critical): {e}")
+
+
 @app.get("/")
 def home():
     return {"message": "TrustShare backend running"}
+
+
+# Notification Endpoints
+@app.get("/notifications")
+def get_notifications(email: str):
+    try:
+        notifs = list(db.notifications.find({"user_email": email}).sort("timestamp", -1).limit(20))
+        for n in notifs:
+            n["_id"] = str(n["_id"])
+            if isinstance(n.get("timestamp"), datetime):
+                n["timestamp"] = n["timestamp"].isoformat()
+        return notifs
+    except Exception as e:
+        print(f"Failed to fetch notifications: {e}")
+        return []
+
+
+@app.post("/notifications/read-all")
+def mark_notifications_read(payload: dict):
+    email = payload.get("email")
+    try:
+        db.notifications.update_many({"user_email": email, "is_read": False}, {"$set": {"is_read": True}})
+        return {"message": "Notifications marked as read"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Could not update notifications")
 
 
 @app.post("/signup")
@@ -68,6 +108,8 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    
+    create_notification(user.email, "Welcome to TrustShare! Your account was created successfully.", "signup")
     return {"message": "User created successfully", "email": new_user.email, "role": new_user.role}
 
 
@@ -117,7 +159,17 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Redis caching failed (non-critical): {e}")
 
+    create_notification(db_user.email, "You logged into your TrustShare account successfully.", "login")
     return {"access_token": token, "token_type": "bearer", "role": db_user.role, "name": db_user.name}
+
+
+@app.post("/logout")
+def logout(payload: dict):
+    email = payload.get("email")
+    if email:
+        log_activity("user_logout", "N/A", email)
+        create_notification(email, "You logged out of your TrustShare account.", "logout")
+    return {"message": "Logged out successfully"}
 
 
 ALLOWED_EXTENSIONS = {
@@ -162,6 +214,7 @@ async def upload_file(file: UploadFile = File(...), owner_email: str = Form(...)
     db.commit()
 
     log_activity("file_upload", file.filename, owner_email)
+    create_notification(owner_email, f"File '{file.filename}' uploaded and encrypted successfully.", "upload")
 
     msg = "File uploaded and encrypted successfully"
     if existing:
@@ -199,28 +252,8 @@ def delete_file(file_id: int, email: str, role: str, db: Session = Depends(get_d
     db.delete(record)
     db.commit()
 
-    try:
-        delete_key = f"delete_count:{email}"
-        delete_count = redis_client.incr(delete_key)
-        redis_client.expire(delete_key, 120)
-
-        if delete_count == 5:
-            log_activity(
-                "suspicious_activity",
-                "N/A",
-                email,
-                reason=f"{delete_count} files deleted within 2 minutes — possible malicious activity"
-            )
-            send_email(
-                email,
-                "TrustShare — Security Alert",
-                f"We detected {delete_count} file deletions on your account within 2 minutes. "
-                f"If this wasn't you, please review your account activity immediately."
-            )
-    except Exception as e:
-        print(f"Redis delete tracking error (non-critical): {e}")
-
     log_activity("file_delete", filename, email)
+    create_notification(email, f"File '{filename}' was deleted from your vault.", "delete")
 
     return {"message": "File deleted successfully"}
 
@@ -248,37 +281,11 @@ def download_file(file_id: int, email: str, role: str, db: Session = Depends(get
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to decrypt file — data may be corrupted")
 
-    try:
-        download_key = f"download_count:{email}"
-        download_count = redis_client.incr(download_key)
-        redis_client.expire(download_key, 120)
-
-        if download_count == 3:
-            log_activity(
-                "suspicious_activity",
-                "N/A",
-                email,
-                reason=f"{download_count} file downloads within 2 minutes — possible data exfiltration"
-            )
-            send_email(
-                email,
-                "TrustShare — Security Alert",
-                f"We detected {download_count} file downloads on your account within 2 minutes. "
-                f"If this wasn't you, please review your account activity immediately."
-            )
-    except Exception as e:
-        print(f"Redis download tracking error (non-critical): {e}")
-
     log_activity("file_download", record.filename, email)
+    create_notification(email, f"File '{record.filename}' downloaded successfully.", "download")
 
     if record.owner_email != email:
-        send_email(
-            record.owner_email,
-            "TrustShare — Your file was accessed",
-            f"Your file '{record.filename}' was downloaded by {email} (role: {role}) "
-            f"on {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}.\n\n"
-            f"If you don't recognize this activity, please review your account."
-        )
+        create_notification(record.owner_email, f"Your file '{record.filename}' was downloaded by {email}.", "access")
 
     return Response(
         content=decrypted_bytes,
@@ -356,6 +363,7 @@ def reset_password(payload: dict, db: Session = Depends(get_db)):
     except Exception:
         pass
 
+    create_notification(email, "Your account password was reset successfully.", "security")
     return {"message": "Password reset successful. You can now log in with your new password."}
 
 
@@ -389,7 +397,7 @@ def create_share_link(file_id: int, payload: dict, db: Session = Depends(get_db)
     db.add(new_share)
     db.commit()
 
-    share_url = f"http://localhost:8000/shared/{share_token}"
+    share_url = f"https://trustshare-backend-lhed.onrender.com/shared/{share_token}"
 
     log_activity(
         "share_link_created",
@@ -398,13 +406,23 @@ def create_share_link(file_id: int, payload: dict, db: Session = Depends(get_db)
         recipient_email=recipient_email,
         share_token=share_token,
     )
+    create_notification(requester_email, f"Created a share link for file '{record.filename}' with {recipient_email}.", "share")
+
+    email_sent = send_email(
+        recipient_email,
+        "TrustShare — A file was shared with you",
+        f"{requester_email} shared '{record.filename}' with you.\n\n"
+        f"Open link: {share_url}\n"
+        f"This link expires at {expires_at.strftime('%Y-%m-%d %H:%M UTC')}."
+    )
 
     return {
-        "message": f"Share link generated for {recipient_email} (dev mode — email sending not yet wired up)",
+        "message": f"Share link sent to {recipient_email}",
         "share_token": share_token,
         "expires_at": expires_at.isoformat(),
         "share_url": share_url,
-        "recipient_email": recipient_email
+        "recipient_email": recipient_email,
+        "email_sent": email_sent,
     }
 
 
@@ -446,28 +464,8 @@ def access_shared_file(share_token: str, db: Session = Depends(get_db)):
     )
 
 
-@app.get("/share-info/{share_token}")
-def share_link_info(share_token: str, db: Session = Depends(get_db)):
-    share = db.query(models.ShareLink).filter(models.ShareLink.share_token == share_token).first()
-    if not share:
-        raise HTTPException(status_code=404, detail="Invalid share link")
-
-    is_expired = datetime.utcnow() > share.expires_at
-
-    record = db.query(models.FileRecord).filter(models.FileRecord.id == share.file_id).first()
-
-    return {
-        "filename": record.filename if record else "Unknown",
-        "expires_at": share.expires_at.isoformat(),
-        "is_expired": is_expired,
-        "shared_by": share.created_by
-    }
-
-
-# NEW: list + revoke share links (used by the Settings page)
 @app.get("/share-links")
 def list_share_links(email: str, role: str, db: Session = Depends(get_db)):
-    """List active (non-expired) share links owned by this user, or all if admin."""
     now = datetime.utcnow()
     if role == "admin":
         shares = db.query(models.ShareLink).filter(models.ShareLink.expires_at > now).all()
@@ -492,7 +490,6 @@ def list_share_links(email: str, role: str, db: Session = Depends(get_db)):
 
 @app.delete("/share-links/{share_token}")
 def revoke_share_link(share_token: str, email: str, role: str, db: Session = Depends(get_db)):
-    """Revoke (delete) a share link before it expires."""
     share = db.query(models.ShareLink).filter(models.ShareLink.share_token == share_token).first()
     if not share:
         raise HTTPException(status_code=404, detail="Share link not found")
@@ -504,6 +501,7 @@ def revoke_share_link(share_token: str, email: str, role: str, db: Session = Dep
     db.commit()
 
     log_activity("share_link_revoked", "N/A", email)
+    create_notification(email, "Revoked a share link successfully.", "share")
     return {"message": "Share link revoked successfully"}
 
 
@@ -589,6 +587,7 @@ def mfa_enable_confirm(payload: dict, db: Session = Depends(get_db)):
         pass
 
     log_activity("mfa_enabled", "N/A", email)
+    create_notification(email, "Two-factor authentication (2FA) was enabled.", "security")
     return {"message": "Two-factor authentication enabled successfully"}
 
 
@@ -603,6 +602,7 @@ def mfa_disable(payload: dict, db: Session = Depends(get_db)):
     db.commit()
 
     log_activity("mfa_disabled", "N/A", email)
+    create_notification(email, "Two-factor authentication (2FA) was disabled.", "security")
     return {"message": "Two-factor authentication disabled"}
 
 
@@ -632,6 +632,7 @@ def verify_mfa(payload: dict, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Redis caching failed (non-critical): {e}")
 
+    create_notification(db_user.email, "You logged into your TrustShare account successfully via MFA.", "login")
     return {"access_token": token, "token_type": "bearer", "role": db_user.role, "name": db_user.name}
 
 
