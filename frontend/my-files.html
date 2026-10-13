@@ -1680,7 +1680,7 @@
 
                 const response =
                     await fetch(
-                        "http://127.0.0.1:8000/files",
+                        "https://trustshare-backend-0o7c.onrender.com/files",
                         {
                             method: "GET",
 
@@ -2263,7 +2263,7 @@
 
                 const response =
                     await fetch(
-                        "http://127.0.0.1:8000/download/"
+                        "https://trustshare-backend-0o7c.onrender.com/download/"
                         + encodeURIComponent(
                             fileId
                         ),
@@ -2529,7 +2529,7 @@
 
 
                 const url =
-                    "http://127.0.0.1:8000/share"
+                    "https://trustshare-backend-0o7c.onrender.com/share"
                     + "?filename="
                     + encodeURIComponent(
                         filename
@@ -2708,7 +2708,7 @@
                 button.innerText = "Creating...";
 
                 let url =
-                    "http://127.0.0.1:8000/create-temporary-link/"
+                    "https://trustshare-backend-0o7c.onrender.com/create-temporary-link/"
                     + encodeURIComponent(fileId)
                     + "?access_level="
                     + encodeURIComponent(accessLevel)
@@ -2746,7 +2746,7 @@
                 if (response.ok) {
 
                     currentTemporaryLink =
-                        "http://127.0.0.1:8000/temporary-download/"
+                        "https://trustshare-backend-0o7c.onrender.com/temporary-download/"
                         + data.token;
 
                     const linkBox =
@@ -3030,7 +3030,7 @@
 
                 const response =
                     await fetch(
-                        "http://127.0.0.1:8000/files/"
+                        "https://trustshare-backend-0o7c.onrender.com/files/"
                         + encodeURIComponent(
                             fileId
                         ),
@@ -3242,7 +3242,7 @@
 
                     const response =
                         await fetch(
-                            "http://127.0.0.1:8000/upload",
+                            "https://trustshare-backend-0o7c.onrender.com/upload",
                             {
                                 method: "POST",
 

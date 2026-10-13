@@ -1,13 +1,13 @@
-
 from jose import jwt
 from datetime import datetime, timedelta
+from decouple import config
 
 
 # =========================================================
 # JWT Configuration
 # =========================================================
 
-SECRET_KEY = "trustshare-secret-key"
+SECRET_KEY = config("JWT_SECRET_KEY")
 ALGORITHM = "HS256"
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
@@ -92,4 +92,3 @@ def verify_password_reset_token(token: str):
 
         # Token is invalid or expired
         return None
-
