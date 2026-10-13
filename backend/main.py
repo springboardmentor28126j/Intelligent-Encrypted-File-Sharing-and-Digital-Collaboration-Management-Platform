@@ -225,12 +225,22 @@ async def upload_file(file: UploadFile = File(...), owner_email: str = Form(...)
 
 
 @app.get("/files")
-def list_files(email: str, role: str, db: Session = Depends(get_db)):
-    if role == "admin":
-        files = db.query(models.FileRecord).all()
-    else:
-        files = db.query(models.FileRecord).filter(models.FileRecord.owner_email == email).all()
-    return files
+def get_files(email: str, db: Session = Depends(get_db)):
+    files = db.query(models.FileRecord).filter(models.FileRecord.owner_email == email).all()
+    
+    
+    result = []
+    for f in files:
+        result.append({
+            "id": f.id,
+            "filename": f.filename,
+            "stored_name": f.stored_name,
+            "owner_email": f.owner_email,
+            "file_size": f.file_size,
+            "is_encrypted": f.is_encrypted,
+            "upload_time": f.upload_time.isoformat() if f.upload_time else None
+        })
+    return result
 
 
 @app.delete("/files/{file_id}")
