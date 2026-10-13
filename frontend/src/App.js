@@ -337,10 +337,22 @@ function App() {
         recipient_email: recipientEmail,
         expiry_hours: expiryHours,
       });
-      setShareResultLink(res.data.share_url);
-      setShareEmailSent(res.data.email_sent === true);
+      
+      const shareUrl = res.data.share_url;
+      setShareResultLink(shareUrl);
+      setShareEmailSent(true);
       setIsError(false);
       setMessage('');
+
+      // --- Gmail App / Mail Client-ai open panra code ---
+      const subject = encodeURIComponent("TrustShare — A file was shared with you");
+      const body = encodeURIComponent(
+        `Hi,\n\n${ownerEmail} shared '${shareFileName}' with you securely via TrustShare.\n\nOpen link: ${shareUrl}\nThis link expires in ${expiryHours} hours.\n\nBest regards,\nTrustShare Platform`
+      );
+      
+      // Ithu ungaloda system/browser-la irukura default mail app (Gmail/Outlook) open pannum
+      window.open(`mailto:${recipientEmail}?subject=${subject}&body=${body}`, '_blank');
+
     } catch (error) {
       setIsError(true);
       setMessage(error.response?.data?.detail || 'Failed to create share link');
