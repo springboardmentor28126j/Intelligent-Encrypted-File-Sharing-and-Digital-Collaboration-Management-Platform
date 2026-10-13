@@ -196,7 +196,7 @@ async def upload_file(file: UploadFile = File(...), owner_email: str = Form(...)
     encrypted_bytes = encryption.encrypt_file_bytes(contents, key)
 
     upload_to_storage(stored_name, encrypted_bytes)
-    encryption.save_key(stored_name, key)
+   
 
     existing = db.query(models.FileRecord).filter(
         models.FileRecord.filename == file.filename,
@@ -209,6 +209,7 @@ async def upload_file(file: UploadFile = File(...), owner_email: str = Form(...)
         owner_email=owner_email,
         file_size=len(contents),
         is_encrypted=True,
+        encryption_key=key,
     )
     db.add(new_file)
     db.commit()
@@ -247,7 +248,7 @@ def delete_file(file_id: int, email: str, role: str, db: Session = Depends(get_d
         delete_from_storage(record.stored_name)
     except Exception as e:
         print(f"Storage delete failed (non-critical): {e}")
-    encryption.delete_key(record.stored_name)
+    
 
     db.delete(record)
     db.commit()
@@ -267,7 +268,7 @@ def download_file(file_id: int, email: str, role: str, db: Session = Depends(get
     if role != "admin" and record.owner_email != email:
         raise HTTPException(status_code=403, detail="You do not have permission to download this file")
 
-    key = encryption.load_key(record.stored_name)
+    key = record.encryption_key
     if key is None:
         raise HTTPException(status_code=500, detail="Encryption key missing — cannot decrypt file")
 
@@ -439,7 +440,7 @@ def access_shared_file(share_token: str, db: Session = Depends(get_db)):
     if not record:
         raise HTTPException(status_code=404, detail="File no longer exists")
 
-    key = encryption.load_key(record.stored_name)
+    key = record.encryption_key
     if not key:
         raise HTTPException(status_code=500, detail="Encryption key missing for this file")
 

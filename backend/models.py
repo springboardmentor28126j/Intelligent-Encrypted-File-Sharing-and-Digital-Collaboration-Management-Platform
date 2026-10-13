@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, LargeBinary, Boolean
 from database import Base
 from datetime import datetime
 
@@ -15,16 +15,18 @@ from sqlalchemy import DateTime
 from datetime import datetime
 
 class FileRecord(Base):
-    __tablename__ = "files"
+    __tablename__ = "file_records"
 
     id = Column(Integer, primary_key=True, index=True)
-    filename = Column(String)
-    stored_name = Column(String)
-    owner_email = Column(String)
-    file_size = Column(Integer, default=0)
+    filename = Column(String, index=True)
+    stored_name = Column(String, unique=True, index=True)
+    owner_email = Column(String, index=True)
+    file_size = Column(Integer)
     is_encrypted = Column(Boolean, default=True)
     upload_time = Column(DateTime, default=datetime.utcnow)
-import secrets as pysecrets
+
+   
+    encryption_key = Column(LargeBinary, nullable=True)
 
 class ShareLink(Base):
     __tablename__ = "share_links"
