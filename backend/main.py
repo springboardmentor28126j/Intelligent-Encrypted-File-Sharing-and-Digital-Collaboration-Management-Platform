@@ -225,9 +225,12 @@ async def upload_file(file: UploadFile = File(...), owner_email: str = Form(...)
 
 
 @app.get("/files")
-def get_files(email: str, db: Session = Depends(get_db)):
-    files = db.query(models.FileRecord).filter(models.FileRecord.owner_email == email).all()
-    
+def get_files(email: str, role: str = "user", db: Session = Depends(get_db)):
+    # அட்மின் என்றால் அனைத்து ஃபைல்களையும் காட்டு, இல்லையெனில் அந்த யூசரின் ஃபைல்களை மட்டும் காட்டு
+    if role == "admin":
+        files = db.query(models.FileRecord).all()
+    else:
+        files = db.query(models.FileRecord).filter(models.FileRecord.owner_email == email).all()
     
     result = []
     for f in files:
