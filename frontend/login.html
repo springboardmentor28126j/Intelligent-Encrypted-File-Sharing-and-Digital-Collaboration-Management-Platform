@@ -1,8 +1,11 @@
 <!DOCTYPE html>
+
 <html lang="en">
 
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>TrustShare - Login</title>
@@ -10,53 +13,49 @@
     <style>
 
         * {
+
             box-sizing: border-box;
+
         }
 
         body {
+
             margin: 0;
+
             font-family: "Segoe UI", Arial, sans-serif;
 
             min-height: 100vh;
 
             display: flex;
+
             justify-content: center;
+
             align-items: center;
 
             padding: 20px;
 
             background:
-                radial-gradient(
-                    circle at 8% 12%,
-                    rgba(59, 130, 246, 0.25),
-                    transparent 25%
-                ),
-                radial-gradient(
-                    circle at 92% 85%,
-                    rgba(236, 72, 153, 0.25),
-                    transparent 28%
-                ),
-                linear-gradient(
-                    135deg,
-                    #eef2ff,
-                    #f5f3ff,
-                    #fdf2f8
-                );
+
+                radial-gradient(circle at 8% 12%, rgba(59, 130, 246, 0.25), transparent 25%),
+
+                radial-gradient(circle at 92% 85%, rgba(236, 72, 153, 0.25), transparent 28%),
+
+                linear-gradient(135deg, #eef2ff, #f5f3ff, #fdf2f8);
 
             position: relative;
 
             overflow: hidden;
+
         }
 
-
-        /* Background decoration */
-
         body::before {
+
             content: "";
 
             position: absolute;
 
             width: 300px;
+
             height: 300px;
 
             border-radius: 50%;
@@ -64,16 +63,19 @@
             background: rgba(99, 102, 241, 0.12);
 
             top: -90px;
+
             left: -90px;
+
         }
 
-
         body::after {
+
             content: "";
 
             position: absolute;
 
             width: 330px;
+
             height: 330px;
 
             border-radius: 50%;
@@ -81,13 +83,13 @@
             background: rgba(217, 70, 239, 0.10);
 
             right: -120px;
+
             bottom: -130px;
+
         }
 
-
-        /* Login Card */
-
         .container {
+
             width: 430px;
 
             max-width: 100%;
@@ -99,7 +101,9 @@
             border-radius: 24px;
 
             box-shadow:
+
                 0 25px 60px rgba(79, 70, 229, 0.16),
+
                 0 8px 25px rgba(0, 0, 0, 0.08);
 
             border: 1px solid rgba(255, 255, 255, 0.9);
@@ -109,72 +113,73 @@
             z-index: 2;
 
             animation: cardAppear 0.7s ease;
-        }
 
+        }
 
         @keyframes cardAppear {
 
             from {
+
                 opacity: 0;
+
                 transform: translateY(25px);
+
             }
 
             to {
+
                 opacity: 1;
+
                 transform: translateY(0);
+
             }
 
         }
 
-
-        /* Logo */
-
         .logo-box {
+
             width: 70px;
+
             height: 70px;
 
             margin: 0 auto 12px;
 
             display: flex;
+
             justify-content: center;
+
             align-items: center;
 
             border-radius: 20px;
 
-            background:
-                linear-gradient(
-                    135deg,
-                    #2563eb,
-                    #7c3aed,
-                    #db2777
-                );
+            background: linear-gradient(135deg, #2563eb, #7c3aed, #db2777);
 
             font-size: 34px;
 
-            box-shadow:
-                0 12px 25px rgba(99, 102, 241, 0.30);
+            box-shadow: 0 12px 25px rgba(99, 102, 241, 0.30);
 
             animation: floatLogo 3s ease-in-out infinite;
-        }
 
+        }
 
         @keyframes floatLogo {
 
-            0%,
-            100% {
+            0%, 100% {
+
                 transform: translateY(0);
+
             }
 
             50% {
+
                 transform: translateY(-5px);
+
             }
 
         }
 
-
-        /* Heading */
-
         h1 {
+
             text-align: center;
 
             margin: 4px 0 5px;
@@ -183,20 +188,16 @@
 
             font-weight: 800;
 
-            background:
-                linear-gradient(
-                    90deg,
-                    #2563eb,
-                    #7c3aed,
-                    #db2777
-                );
+            background: linear-gradient(90deg, #2563eb, #7c3aed, #db2777);
 
             -webkit-background-clip: text;
+
             -webkit-text-fill-color: transparent;
+
         }
 
-
         .subtitle {
+
             text-align: center;
 
             margin: 0 0 20px;
@@ -204,12 +205,11 @@
             color: #64748b;
 
             font-size: 14px;
+
         }
 
-
-        /* Secure Login Badge */
-
         .secure-badge {
+
             display: flex;
 
             align-items: center;
@@ -224,12 +224,7 @@
 
             border-radius: 30px;
 
-            background:
-                linear-gradient(
-                    135deg,
-                    #eff6ff,
-                    #f5f3ff
-                );
+            background: linear-gradient(135deg, #eff6ff, #f5f3ff);
 
             border: 1px solid #dbe4ff;
 
@@ -238,12 +233,11 @@
             font-size: 12px;
 
             font-weight: 700;
+
         }
 
-
-        /* Labels */
-
         label {
+
             display: block;
 
             margin-top: 14px;
@@ -255,21 +249,19 @@
             font-size: 14px;
 
             font-weight: 700;
+
         }
 
-
-        /* Input wrapper */
-
         .input-wrapper {
+
             position: relative;
 
             width: 100%;
+
         }
 
-
-        /* Input icon */
-
         .input-icon {
+
             position: absolute;
 
             left: 14px;
@@ -281,12 +273,11 @@
             font-size: 16px;
 
             z-index: 1;
+
         }
 
-
-        /* Inputs */
-
         input {
+
             width: 100%;
 
             height: 48px;
@@ -306,27 +297,27 @@
             outline: none;
 
             transition: all 0.25s ease;
+
         }
 
-
         input:focus {
+
             border-color: #6366f1;
 
             background: white;
 
-            box-shadow:
-                0 0 0 4px rgba(99, 102, 241, 0.10);
-        }
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.10);
 
+        }
 
         input::placeholder {
+
             color: #94a3b8;
+
         }
 
-
-        /* Login Button */
-
         button {
+
             width: 100%;
 
             height: 50px;
@@ -337,13 +328,7 @@
 
             border-radius: 12px;
 
-            background:
-                linear-gradient(
-                    135deg,
-                    #2563eb,
-                    #7c3aed,
-                    #db2777
-                );
+            background: linear-gradient(135deg, #2563eb, #7c3aed, #db2777);
 
             color: white;
 
@@ -353,29 +338,32 @@
 
             cursor: pointer;
 
-            box-shadow:
-                0 10px 22px rgba(99, 102, 241, 0.28);
+            box-shadow: 0 10px 22px rgba(99, 102, 241, 0.28);
 
             transition: all 0.25s ease;
-        }
 
+        }
 
         button:hover {
+
             transform: translateY(-2px);
 
-            box-shadow:
-                0 14px 28px rgba(99, 102, 241, 0.35);
+            box-shadow: 0 14px 28px rgba(99, 102, 241, 0.35);
+
         }
 
+        button:disabled {
 
-        button:active {
-            transform: translateY(0);
+            opacity: 0.7;
+
+            cursor: not-allowed;
+
+            transform: none;
+
         }
-
-
-        /* Register */
 
         .register-link {
+
             text-align: center;
 
             margin-top: 17px;
@@ -391,57 +379,55 @@
             font-size: 13px;
 
             border: 1px solid #e2e8f0;
+
         }
 
+        .register-link a,
 
-        .register-link a {
-            color: #7c3aed;
+        .forgot-password a,
 
-            font-weight: 800;
+        .back a {
 
-            text-decoration: none;
-
-            margin-left: 4px;
-        }
-
-
-        .register-link a:hover {
-            color: #db2777;
-
-            text-decoration: underline;
-        }
-
-
-        /* Forgot password */
-
-        .forgot-password {
-            text-align: center;
-
-            margin-top: 14px;
-
-            font-size: 13px;
-        }
-
-
-        .forgot-password a {
             color: #7c3aed;
 
             font-weight: 700;
 
             text-decoration: none;
+
         }
 
+        .register-link a {
 
-        .forgot-password a:hover {
+            margin-left: 4px;
+
+            font-weight: 800;
+
+        }
+
+        .register-link a:hover,
+
+        .forgot-password a:hover,
+
+        .back a:hover {
+
             color: #db2777;
 
             text-decoration: underline;
+
         }
 
+        .forgot-password {
 
-        /* Message */
+            text-align: center;
+
+            margin-top: 14px;
+
+            font-size: 13px;
+
+        }
 
         #message {
+
             margin-top: 12px;
 
             text-align: center;
@@ -451,51 +437,30 @@
             font-size: 13px;
 
             font-weight: 700;
+
+            overflow-wrap: anywhere;
+
         }
 
-
-        /* Back */
-
         .back {
+
             text-align: center;
 
             margin-top: 13px;
 
             font-size: 13px;
+
         }
-
-
-        .back a {
-            color: #4f46e5;
-
-            font-weight: 700;
-
-            text-decoration: none;
-        }
-
-
-        .back a:hover {
-            color: #db2777;
-
-            text-decoration: underline;
-        }
-
-
-        /* Security information */
 
         .security-info {
+
             margin-top: 17px;
 
             padding: 10px;
 
             border-radius: 10px;
 
-            background:
-                linear-gradient(
-                    135deg,
-                    #f0fdf4,
-                    #ecfeff
-                );
+            background: linear-gradient(135deg, #f0fdf4, #ecfeff);
 
             border: 1px solid #d1fae5;
 
@@ -506,35 +471,39 @@
             font-size: 11px;
 
             line-height: 1.4;
+
         }
-
-
-        /* Mobile */
 
         @media (max-width: 500px) {
 
             body {
+
                 padding: 15px;
+
             }
 
-
             .container {
+
                 padding: 27px 23px;
 
                 border-radius: 20px;
+
             }
 
-
             .logo-box {
+
                 width: 62px;
+
                 height: 62px;
 
                 font-size: 30px;
+
             }
 
-
             h1 {
+
                 font-size: 27px;
+
             }
 
         }
@@ -543,379 +512,241 @@
 
 </head>
 
-
 <body>
 
+    <div class="container">
 
-<div class="container">
+        <div class="logo-box">🔐</div>
 
+        <h1>TrustShare</h1>
 
-    <!-- TrustShare Logo -->
+        <p class="subtitle">Secure File Sharing System</p>
 
-    <div class="logo-box">
-        🔐
-    </div>
+        <div class="secure-badge">
 
+            🛡️
 
-    <!-- Title -->
-
-    <h1>
-        TrustShare
-    </h1>
-
-
-    <p class="subtitle">
-        Secure File Sharing System
-    </p>
-
-
-    <!-- Security Badge -->
-
-    <div class="secure-badge">
-
-        🛡️
-
-        <span>
-            Secure Login • Protected by JWT
-        </span>
-
-    </div>
-
-
-    <!-- Login Form -->
-
-    <form id="loginForm">
-
-
-        <!-- Email -->
-
-        <label for="email">
-            Email Address
-        </label>
-
-
-        <div class="input-wrapper">
-
-            <span class="input-icon">
-                📧
-            </span>
-
-            <input
-                type="email"
-                id="email"
-                placeholder="Enter your email"
-                autocomplete="email"
-                required
-            >
+            <span>Secure Login • Protected by JWT</span>
 
         </div>
 
+        <form id="loginForm">
 
-        <!-- Password -->
+            <label for="email">Email Address</label>
 
-        <label for="password">
-            Password
-        </label>
+            <div class="input-wrapper">
 
+                <span class="input-icon">📧</span>
 
-        <div class="input-wrapper">
+                <input
 
-            <span class="input-icon">
-                🔑
-            </span>
+                    type="email"
 
-            <input
-                type="password"
-                id="password"
-                placeholder="Enter your password"
-                autocomplete="current-password"
-                required
-            >
+                    id="email"
+
+                    placeholder="Enter your email"
+
+                    autocomplete="email"
+
+                    required
+
+                >
+
+            </div>
+
+            <label for="password">Password</label>
+
+            <div class="input-wrapper">
+
+                <span class="input-icon">🔑</span>
+
+                <input
+
+                    type="password"
+
+                    id="password"
+
+                    placeholder="Enter your password"
+
+                    autocomplete="current-password"
+
+                    required
+
+                >
+
+            </div>
+
+            <button id="loginButton" type="submit">
+
+                🔐 Login Securely
+
+            </button>
+
+        </form>
+
+        <div class="register-link">
+
+            Don't have an account?
+
+            <a href="register.html">Register</a>
 
         </div>
 
+        <div class="forgot-password">
 
-        <!-- Login -->
+            <a href="forgot-password.html">Forgot Password?</a>
 
-        <button type="submit">
-            🔐 Login Securely
-        </button>
+        </div>
 
+        <div id="message" role="status" aria-live="polite"></div>
 
-    </form>
+        <div class="back">
 
+            <a href="index.html">← Back to Home</a>
 
-    <!-- Register - Directly below Login -->
+        </div>
 
-    <div class="register-link">
+        <div class="security-info">
 
-        Don't have an account?
+            🔒 Your account is protected with
 
-        <a href="register.html">
-            Register
-        </a>
+            password hashing and JWT authentication.
 
-    </div>
-
-
-    <!-- Forgot Password -->
-
-    <div class="forgot-password">
-
-        <a href="forgot-password.html">
-            Forgot Password?
-        </a>
+        </div>
 
     </div>
 
+    <script>
 
-    <!-- Login Message -->
+        const loginForm = document.getElementById("loginForm");
 
-    <div id="message"></div>
+        const loginButton = document.getElementById("loginButton");
 
+        const message = document.getElementById("message");
 
-    <!-- Back to Home -->
+        const API_URL = "https://trustshare-backend-0o7c.onrender.com";
 
-    <div class="back">
+        /*
 
-        <a href="index.html">
-            ← Back to Home
-        </a>
+         * Display label for this computer.
 
-    </div>
+         * A browser cannot automatically read the Windows hostname.
 
+         * This value is manually configured for your current computer.
 
-    <!-- Security Information -->
+         */
 
-    <div class="security-info">
+        const SYSTEM_NAME = "DESKTOP-CJ2HO89";
 
-        🔒 Your account is protected with
-        password hashing and JWT authentication.
+        loginForm.addEventListener("submit", async function (event) {
 
-    </div>
+            event.preventDefault();
 
+            const email = document.getElementById("email").value.trim();
 
-</div>
+            const password = document.getElementById("password").value;
 
+            message.textContent = "🔄 Logging in...";
 
+            message.style.color = "#4f46e5";
 
-<script>
+            loginButton.disabled = true;
 
+            try {
 
-/* ==========================================
-   LOGIN FUNCTIONALITY
-   ========================================== */
+                const url = new URL(`${API_URL}/login`);
 
+                url.searchParams.set("email", email);
 
-const loginForm =
-    document.getElementById("loginForm");
+                url.searchParams.set("password", password);
 
+                /*
 
-loginForm.addEventListener(
-    "submit",
-    async function(event) {
+                 * Send the configured system name to the backend.
 
-        event.preventDefault();
+                 * The backend must accept this parameter and use it
 
+                 * when creating the login notification.
 
-        /* Get email */
+                 */
 
-        const email =
-            document
-                .getElementById("email")
-                .value
-                .trim();
+                url.searchParams.set("system_name", SYSTEM_NAME);
 
+                const response = await fetch(url.toString(), {
 
-        /* Get password */
+                    method: "POST",
 
-        const password =
-            document
-                .getElementById("password")
-                .value;
+                    headers: {
 
+                        "X-TrustShare-System-Name": SYSTEM_NAME
 
-        /* Message element */
-
-        const message =
-            document.getElementById("message");
-
-
-        message.innerText =
-            "🔄 Logging in...";
-
-        message.style.color =
-            "#4f46e5";
-
-
-        try {
-
-
-            /* ==========================================
-               LOGIN API
-               ========================================== */
-
-
-            const url =
-                "http://127.0.0.1:8000/login"
-                + "?email="
-                + encodeURIComponent(email)
-                + "&password="
-                + encodeURIComponent(password);
-
-
-            const response =
-                await fetch(
-                    url,
-                    {
-                        method: "POST"
                     }
-                );
 
+                });
 
-            const data =
-                await response.json();
+                const data = await response.json();
 
+                console.log("Login response:", data);
 
-            console.log(
-                "Login response:",
-                data
-            );
+                if (response.ok && data.access_token) {
 
+                    localStorage.setItem("access_token", data.access_token);
 
-            /* ==========================================
-               SUCCESS
-               ========================================== */
+                    localStorage.setItem("user_id", data.user_id);
 
+                    localStorage.setItem("user_name", data.name);
 
-            if (
-                response.ok &&
-                data.access_token
-            ) {
+                    localStorage.setItem("user_email", data.email);
 
+                    localStorage.setItem("user_role", data.role);
 
-                /* Store JWT */
+                    localStorage.setItem("trustshare_system_name", SYSTEM_NAME);
 
-                localStorage.setItem(
-                    "access_token",
-                    data.access_token
-                );
+                    message.textContent = "✅ Login successful!";
 
+                    message.style.color = "#16a34a";
 
-                /* Store User ID */
+                    setTimeout(function () {
 
-                localStorage.setItem(
-                    "user_id",
-                    data.user_id
-                );
+                        window.location.href = "dashboard.html";
 
+                    }, 600);
 
-                /* Store User Name */
+                } else {
 
-                localStorage.setItem(
-                    "user_name",
-                    data.name
-                );
+                    message.textContent =
 
+                        "❌ " +
 
-                /* Store User Email */
+                        (data.message ||
 
-                localStorage.setItem(
-                    "user_email",
-                    data.email
-                );
+                         data.detail ||
 
+                         "Invalid email or password.");
 
-                /* Store User Role */
+                    message.style.color = "#dc2626";
 
-                localStorage.setItem(
-                    "user_role",
-                    data.role
-                );
+                }
 
+            } catch (error) {
 
-                /* Success message */
+                console.error("Login error:", error);
 
-                message.innerText =
-                    "✅ Login successful!";
+                message.textContent =
 
-                message.style.color =
-                    "#16a34a";
+                    "⚠️ Cannot connect to the TrustShare server.";
 
+                message.style.color = "#dc2626";
 
-                /* Go to Dashboard */
+            } finally {
 
-                setTimeout(
-                    function() {
-
-                        window.location.href =
-                            "dashboard.html";
-
-                    },
-                    600
-                );
-
+                loginButton.disabled = false;
 
             }
 
+        });
 
-            /* ==========================================
-               LOGIN FAILED
-               ========================================== */
-
-
-            else {
-
-
-                message.innerText =
-                    "❌ "
-                    +
-                    (
-                        data.message
-                        ||
-                        data.detail
-                        ||
-                        "Invalid email or password."
-                    );
-
-
-                message.style.color =
-                    "#dc2626";
-
-            }
-
-
-        }
-
-
-        /* ==========================================
-           SERVER CONNECTION ERROR
-           ========================================== */
-
-
-        catch (error) {
-
-
-            console.error(
-                "Login error:",
-                error
-            );
-
-
-            message.innerText =
-                "⚠️ Cannot connect to the TrustShare server.";
-
-            message.style.color =
-                "#dc2626";
-
-        }
-
-    }
-);
-
-
-</script>
-
+    </script>
 
 </body>
 
