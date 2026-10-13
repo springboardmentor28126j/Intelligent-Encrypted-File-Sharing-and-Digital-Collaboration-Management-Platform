@@ -297,6 +297,140 @@
         }
 
 
+        /* Notification popup in the navbar */
+        .navbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+        }
+
+        .notification-trigger {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 42px;
+            padding: 9px 13px;
+            border: 1px solid rgba(255,255,255,.25);
+            border-radius: 12px;
+            background: rgba(255,255,255,.14);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .notification-trigger:hover,
+        .notification-trigger[aria-expanded="true"] {
+            background: rgba(255,255,255,.25);
+        }
+
+        .notification-count {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            min-width: 19px;
+            height: 19px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: #ef4444;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 800;
+        }
+
+        .notification-count.visible { display: inline-flex; }
+
+        .notification-popup {
+            position: absolute;
+            top: calc(100% + 12px);
+            right: 94px;
+            width: min(390px, calc(100vw - 28px));
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 17px;
+            background: #fff;
+            color: #1e293b;
+            box-shadow: 0 18px 50px rgba(15,23,42,.22);
+            z-index: 200;
+        }
+
+        .notification-popup[hidden] { display: none; }
+
+        .notification-popup-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .notification-popup-header h3 {
+            color: #312e81;
+            font-size: 15px;
+        }
+
+        .notification-popup-header button {
+            border: 0;
+            border-radius: 8px;
+            padding: 7px 9px;
+            background: #eef2ff;
+            color: #4f46e5;
+            font-size: 10px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .notification-popup-list {
+            max-height: 330px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+
+        .notification-popup-item {
+            padding: 11px 10px;
+            border-bottom: 1px solid #eef2f7;
+            border-radius: 9px;
+        }
+
+        .notification-popup-item:last-child { border-bottom: 0; }
+        .notification-popup-item.unread { background: #eff6ff; }
+        .notification-popup-item strong {
+            display: block;
+            color: #334155;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+        .notification-popup-item p {
+            margin-top: 4px;
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+        }
+        .notification-popup-item small {
+            display: block;
+            margin-top: 5px;
+            color: #94a3b8;
+            font-size: 10px;
+        }
+        .notification-popup-empty {
+            padding: 22px 8px;
+            color: #64748b;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        @media (max-width: 550px) {
+            .navbar-actions { gap: 7px; }
+            .notification-trigger { min-height: 39px; padding: 8px 10px; font-size: 12px; }
+            .notification-trigger .notification-label { display: none; }
+            .notification-popup { right: 0; top: calc(100% + 10px); }
+        }
+
+
         /* =====================================================
            MAIN CONTAINER
         ===================================================== */
@@ -1748,14 +1882,32 @@
         </div>
 
 
-        <button
-            class="logout"
-            onclick="logout()"
-        >
+        <div class="navbar-actions">
+            <button
+                id="notificationToggle"
+                class="notification-trigger"
+                type="button"
+                aria-expanded="false"
+                aria-controls="notificationPopup"
+                onclick="m3ToggleNotificationPopup()"
+            >
+                <span aria-hidden="true">🔔</span>
+                <span class="notification-label">Notifications</span>
+                <span id="notificationBadge" class="notification-count" aria-label="Unread notifications">0</span>
+            </button>
 
-            ⇥ Logout
+            <div id="notificationPopup" class="notification-popup" role="dialog" aria-label="Notifications" hidden>
+                <div class="notification-popup-header">
+                    <h3>🔔 Your Notifications</h3>
+                    <button type="button" onclick="m3MarkAllRead()">Mark all as read</button>
+                </div>
+                <div id="m3Notifications" class="notification-popup-list" aria-live="polite">
+                    <div class="notification-popup-empty">Loading notifications...</div>
+                </div>
+            </div>
 
-        </button>
+            <button class="logout" onclick="logout()" type="button">⇥ Logout</button>
+        </div>
 
 
     </nav>
@@ -2206,23 +2358,6 @@
 
             <div class="m3-panels">
 
-                <!-- Notifications -->
-                <section class="m3-panel">
-
-                    <div class="m3-panel-header">
-                        <h3>🔔 Notifications</h3>
-                        <button class="m3-action-btn"
-                                onclick="m3MarkAllRead()">
-                            Mark all read
-                        </button>
-                    </div>
-
-                    <div id="m3Notifications" class="m3-list">
-                        <div class="m3-empty">Loading notifications...</div>
-                    </div>
-
-                </section>
-
                 <!-- Storage -->
                 <section class="m3-panel">
 
@@ -2408,10 +2543,15 @@
            M3 API HELPERS
         ================================================= */
 
-        const M3_API = "http://127.0.0.1:8000";
+        const M3_API = "https://trustshare-backend-0o7c.onrender.com";
 
         function m3Token() {
             return localStorage.getItem("access_token");
+        }
+
+        // Browser cannot read Windows hostname; use the configured desktop label.
+        if (!localStorage.getItem("trustshare_system_name")) {
+            localStorage.setItem("trustshare_system_name", "DESKTOP-CJ2HO89");
         }
 
         async function m3Fetch(path, options = {}) {
@@ -2428,7 +2568,8 @@
                     headers: {
                         ...(options.headers || {}),
                         "Authorization": "Bearer " + token,
-                        "Accept": "application/json"
+                        "Accept": "application/json",
+                        "X-TrustShare-System-Name": localStorage.getItem("trustshare_system_name") || "DESKTOP-CJ2HO89"
                     }
                 }
             );
@@ -2481,27 +2622,62 @@
                 const notifications = Array.isArray(data.notifications)
                     ? data.notifications
                     : [];
+                const unreadCount = Number(data.unread_count ?? 0);
+                const badge = document.getElementById("notificationBadge");
 
-                document.getElementById("m3Unread").innerText =
-                    String(data.unread_count ?? 0);
+                document.getElementById("m3Unread").innerText = String(unreadCount);
+                badge.innerText = unreadCount > 99 ? "99+" : String(unreadCount);
+                badge.classList.toggle("visible", unreadCount > 0);
+                badge.setAttribute("aria-label", `${unreadCount} unread notifications`);
 
                 if (!notifications.length) {
-                    box.innerHTML = '<div class="m3-empty">No notifications.</div>';
+                    box.innerHTML = '<div class="notification-popup-empty">You are all caught up. No notifications.</div>';
                     return;
                 }
 
                 box.innerHTML = notifications.slice(0, 10).map((item) => `
-                    <div class="m3-notification ${item.is_read ? "read" : "unread"}">
+                    <div class="notification-popup-item ${item.is_read ? "read" : "unread"}">
                         <strong>${escapeHtml(item.title || "Notification")}</strong>
                         <p>${escapeHtml(item.message || "")}</p>
-                        <small>${m3FormatTime(item.created_at)}</small>
+                        <small>${escapeHtml(m3FormatTime(item.created_at))}</small>
                     </div>
                 `).join("");
             } catch (error) {
                 console.error("Notifications error:", error);
-                box.innerHTML = `<div class="m3-empty">Unable to load notifications: ${escapeHtml(error.message)}</div>`;
+                box.innerHTML = `<div class="notification-popup-empty">Unable to load notifications: ${escapeHtml(error.message)}</div>`;
             }
         }
+
+        function m3ToggleNotificationPopup() {
+            const popup = document.getElementById("notificationPopup");
+            const toggle = document.getElementById("notificationToggle");
+            const willOpen = popup.hidden;
+            popup.hidden = !willOpen;
+            toggle.setAttribute("aria-expanded", String(willOpen));
+            if (willOpen) m3LoadNotifications();
+        }
+
+        document.addEventListener("click", (event) => {
+            const popup = document.getElementById("notificationPopup");
+            const toggle = document.getElementById("notificationToggle");
+            if (!popup || popup.hidden) return;
+            if (!popup.contains(event.target) && !toggle.contains(event.target)) {
+                popup.hidden = true;
+                toggle.setAttribute("aria-expanded", "false");
+            }
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                const popup = document.getElementById("notificationPopup");
+                const toggle = document.getElementById("notificationToggle");
+                if (popup && !popup.hidden) {
+                    popup.hidden = true;
+                    toggle.setAttribute("aria-expanded", "false");
+                    toggle.focus();
+                }
+            }
+        });
 
         async function m3MarkAllRead() {
             try {
@@ -2845,7 +3021,7 @@ async function m3GenerateDashboardInsights() {
 
                 const response =
                     await fetch(
-                        "http://127.0.0.1:8000/profile",
+                        "https://trustshare-backend-0o7c.onrender.com/profile",
                         {
 
                             method: "GET",

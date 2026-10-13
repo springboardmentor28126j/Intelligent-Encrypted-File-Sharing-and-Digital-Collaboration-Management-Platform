@@ -49,12 +49,37 @@ import socket
 
 
 
+
+
+def normalize_system_name(value):
+    """Normalize a client-provided system label to DESKTOP-XXXXX format."""
+    value = re.sub(r"[^A-Za-z0-9-]", "", str(value or "")).upper().strip("-")
+    if not value:
+        return "DESKTOP-UNKNOWN"
+    if not value.startswith("DESKTOP-"):
+        value = "DESKTOP-" + value
+    return value[:40]
+
+
 def get_system_name():
-    """Return the computer/system name for activity and security records."""
-    try:
-        return socket.gethostname()
-    except Exception:
-        return "Unknown System"
+    """Return the configured fallback system label."""
+    configured_name = os.getenv("TRUSTSHARE_DESKTOP_NAME", "").strip()
+    if configured_name:
+        return normalize_system_name(configured_name)
+    return normalize_system_name(socket.gethostname() or "UNKNOWN")
+
+
+def get_request_system_name(request: Request = None, supplied_name: str = None):
+    """Prefer the browser's configured desktop label over the backend hostname."""
+    header_name = (
+        request.headers.get("x-trustshare-system-name", "")
+        if request is not None
+        else ""
+    )
+    return normalize_system_name(
+        supplied_name or header_name or get_system_name()
+    )
+
 
 
 from app.b2_storage import (
@@ -79,12 +104,15 @@ app = FastAPI(title="TrustShare API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://trustshare-frontend-cwl7.onrender.com",
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # ============================================================
 # DATABASE
@@ -139,13 +167,14 @@ def log_activity(
     file_id=None,
     details=None,
     request: Request = None,
+    system_name: str = None,
 ):
     activity = ActivityLog(
         user_id=user_id,
         action=action,
         file_id=file_id,
         details=details,
-        ip_address=get_system_name(),
+        ip_address=get_request_system_name(request, system_name),
         user_agent=(
             request.headers.get("user-agent")
             if request
@@ -369,6 +398,7 @@ def login(
     email: str,
     password: str,
     request: Request,
+    system_name: str = None,
     db: Session = Depends(get_db),
 ):
 
@@ -453,6 +483,7 @@ def login(
         user_id=user.id,
         details="User login successful",
         request=request,
+        system_name=get_request_system_name(request, system_name),
     )
 
     create_notification(
@@ -462,7 +493,7 @@ def login(
         title="New login detected",
         message=(
             "A new login to your TrustShare account was detected "
-            f"from system {get_system_name()}."
+            f"from system {get_request_system_name(request, system_name)}."
         ),
     )
 
