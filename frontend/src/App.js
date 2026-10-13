@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
-import Notifications from './Notifications';
+
 
 function App() {
   const [isLogin, setIsLogin] = useState(true);
