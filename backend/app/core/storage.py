@@ -31,17 +31,22 @@ def _s3_is_configured() -> bool:
     )
 
 
-def _s3_client():
-    import boto3
+_s3_client_instance = None
 
-    kwargs = {
-        "aws_access_key_id": settings.AWS_ACCESS_KEY_ID,
-        "aws_secret_access_key": settings.AWS_SECRET_ACCESS_KEY,
-        "region_name": settings.AWS_REGION,
-    }
-    if settings.S3_ENDPOINT_URL:
-        kwargs["endpoint_url"] = settings.S3_ENDPOINT_URL
-    return boto3.client("s3", **kwargs)
+
+def _s3_client():
+    global _s3_client_instance
+    if _s3_client_instance is None:
+        import boto3
+        kwargs = {
+            "aws_access_key_id": settings.AWS_ACCESS_KEY_ID,
+            "aws_secret_access_key": settings.AWS_SECRET_ACCESS_KEY,
+            "region_name": settings.AWS_REGION,
+        }
+        if settings.S3_ENDPOINT_URL:
+            kwargs["endpoint_url"] = settings.S3_ENDPOINT_URL
+        _s3_client_instance = boto3.client("s3", **kwargs)
+    return _s3_client_instance
 
 
 def storage_backend_in_use() -> str:
