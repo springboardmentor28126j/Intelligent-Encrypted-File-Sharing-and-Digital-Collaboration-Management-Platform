@@ -1,1 +1,0 @@
-# TrustShare services package

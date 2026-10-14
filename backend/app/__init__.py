@@ -1,1 +1,0 @@
-# TrustShare application package
