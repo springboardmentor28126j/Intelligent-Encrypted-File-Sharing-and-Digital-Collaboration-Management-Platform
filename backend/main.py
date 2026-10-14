@@ -8,7 +8,7 @@ import secrets
 import secrets as pysecrets
 import uuid
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from database import engine, Base, SessionLocal
 import models
@@ -382,7 +382,12 @@ def reset_password(payload: dict, db: Session = Depends(get_db)):
 
 
 @app.post("/share/{file_id}")
-def create_share_link(file_id: int, payload: dict, db: Session = Depends(get_db)):
+def create_share_link(
+    file_id: int, 
+    payload: dict, 
+    background_tasks: BackgroundTasks,  # <--- BackgroundTasks parameter serthirukkom
+    db: Session = Depends(get_db)
+):
     record = db.query(models.FileRecord).filter(models.FileRecord.id == file_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="File not found")
@@ -422,13 +427,16 @@ def create_share_link(file_id: int, payload: dict, db: Session = Depends(get_db)
     )
     create_notification(requester_email, f"Created a share link for file '{record.filename}' with {recipient_email}.", "share")
 
-    email_sent = send_email(
-        recipient_email,
-        "TrustShare — A file was shared with you",
+    # --- Mail anuppuvathai background-il run panna maathiyachu ---
+    subject = "TrustShare — A file was shared with you"
+    body = (
         f"{requester_email} shared '{record.filename}' with you.\n\n"
         f"Open link: {share_url}\n"
         f"This link expires at {expires_at.strftime('%Y-%m-%d %H:%M UTC')}."
     )
+    
+    background_tasks.add_task(send_email, recipient_email, subject, body)
+    # -----------------------------------------------------------
 
     return {
         "message": f"Share link sent to {recipient_email}",
@@ -436,9 +444,8 @@ def create_share_link(file_id: int, payload: dict, db: Session = Depends(get_db)
         "expires_at": expires_at.isoformat(),
         "share_url": share_url,
         "recipient_email": recipient_email,
-        "email_sent": email_sent,
+        "email_sent": True,
     }
-
 
 @app.get("/shared/{share_token}")
 def access_shared_file(share_token: str, db: Session = Depends(get_db)):
