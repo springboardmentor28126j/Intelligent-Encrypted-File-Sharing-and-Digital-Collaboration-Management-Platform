@@ -103,22 +103,19 @@ Gmail SMTP is used to send configured email notifications, including security al
 
 The project is organized into frontend pages, styling files, JavaScript modules, and backend components.
 
-
+```text
 TrustShare/
-|
 ├── frontend1/
 │   ├── css/
 │   │   ├── style.css
 │   │   ├── dashboard.css
 │   │   └── share.css
-│   │
 │   ├── js/
 │   │   ├── auth.js
 │   │   ├── dashboard.js
 │   │   ├── files.js
 │   │   ├── share.js
 │   │   └── upload.js
-│   │
 │   ├── login.html
 │   ├── register.html
 │   ├── dashboard.html
@@ -129,16 +126,14 @@ TrustShare/
 │   ├── notifications.html
 │   ├── reset-password.html
 │   └── security-report.html
-│
 ├── main.py
 ├── requirements.txt
 ├── .env
 ├── .gitignore
 └── README.md
-
+```
 
 The backend may also include separate modules for encryption, authentication, database operations, and security analytics. The structure shown above should be adjusted to match the actual project files.
-
 ## Security Features
 
 TrustShare incorporates multiple security mechanisms to support safer file management and sharing.
