@@ -345,9 +345,8 @@ function App() {
       setMessage('');
 
       // --- Gmail App / Mail Client-ai open panra code ---
-      // பழைய mailto-க்குப் பதிலாக இதை உபயோகிக்கவும்:
       const subject = encodeURIComponent("TrustShare — A file was shared with you");
-      const body = encodeURIComponent(`${email} shared '${fileName}' with you.\n\nOpen link: ${shareUrl}\nThis link expires in ${expiryHours} hours.`);
+      const body = encodeURIComponent(`${ownerEmail} shared '${shareFileName}' with you.\n\nOpen link: ${shareUrl}\nThis link expires in ${expiryHours} hours.`);
       
       const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipientEmail)}&su=${subject}&body=${body}`;
       
@@ -358,7 +357,6 @@ function App() {
       setMessage(error.response?.data?.detail || 'Failed to create share link');
     }
   };
-
   const handleMfaEnableRequest = async () => {
     try {
       const userEmail = localStorage.getItem('email');
