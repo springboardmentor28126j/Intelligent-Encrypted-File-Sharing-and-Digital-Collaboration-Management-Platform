@@ -350,8 +350,8 @@ function App() {
         `Hi,\n\n${ownerEmail} shared '${shareFileName}' with you securely via TrustShare.\n\nOpen link: ${shareUrl}\nThis link expires in ${expiryHours} hours.\n\nBest regards,\nTrustShare Platform`
       );
       
-      // Ithu ungaloda system/browser-la irukura default mail app (Gmail/Outlook) open pannum
-      window.open(`mailto:${recipientEmail}?subject=${subject}&body=${body}`, '_blank');
+      const mailtoUrl = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
+      window.location.href = mailtoUrl;
 
     } catch (error) {
       setIsError(true);
