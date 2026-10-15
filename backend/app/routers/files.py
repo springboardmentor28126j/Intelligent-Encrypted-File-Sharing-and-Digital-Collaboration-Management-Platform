@@ -15,7 +15,7 @@ from ..schemas.file import FileRename, FileResponse
 from ..services.activity_service import log_activity, log_download_notification
 from ..services.encryption_service import EncryptionConfigurationError, decrypt_file_data, metadata_for_storage
 from ..services.file_service import prepare_encrypted_upload
-from ..services.notification_service import create_notification
+from ..services.notification_service import create_notification, notify_admins
 from ..services.storage_service import StorageConfigurationError, StorageError, StorageObjectNotFoundError, get_storage_service
 from ..utils.dependencies import get_current_user
 
@@ -112,12 +112,31 @@ async def upload_file(file: UploadFile = UploadFileParam(...), category: str = F
     except ValueError as error:
         raise HTTPException(413, str(error)) from error
     except EncryptionConfigurationError as error:
+        log_activity(db, current_user, "storage_upload_failed", "File encryption is not configured")
+        notify_admins(
+            db=db,
+            type="storage_alert",
+            title="File upload failed",
+            message=f"Encryption configuration failed while {current_user.email} uploaded '{file.filename}'.",
+        )
         raise HTTPException(503, "File encryption is not configured on the server") from error
     except StorageConfigurationError as error:
         log_activity(db, current_user, "storage_upload_failed", "Storage configuration is unavailable")
+        notify_admins(
+            db=db,
+            type="storage_alert",
+            title="File storage unavailable",
+            message=f"Storage configuration failed while {current_user.email} uploaded '{file.filename}'.",
+        )
         raise HTTPException(503, "File storage is not configured on the server") from error
     except StorageError as error:
         log_activity(db, current_user, "storage_upload_failed", "Encrypted file could not be stored")
+        notify_admins(
+            db=db,
+            type="storage_alert",
+            title="Encrypted upload failed",
+            message=f"Encrypted storage failed while {current_user.email} uploaded '{file.filename}'.",
+        )
         raise HTTPException(503, "The file could not be securely stored") from error
 
     content_type = file.content_type or "application/octet-stream"

@@ -16,6 +16,25 @@ button.center-link{border:0;background:none;cursor:pointer;width:100%;font:inher
 .otp-timer{text-align:center;color:#407a67;font-size:13px;font-weight:700;margin:2px 0 12px}
 .otp-timer.expired{color:#a63b30}
 .center-link:disabled{opacity:.55;cursor:not-allowed}
+.admin-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-bottom:18px}
+.admin-chart-panel h3{margin-bottom:10px}
+.admin-chart{height:170px}
+.admin-chart-legend{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;font-size:12px;color:#576861}
+.admin-chart-legend span{display:inline-flex;align-items:center;gap:5px}
+.admin-chart-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.secondary-button,.admin-action-button{border:1px solid #d4dfd6;background:#fff;color:#2e5b4b;border-radius:6px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer}
+.admin-action-button{white-space:nowrap}
+.admin-action-button:hover,.secondary-button:hover{background:#edf3eb;border-color:#9fbea7}
+.admin-action-button.danger{color:#a63b30}
+.admin-action-button:disabled,.secondary-button:disabled{opacity:.45;cursor:not-allowed}
+.admin-user-table .file-row{grid-template-columns:36px minmax(150px,1fr) minmax(150px,1fr) repeat(4,auto);gap:10px}
+.admin-user-detail{margin-top:18px}
+.admin-user-detail .activity-item{border-top:1px solid #edf0ec;padding:12px 0}
+.quota-help{max-width:420px;color:#697872;font-size:12px;line-height:1.45;text-align:right}
+.admin-filters{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin:16px 0 18px;padding:12px;background:#f8faf7;border:1px solid #edf0ec;border-radius:7px}
+.admin-filters label{display:grid;gap:5px;margin:0;color:#576861;font-size:12px;font-weight:700}
+.admin-filters input,.admin-filters select{min-width:130px;padding:8px 9px;font-size:12px}
+.activity-actions{display:flex;align-items:center;gap:10px}
 
 /* Notification Bell & Dropdown */
 .header-actions{display:flex;align-items:center;gap:14px}
@@ -114,6 +133,8 @@ button.center-link{border:0;background:none;cursor:pointer;width:100%;font:inher
   .toolbar>*{width:100%;margin:0}
   .table{overflow-x:auto}
   .file-row{min-width:560px}
+  .admin-chart-grid{grid-template-columns:1fr}
+  .admin-user-table .file-row{min-width:900px}
 }
 
 @media(max-width:600px){
@@ -130,6 +151,10 @@ button.center-link{border:0;background:none;cursor:pointer;width:100%;font:inher
   .notifications-panel{padding:18px}
   .notifications-header,.notifications-toolbar{gap:12px}
   .notification-title-bar{align-items:flex-start;flex-direction:column;gap:2px}
+  .quota-help{text-align:left;max-width:none;margin-top:8px}
+  .admin-filters{align-items:stretch;flex-direction:column}
+  .admin-filters label,.admin-filters input,.admin-filters select,.admin-filters button{width:100%}
+  .activity-actions{align-items:flex-end;flex-direction:column}
 }
 
 .notification-page-icon{width:40px;height:40px;border-radius:9px;display:grid;place-items:center;flex-shrink:0;margin-top:2px}

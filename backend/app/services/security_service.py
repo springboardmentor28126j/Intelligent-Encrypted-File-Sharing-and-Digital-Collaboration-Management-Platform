@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..models import ActivityLog, File, User
 from ..services.activity_service import log_activity
-from ..services.notification_service import create_notification
+from ..services.notification_service import create_notification, notify_admins
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +85,12 @@ def record_failed_login(
                 email,
                 ip_address,
             )
+        notify_admins(
+            db=db,
+            type="security_alert",
+            title="Suspicious login attempts",
+            message=f"Multiple failed login attempts were detected for {email} from System {ip_address}.",
+        )
         return True
     return False
 
@@ -135,6 +141,12 @@ def record_failed_file_access(
                 type="security_alert",
                 title="Unauthorized Access Attempt",
                 message=f"Repeated unauthorized download attempts detected on '{file_name}' from System {ip_address}.",
+            )
+            notify_admins(
+                db=db,
+                type="security_alert",
+                title="Repeated unauthorized file access",
+                message=f"Repeated unauthorized access attempts were detected on '{file_name}' from System {ip_address}.",
             )
         return True
     return False

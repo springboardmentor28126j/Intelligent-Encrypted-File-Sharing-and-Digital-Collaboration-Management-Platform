@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import api from '../../services/api'
+import { useAuth } from '../../context/AuthContext'
 
 export default function Sidebar({ unreadCount: externalUnreadCount }) {
   const location = useLocation()
+  const { user } = useAuth()
   const [unreadCount, setUnreadCount] = useState(externalUnreadCount ?? 0)
 
   const fetchUnreadCount = async () => {
@@ -49,6 +51,7 @@ export default function Sidebar({ unreadCount: externalUnreadCount }) {
     { path: '/activity', label: 'Activity' },
     { path: '/profile', label: 'Profile' },
     { path: '/security', label: 'Security' },
+    ...(user?.role?.toLowerCase() === 'admin' ? [{ path: '/admin', label: 'Manage users' }] : []),
   ]
 
   return (
@@ -56,7 +59,7 @@ export default function Sidebar({ unreadCount: externalUnreadCount }) {
       <Link className="brand" to="/dashboard">
         <span className="brand-mark">T</span> TrustShare
       </Link>
-      <p className="eyebrow">PERSONAL WORKSPACE</p>
+      <p className="eyebrow">{user?.role?.toLowerCase() === 'admin' ? 'ADMIN CONSOLE' : 'PERSONAL WORKSPACE'}</p>
       <nav>
         {links.map(({ path, label, isNotification }) => {
           const isActive = location.pathname === path

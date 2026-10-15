@@ -2,6 +2,9 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Layout, Protected, PublicOnly } from './components/common'
 import { ForgotPassword, Login, Register, ResetPassword, VerifyOTP } from './pages/AuthPages'
 import Activity from './pages/Activity'
+import Admin from './pages/Admin'
+import AdminOverview from './pages/AdminOverview'
+import AdminUserActivity from './pages/AdminUserActivity'
 import Dashboard from './pages/Dashboard'
 import FileDetails from './pages/FileDetails'
 import Folders from './pages/Folders'
@@ -13,6 +16,12 @@ import UploadFile from './pages/UploadFile'
 import PublicShare from './pages/PublicShare' // 1. Import new page
 import Notifications from './pages/Notifications'
 import { useEffect } from 'react'
+import { useAuth } from './context/AuthContext'
+
+function DashboardRoute() {
+  const { user } = useAuth()
+  return user?.role?.toLowerCase() === 'admin' ? <AdminOverview /> : <Dashboard />
+}
 
 function AppRoutes() {
   const location = useLocation()
@@ -25,6 +34,8 @@ function AppRoutes() {
         ? 'Create account'
         : path.startsWith('/folders')
           ? 'Folders'
+          : path === '/admin'
+            ? 'Manage users'
           : path === '/dashboard'
             ? 'Overview'
             : 'Secure file sharing'
@@ -49,7 +60,7 @@ function AppRoutes() {
           <Protected>
             <Layout>
               <Routes>
-                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/dashboard" element={<DashboardRoute />} />
                 <Route path="/files" element={<MyFiles />} />
                 <Route path="/files/upload" element={<UploadFile />} />
                 <Route path="/files/:id" element={<FileDetails />} />
@@ -60,6 +71,8 @@ function AppRoutes() {
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/security" element={<Security />} />
                 <Route path="/activity" element={<Activity />} />
+                <Route path="/admin" element={<Admin />} />
+                <Route path="/admin/users/:userId/activity" element={<AdminUserActivity />} />
                 <Route path="*" element={<Navigate to="/dashboard" />} />
               </Routes>
             </Layout>

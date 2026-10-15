@@ -39,6 +39,7 @@ export function Layout({ children }) {
     '/activity': 'Activity',
     '/profile': 'Profile',
     '/security': 'Security',
+    '/admin': 'Admin panel',
   }
 
   useEffect(() => { 
@@ -61,8 +62,8 @@ export function Layout({ children }) {
       <main>
         <header>
           <div>
-            <span className="eyebrow">SECURE FILE SHARING</span>
-            <h1>{pageTitles[location.pathname] || 'File details'}</h1>
+            {!location.pathname.startsWith('/admin') && <span className="eyebrow">SECURE FILE SHARING</span>}
+            <h1>{location.pathname.startsWith('/admin') ? 'Manage users' : (pageTitles[location.pathname] || 'File details')}</h1>
           </div>
           <div className="header-actions">
             <NotificationBell />

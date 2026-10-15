@@ -1,6 +1,7 @@
 import logging
 from sqlalchemy.orm import Session
 from ..models.notification import Notification
+from ..models import User
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,28 @@ def create_notification(
     db.commit()
     db.refresh(notification)
     return notification
+
+
+def notify_admins(
+    db: Session,
+    type: str,
+    title: str,
+    message: str,
+    exclude_user_id: int | None = None,
+) -> int:
+    """Notify active administrators about platform-level events."""
+    admins = db.query(User).filter(
+        User.role.ilike("admin"),
+        User.is_active.is_(True),
+    )
+    if exclude_user_id is not None:
+        admins = admins.filter(User.id != exclude_user_id)
+    admin_ids = [admin.id for admin in admins.all()]
+    for admin_id in admin_ids:
+        db.add(Notification(user_id=admin_id, type=type, title=title, message=message, is_read=False))
+    if admin_ids:
+        db.commit()
+    return len(admin_ids)
 
 
 def get_user_notifications(db: Session, user_id: int, limit: int = 100) -> list[Notification]:

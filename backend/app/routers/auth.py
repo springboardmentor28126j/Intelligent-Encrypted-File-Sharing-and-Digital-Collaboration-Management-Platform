@@ -33,7 +33,7 @@ from ..services.mfa_service import (
     generate_mfa_secret,
     verify_totp_code,
 )
-from ..services.notification_service import create_notification
+from ..services.notification_service import create_notification, notify_admins
 from ..services.security_service import (
     check_login_lockout,
     record_failed_login,
@@ -106,6 +106,12 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+    notify_admins(
+        db=db,
+        type="admin_alert",
+        title="New user registration",
+        message=f"{user.name} ({user.email}) created a new TrustShare account.",
+    )
 
     return user
 

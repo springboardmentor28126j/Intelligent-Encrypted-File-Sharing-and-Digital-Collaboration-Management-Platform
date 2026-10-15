@@ -11,7 +11,7 @@ from .database import (
     ensure_user_mfa_columns,
 )
 from . import models
-from .routers import activity, auth, dashboard, files, folders, notifications, secure_share_links, shares, users
+from .routers import activity, admin, auth, dashboard, files, folders, notifications, secure_share_links, shares, users
 from .redis_client import redis_conn
 
 
@@ -42,12 +42,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-    ],
+    allow_origins=[origin.strip() for origin in settings.frontend_origin.split(",") if origin.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -60,6 +55,7 @@ app.include_router(files.router)
 app.include_router(shares.router)
 app.include_router(secure_share_links.router)
 app.include_router(activity.router)
+app.include_router(admin.router)
 app.include_router(dashboard.router)
 app.include_router(notifications.router)
 
