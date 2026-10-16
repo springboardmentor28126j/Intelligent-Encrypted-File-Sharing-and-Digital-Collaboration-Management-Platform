@@ -188,12 +188,6 @@ AWS_ACCESS_KEY_ID=YOUR_AWS_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY=YOUR_AWS_SECRET_ACCESS_KEY
 AWS_REGION=YOUR_AWS_REGION
 
-# Optional AI Assistant
-AI_API_KEY=
-AI_MODEL=gpt-4o-mini
-AI_API_URL=https://api.openai.com/v1/chat/completions
-
-
 ```
 
 ### Configure Amazon S3
