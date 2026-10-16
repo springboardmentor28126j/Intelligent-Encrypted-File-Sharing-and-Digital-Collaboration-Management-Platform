@@ -2945,13 +2945,6 @@ const navigationItems = [
                   subtitle="Within 24 hours"
                 />
 
-                <StatCard
-                  icon="✓"
-                  title="Protection"
-                  value="AES-256"
-                  subtitle="Encryption active"
-                />
-
               </div>
 
               {/* RECENT FILES */}
@@ -3266,28 +3259,6 @@ const navigationItems = [
                     />
 
                   </div>
-
-                  <button
-                    onClick={() =>
-                      setActiveSection(
-                        "security"
-                      )
-                    }
-                    className="
-                      mt-7
-                      w-full
-                      rounded-xl
-                      bg-white
-                      px-4
-                      py-3
-                      text-sm
-                      font-semibold
-                      text-gray-900
-                      hover:bg-gray-100
-                    "
-                  >
-                    Security Details
-                  </button>
 
                 </div>
 
@@ -4091,44 +4062,6 @@ const navigationItems = [
                 title="Security Center"
                 description="Review the security mechanisms and security alerts detected in your Trust Share workspace."
               />
-
-              <div
-                className="
-                  grid
-                  gap-5
-                  lg:grid-cols-2
-                "
-              >
-
-                <SecurityLargeCard
-                  icon="◇"
-                  title="AES-256-GCM Encryption"
-                  description="Uploaded files are encrypted before being stored."
-                  status="Active"
-                />
-
-                <SecurityLargeCard
-                  icon="◆"
-                  title="JWT Authentication"
-                  description="Authenticated API requests are protected using JWT access tokens."
-                  status="Active"
-                />
-
-                <SecurityLargeCard
-                  icon="●"
-                  title="Password Protection"
-                  description="User passwords are stored using secure password hashing."
-                  status="Protected"
-                />
-
-                <SecurityLargeCard
-                  icon="◷"
-                  title="Temporary File Access"
-                  description="Shared access can automatically expire after the selected duration."
-                  status="Enabled"
-                />
-
-              </div>
 
               {/* SECURITY ALERTS */}
 
@@ -4970,410 +4903,135 @@ const navigationItems = [
               REPORTS
           ================================================= */}
 
-          {activeSection ===
-            "reports" && (
+          {activeSection === "reports" && (
             <section>
-
               <PageHeading
                 eyebrow="Reports"
-                title="Activity & Security Reports"
-                description="Review file activity and security events recorded in your Trust Share workspace."
+                title="Reports"
+                description="View a consolidated overview of file operations, sharing activity, downloads, and security events in your Trust Share workspace."
               />
 
               <div className="mb-6 flex justify-end">
                 <button
                   onClick={loadReports}
                   disabled={reportLoading}
-                  className="
-                    rounded-xl
-                    bg-gray-900
-                    px-5
-                    py-3
-                    text-sm
-                    font-semibold
-                    text-white
-                    hover:bg-gray-800
-                    disabled:cursor-not-allowed
-                    disabled:opacity-50
-                  "
+                  className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {reportLoading
-                    ? "Refreshing..."
-                    : "Refresh Reports"}
+                  {reportLoading ? "Refreshing..." : "Refresh Reports"}
                 </button>
               </div>
 
-              {/* FILE ACTIVITY REPORT */}
+              {(() => {
+                const actionCount = (terms: string[]) => activityReport.filter((item) => {
+                  const action = (item.action || "").toLowerCase().replaceAll("_", " ");
+                  return terms.some((term) => action.includes(term));
+                }).length;
+                const isFileSharedAlert = (alert: SecurityAlert) =>
+                  (alert.alert_type || "").toLowerCase().replaceAll("_", " ").includes("file shared");
+                const isShareActivity = (item: ActivityItem) =>
+                  (item.action || "").toLowerCase().replaceAll("_", " ").includes("share");
+                const matchesSameShare = (item: ActivityItem, alert: SecurityAlert) => {
+                  if (!isShareActivity(item) || !isFileSharedAlert(alert)) return false;
+                  if ((item.filename || "").trim().toLowerCase() !== (alert.filename || "").trim().toLowerCase()) return false;
+                  const activityTime = new Date(item.timestamp || 0).getTime();
+                  const alertTime = new Date(alert.timestamp || 0).getTime();
+                  // Treat matching file-share records within two minutes as the same operation.
+                  return Number.isFinite(activityTime) && Number.isFinite(alertTime) && Math.abs(activityTime - alertTime) <= 2 * 60 * 1000;
+                };
+                const allReportRows = [
+                  // Keep the File Activity row as the single source of truth for a successful share.
+                  ...activityReport.map((item) => ({
+                    id: `activity-${item.id}`,
+                    type: "File Activity",
+                    event: (item.action || "Activity").replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase()),
+                    status: item.status || "recorded",
+                    details: isShareActivity(item) && item.target_user
+                      ? `File sharing successfully completed for ${item.target_user}.`
+                      : item.details || item.target_user || "-",
+                    filename: item.filename || "-",
+                    time: item.timestamp || "",
+                    severity: "",
+                  })),
+                  // Hide duplicate security alerts when a share activity exists for the same file.
+                  ...securityReport
+                    .filter((alert) => !isFileSharedAlert(alert) || !activityReport.some((item) =>
+                      isShareActivity(item) &&
+                      (item.filename || "").trim().toLowerCase() === (alert.filename || "").trim().toLowerCase()
+                    ))
+                    .map((alert) => ({
+                      id: `security-${alert.id}`,
+                      type: "Security Event",
+                      event: (alert.alert_type || "Security Alert").replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase()),
+                      status: alert.read ? "reviewed" : "new alert",
+                      details: alert.message || "-",
+                      filename: alert.filename || "-",
+                      time: alert.timestamp || "",
+                      severity: alert.severity || "medium",
+                    })),
+                ].sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime());
 
-              <div
-                className="
-                  mb-6
-                  overflow-hidden
-                  rounded-2xl
-                  border
-                  border-gray-200
-                  bg-white
-                "
-              >
+                return (
+                  <>
+                    <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                      <StatCard icon="↑" title="File Uploads" value={actionCount(["upload"])} subtitle="Recorded upload events" />
+                      <StatCard icon="↓" title="File Downloads" value={actionCount(["download"])} subtitle="Recorded download events" />
+                      <StatCard icon="↗" title="File Sharing" value={actionCount(["share"])} subtitle="Sharing and permission events" />
+                      <StatCard icon="🔗" title="Public Link Activity" value={actionCount(["public link", "public_link"])} subtitle="Public link views and downloads" />
+                      <StatCard icon="⌫" title="Deleted Files" value={actionCount(["delete", "deleted", "file_removed"])} subtitle="Recorded file deletion events" />
+                      <StatCard icon="◇" title="Security Events" value={securityReport.length} subtitle="Security alerts recorded" />
+                    </div>
 
-                <div
-                  className="
-                    border-b
-                    border-gray-100
-                    px-6
-                    py-5
-                  "
-                >
-                  <h3 className="font-bold">
-                    File Activity Report
-                  </h3>
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-6 py-5">
+                        <div>
+                          <h3 className="font-bold">All Reports</h3>
+                          <p className="mt-1 text-xs text-gray-400">Combined report of recorded file operations and security events</p>
+                        </div>
+                        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">{allReportRows.length} records</span>
+                      </div>
 
-                  <p className="mt-1 text-xs text-gray-400">
-                    Recent file operations recorded for your account.
-                  </p>
-                </div>
-
-                {reportLoading ? (
-
-                  <div className="px-6 py-16 text-center">
-                    <div
-                      className="
-                        mx-auto
-                        h-8
-                        w-8
-                        animate-spin
-                        rounded-full
-                        border-4
-                        border-gray-200
-                        border-t-gray-900
-                      "
-                    />
-
-                    <p className="mt-4 text-sm text-gray-500">
-                      Loading activity report...
-                    </p>
-                  </div>
-
-                ) : activityReport.length === 0 ? (
-
-                  <EmptyState
-                    icon="≡"
-                    title="No activity records"
-                    description="No file activity has been recorded for your account yet."
-                  />
-
-                ) : (
-
-                  <div className="overflow-x-auto">
-
-                    <table className="w-full text-left">
-
-                      <thead>
-                        <tr
-                          className="
-                            border-b
-                            border-gray-100
-                            text-[10px]
-                            uppercase
-                            tracking-wider
-                            text-gray-400
-                          "
-                        >
-                          <th className="px-6 py-4">
-                            Action
-                          </th>
-
-                          <th className="px-6 py-4">
-                            File
-                          </th>
-
-                          <th className="px-6 py-4">
-                            Status
-                          </th>
-
-                          <th className="px-6 py-4">
-                            Details
-                          </th>
-
-                          <th className="px-6 py-4">
-                            Time
-                          </th>
-                        </tr>
-                      </thead>
-
-                      <tbody>
-
-                        {activityReport.map(
-                          (activity) => (
-                            <tr
-                              key={activity.id}
-                              className="
-                                border-b
-                                border-gray-50
-                                last:border-0
-                                hover:bg-gray-50
-                              "
-                            >
-
-                              <td className="px-6 py-4">
-                                <span className="text-sm font-semibold">
-                                  {activity.action
-                                    ? activity.action
-                                        .replaceAll(
-                                          "_",
-                                          " "
-                                        )
-                                        .replace(
-                                          /\b\w/g,
-                                          (char) =>
-                                            char.toUpperCase()
-                                        )
-                                    : "-"}
-                                </span>
-                              </td>
-
-                              <td className="px-6 py-4">
-                                <span className="text-sm">
-                                  {activity.filename ||
-                                    "-"}
-                                </span>
-                              </td>
-
-                              <td className="px-6 py-4">
-                                <span
-                                  className="
-                                    rounded-full
-                                    bg-emerald-50
-                                    px-3
-                                    py-1
-                                    text-[10px]
-                                    font-bold
-                                    text-emerald-700
-                                  "
-                                >
-                                  {activity.status ||
-                                    "-"}
-                                </span>
-                              </td>
-
-                              <td className="px-6 py-4">
-                                <span className="text-xs text-gray-500">
-                                  {activity.details ||
-                                    "-"}
-                                </span>
-                              </td>
-
-                              <td className="px-6 py-4">
-                                <span className="whitespace-nowrap text-xs text-gray-400">
-                                  {activity.timestamp
-                                    ? formatDateTime(activity.timestamp)
-                                    : "-"}
-                                </span>
-                              </td>
-
-                            </tr>
-                          )
-                        )}
-
-                      </tbody>
-
-                    </table>
-
-                  </div>
-
-                )}
-
-              </div>
-
-              {/* SECURITY REPORT */}
-
-              <div
-                className="
-                  overflow-hidden
-                  rounded-2xl
-                  border
-                  border-gray-200
-                  bg-white
-                "
-              >
-
-                <div
-                  className="
-                    border-b
-                    border-gray-100
-                    px-6
-                    py-5
-                  "
-                >
-                  <h3 className="font-bold">
-                    Security Report
-                  </h3>
-
-                  <p className="mt-1 text-xs text-gray-400">
-                    Security alerts detected for your account.
-                  </p>
-                </div>
-
-                {reportLoading ? (
-
-                  <div className="px-6 py-16 text-center">
-                    <p className="text-sm text-gray-500">
-                      Loading security report...
-                    </p>
-                  </div>
-
-                ) : securityReport.length === 0 ? (
-
-                  <EmptyState
-                    icon="◇"
-                    title="No security alerts"
-                    description="No security alerts have been recorded for your account."
-                  />
-
-                ) : (
-
-                  <div className="overflow-x-auto">
-
-                    <table className="w-full text-left">
-
-                      <thead>
-                        <tr
-                          className="
-                            border-b
-                            border-gray-100
-                            text-[10px]
-                            uppercase
-                            tracking-wider
-                            text-gray-400
-                          "
-                        >
-                          <th className="px-6 py-4">
-                            Alert
-                          </th>
-
-                          <th className="px-6 py-4">
-                            Severity
-                          </th>
-
-                          <th className="px-6 py-4">
-                            Message
-                          </th>
-
-                          <th className="px-6 py-4">
-                            File
-                          </th>
-
-                          <th className="px-6 py-4">
-                            IP Address
-                          </th>
-
-                          <th className="px-6 py-4">
-                            Time
-                          </th>
-                        </tr>
-                      </thead>
-
-                      <tbody>
-
-                        {securityReport.map(
-                          (alert) => (
-                            <tr
-                              key={alert.id}
-                              className="
-                                border-b
-                                border-gray-50
-                                last:border-0
-                                hover:bg-gray-50
-                              "
-                            >
-
-                              <td className="px-6 py-4">
-                                <span className="text-sm font-semibold">
-                                  {alert.alert_type
-                                    ? alert.alert_type
-                                        .replaceAll(
-                                          "_",
-                                          " "
-                                        )
-                                        .replace(
-                                          /\b\w/g,
-                                          (char) =>
-                                            char.toUpperCase()
-                                        )
-                                    : "Security Alert"}
-                                </span>
-                              </td>
-
-                              <td className="px-6 py-4">
-                                <span
-                                  className={`
-                                    rounded-full
-                                    border
-                                    px-3
-                                    py-1
-                                    text-[10px]
-                                    font-bold
-                                    ${
-                                      alert.severity
-                                        ?.toLowerCase() ===
-                                      "high"
-                                        ? "border-red-200 bg-red-50 text-red-700"
-                                        : alert.severity
-                                            ?.toLowerCase() ===
-                                          "medium"
-                                        ? "border-amber-200 bg-amber-50 text-amber-700"
-                                        : "border-blue-200 bg-blue-50 text-blue-700"
-                                    }
-                                  `}
-                                >
-                                  {alert.severity ||
-                                    "medium"}
-                                </span>
-                              </td>
-
-                              <td className="px-6 py-4">
-                                <span className="text-xs text-gray-500">
-                                  {alert.message ||
-                                    "-"}
-                                </span>
-                              </td>
-
-                              <td className="px-6 py-4">
-                                <span className="text-xs text-gray-500">
-                                  {alert.filename ||
-                                    "-"}
-                                </span>
-                              </td>
-
-                              <td className="px-6 py-4">
-                                <span className="text-xs text-gray-500">
-                                  {alert.ip_address ||
-                                    "-"}
-                                </span>
-                              </td>
-
-                              <td className="px-6 py-4">
-                                <span className="whitespace-nowrap text-xs text-gray-400">
-                                  {alert.timestamp
-                                    ? formatDateTime(alert.timestamp)
-                                    : "-"}
-                                </span>
-                              </td>
-
-                            </tr>
-                          )
-                        )}
-
-                      </tbody>
-
-                    </table>
-
-                  </div>
-
-                )}
-
-              </div>
-
+                      {reportLoading ? (
+                        <div className="px-6 py-14 text-center text-sm text-gray-500">Loading reports...</div>
+                      ) : allReportRows.length === 0 ? (
+                        <EmptyState icon="▤" title="No reports available" description="File operations and security events will appear here when records are available." />
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left">
+                            <thead>
+                              <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-400">
+                                <th className="px-6 py-4">Report Type</th>
+                                <th className="px-6 py-4">Event</th>
+                                <th className="px-6 py-4">File</th>
+                                <th className="px-6 py-4">Status / Severity</th>
+                                <th className="px-6 py-4">Details</th>
+                                <th className="px-6 py-4">Time</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {allReportRows.map((row) => (
+                                <tr key={row.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
+                                  <td className="px-6 py-4">
+                                    <span className={`rounded-full px-3 py-1 text-[10px] font-semibold ${row.type === "Security Event" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700"}`}>{row.type}</span>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm font-semibold text-gray-800">{row.event}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-600">{row.filename}</td>
+                                  <td className="px-6 py-4">
+                                    <span className={`rounded-full px-3 py-1 text-[10px] font-semibold ${row.severity ? (row.severity.toLowerCase() === "high" ? "bg-red-50 text-red-700" : row.severity.toLowerCase() === "medium" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700") : "bg-emerald-50 text-emerald-700"}`}>
+                                      {row.severity ? row.severity : row.status}
+                                    </span>
+                                  </td>
+                                  <td className="max-w-xs px-6 py-4 text-xs text-gray-500">{row.details}</td>
+                                  <td className="whitespace-nowrap px-6 py-4 text-xs text-gray-400">{row.time ? formatDateTime(row.time) : "-"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </section>
           )}
 
@@ -5427,13 +5085,6 @@ const navigationItems = [
                         ).length ?? 0
                       }
                       subtitle="Files stored in cloud storage"
-                    />
-
-                    <StatCard
-                      icon="✓"
-                      title="Encryption"
-                      value="AES-256"
-                      subtitle="Encrypted before storage"
                     />
 
                   </div>
