@@ -406,38 +406,6 @@ python test_s3_connection.py
 Run cloud tests only against AWS resources you own or are authorised to
 access.
 
-## Security Notes
-
--   Keep `.env`, database passwords, AWS keys, AI API keys, JWT signing
-    secrets, and `MASTER_KEY` out of Git.
--   Add `.env`, virtual environments, generated build output, and real
-    uploaded files to `.gitignore`.
--   Use HTTPS in production.
--   Keep the S3 bucket private and apply least-privilege IAM
-    permissions.
--   Back up PostgreSQL and `MASTER_KEY` securely.
--   Ensure the JWT signing secret is strong and loaded from an
-    environment variable rather than a hard-coded development value.
--   The password-reset flow must verify account ownership using a
-    one-time link or code before public deployment.
--   Review AI-provider data policies before sending document text
-    externally.
--   Restrict CORS to trusted frontend origins.
--   Do not store real user files or secrets in a public repository.
-
-## Deployment Checklist
-
-Before making the application publicly available, verify:
-
--   [ ] JWT signing secret is strong and environment-configured.
--   [ ] Password reset verifies email ownership.
--   [ ] S3 bucket is private and IAM permissions are limited.
--   [ ] `MASTER_KEY` is backed up securely and never committed.
--   [ ] HTTPS and production CORS origins are configured.
--   [ ] File size/type limits and rate limiting are appropriate.
--   [ ] AI-provider use and document-text transfer are disclosed.
--   [ ] Database backups, monitoring, and recovery procedures are
-    tested.
 
 
 
